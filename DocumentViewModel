@@ -1,0 +1,27 @@
+using System;
+
+namespace BacaratWeb.ViewModel.Transfert
+{
+    public class DocumentViewModel
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; }
+
+        public string Description { get; set; }
+
+        public string ContentType { get; set; }
+
+        public string FileSizeLabel { get; set; }
+
+        public DateTime UploadDate { get; set; }
+
+        public DateTime? ExpiryDate { get; set; }
+
+        public string RecipientEmail { get; set; }
+
+        public string OwnerName { get; set; }
+
+        public string StatusLabel { get; set; }
+    }
+}
