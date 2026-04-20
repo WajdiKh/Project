@@ -1,0 +1,149 @@
+Contact : LAM Philippe / CHEN Lingjie
+
+Objectif
+Créer une interface utilisateur intuitive permettant aux utilisateurs de visualiser et gérer leurs documents personnels ainsi que ceux partagés avec eux.
+
+Contexte
+Notre application de stockage et partage de documents sécurisés doit permettre aux utilisateurs de distinguer clairement les documents dont ils sont propriétaires et ceux qui ont été partagés avec eux par d'autres utilisateurs.
+
+Fonctionnalités attendues
+Navigation et organisation
+Ajouter dans administration module : le module Transfert (nom temporaire)
+Pour les utilisateurs qui ont le module sans les droits lecture ou écriture, afficher module sans qu'il soit cliquable
+Pour les utilisateurs qui ont le module avec le droit d'écriture, afficher module cliquable et redirige sur une nouvelle page
+Image
+Mes documents : 
+le Bouton "Ajouter"
+un Datagrid pour afficher les documents dont l'utilisateur est propriétaire
+Nom du document
+
+Description (si disponible)
+
+Type de fichier
+
+Taille du fichier
+
+Date d'ajout 
+
+Date d'expiration
+
+Propriétaire (l'utilisateur lui-même ou un autre utilisateur)
+
+Statut : actif ou expiré
+
+sur chaque ligne, avoir les boutons Télécharger et Supprimer  (avec pop up de confirmation)
+
+Attention la notion de partage est fait sur l'Id SharedWithUserId et sur l'adresse mail dans DocumentShare, 
+Avec l'Id dans Commun.Utilisateur.Id et Commun.Utilisateur.Email
+
+Image
+Ajouter : 
+nom du fichier
+description
+date d'expiration : par défaut 2 jours mais modifiable avec un combo box (24h, 48h, 72h) -   en jour ouvré
+fichier : 
+tous les fichiers doivent être zippé (rar, tar, gz, zip, 7z)
+La taille du document ne doit pas dépasser 10Mo
+clé de chiffrement (s'il y en a) 
+e-mail (textbox) : avec un contrôle de format e-mail. Lorsque l'utilisateur valide le popup, ça cherche si l'e-mail renseigné a un utilisateur sur BacaratWeb dans la table Commun.Utilisateur 
+si oui, sauvegarde un DocumentShare
+sinon, message bloquant "l'utilisateur n'existe pas dans BacaratWeb Transfert. Merci d'effectuer une demande d'habilitation pour le destinataire. "
+Image
+Après l'enregistrement, 
+générer le code de sécurité et sauvegarder dans la base
+attribuer le statut Actif au document
+
+Notification après l'ajout -------------------------------------------------------------------------------------------------------------------------------------------------------------
+Nous vous informons qu'un document a été partagé avec vous sur la plateforme BacaratWeb.
+
+Détails du document :
+
+Nom : [Nom du document]
+
+Partagé par : [Nom du partageant]
+
+Date de partage : de [Date de la création] à [Date d'expiration]
+
+URL de téléchargement
+
+Code de sécurité pour téléchargement
+
+Clé de chiffrement (s'il y en a) 
+Nous vous souhaitons une bonne réception. 
+
+Cordialement,
+
+L'équipe BacaratWeb
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Recherche et filtrage
+Barre de recherche permettant de filtrer les documents affichés dans l'onglet actif
+
+La recherche doit s'appliquer sur le nom, la description et le type de document
+
+Database
+
+
+    public class Document
+    {
+        public int Id { get; set; }
+       
+        [Required]
+        public string Name { get; set; }
+       
+        public string Description { get; set; }
+             
+        // Stocke l'empreinte du fichier pour vérifier l'intégrité
+        public byte[] FileContent{ get; set; }
+       
+        public long FileSize { get; set; }
+       
+        public string ContentType { get; set; }
+       
+        public DateTime UploadDate { get; set; }
+       
+        public DateTime? LastModifiedDate { get; set; }
+       
+        [Required]
+        public int OwnerId { get; set; }
+       
+        public virtual Utilisateur Owner { get; set; }
+       
+        public virtual ICollection<DocumentShare> SharedWith { get; set; }
+    }
+
+    public class DocumentShare
+    {
+        public int DocumentId { get; set; }
+        public virtual Document Document { get; set; }
+       
+        public int SharedWithUserId { get; set; }
+        public virtual Utilisateur SharedWithUser { get; set; }
+       
+        public DateTime SharedDate { get; set; }
+       
+        public DateTime? ExpiryDate { get; set; }
+
+        public string Email { get; set; }
+
+    }
+
+
+
+Téléchargement : 
+en cliquant sur l'url de téléchargement, ouvrir une page vide avec la demande de saisie du code de sécurité
+si le code de sécurité saisi correspond, 
+vérifier l'existence du document, 
+si non existant, afficher le message : "document expiré."
+si existant, télécharger le fichier
+une fois téléchargé, supprimer le fichier 
+créer la ligne d'audit
+notification du propriétaire du document
+Archivage : 
+au bout du délai d'expiration indiqué, supprimer le doc
+mettre le statut Expiré
+notifier J-1 avant la date de suppression 
+créer la ligne d'audit
+Utilisateur :
+
+
