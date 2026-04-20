@@ -1,0 +1,3 @@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@using BacaratWeb.ViewModel.Transfert
+@using DevExtreme.AspNet.Mvc
