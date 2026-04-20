@@ -1,0 +1,74 @@
+using BacaratWeb.ViewModel.Transfert;
+using Microsoft.AspNetCore.Mvc;
+
+namespace BacaratWeb.Areas.Transfert.Controllers
+{
+    [Area("Transfert")]
+    public class DocumentController : Controller
+    {
+        [HttpGet]
+        public IActionResult Index()
+        {
+            return View();
+        }
+
+        [HttpGet]
+        public IActionResult GetMyDocuments()
+        {
+            var data = new List<DocumentViewModel>();
+            return Json(data);
+        }
+
+        [HttpGet]
+        public IActionResult GetSharedWithMeDocuments()
+        {
+            var data = new List<DocumentViewModel>();
+            return Json(data);
+        }
+
+        [HttpPost]
+        public IActionResult Add(AddDocumentViewModel model)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest("Données invalides.");
+
+            return Ok(new { success = true });
+        }
+
+        [HttpPost]
+        public IActionResult Delete(int id)
+        {
+            return Ok(new { success = true });
+        }
+
+        [HttpGet]
+        public IActionResult Download(int id)
+        {
+            var vm = new DownloadDocumentViewModel
+            {
+                DocumentId = id
+            };
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        public IActionResult ValidateSecurityCode(DownloadDocumentViewModel model)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest("Code de sécurité invalide.");
+
+            return Ok(new
+            {
+                success = true,
+                downloadUrl = Url.Action("DownloadFile", "Document", new { area = "Transfert", id = model.DocumentId })
+            });
+        }
+
+        [HttpGet]
+        public IActionResult DownloadFile(int id)
+        {
+            return BadRequest("Téléchargement non implémenté.");
+        }
+    }
+}
