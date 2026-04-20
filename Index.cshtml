@@ -1,0 +1,110 @@
+@{
+    ViewData["Title"] = "Transfert";
+}
+
+<div class="container-fluid">
+    <h2>Transfert</h2>
+
+    <div class="mb-3">
+        @(Html.DevExtreme().Button()
+            .Text("Ajouter")
+            .Icon("add")
+            .Type(ButtonType.Default)
+            .OnClick("Transfert.Document.onAddClick"))
+    </div>
+
+    @(Html.DevExtreme().TabPanel()
+        .ID("transfertTabPanel")
+        .Items(items =>
+        {
+            items.Add()
+                .Title("Mes documents")
+                .Template(@<text>
+                    <div class="mt-3">
+                        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+                            .ID("myDocumentsGrid")
+                            .ShowBorders(true)
+                            .ColumnAutoWidth(true)
+                            .SearchPanel(s => s
+                                .Visible(true)
+                                .Placeholder("Rechercher..."))
+                            .Columns(columns =>
+                            {
+                                columns.AddFor(m => m.Name).Caption("Nom du document");
+                                columns.AddFor(m => m.Description).Caption("Description");
+                                columns.AddFor(m => m.ContentType).Caption("Type de fichier");
+                                columns.AddFor(m => m.FileSizeLabel).Caption("Taille");
+                                columns.AddFor(m => m.UploadDate).Caption("Date d'ajout");
+                                columns.AddFor(m => m.ExpiryDate).Caption("Date d'expiration");
+                                columns.AddFor(m => m.RecipientEmail).Caption("Destinataire");
+                                columns.AddFor(m => m.StatusLabel).Caption("Statut");
+
+                                columns.Add()
+                                    .Type(GridCommandColumnType.Buttons)
+                                    .Buttons(buttons =>
+                                    {
+                                        buttons.Add()
+                                            .Hint("Télécharger")
+                                            .Icon("download")
+                                            .OnClick("Transfert.Document.onDownloadClick");
+
+                                        buttons.Add()
+                                            .Hint("Supprimer")
+                                            .Icon("trash")
+                                            .OnClick("Transfert.Document.onDeleteClick");
+                                    });
+                            })
+                            .DataSource(ds => ds.Mvc()
+                                .Area("Transfert")
+                                .Controller("Document")
+                                .LoadAction("GetMyDocuments"))
+                        )
+                    </div>
+                </text>);
+
+            items.Add()
+                .Title("Partagés avec moi")
+                .Template(@<text>
+                    <div class="mt-3">
+                        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+                            .ID("sharedWithMeGrid")
+                            .ShowBorders(true)
+                            .ColumnAutoWidth(true)
+                            .SearchPanel(s => s
+                                .Visible(true)
+                                .Placeholder("Rechercher..."))
+                            .Columns(columns =>
+                            {
+                                columns.AddFor(m => m.Name).Caption("Nom du document");
+                                columns.AddFor(m => m.Description).Caption("Description");
+                                columns.AddFor(m => m.ContentType).Caption("Type de fichier");
+                                columns.AddFor(m => m.FileSizeLabel).Caption("Taille");
+                                columns.AddFor(m => m.UploadDate).Caption("Date d'ajout");
+                                columns.AddFor(m => m.ExpiryDate).Caption("Date d'expiration");
+                                columns.AddFor(m => m.OwnerName).Caption("Propriétaire");
+                                columns.AddFor(m => m.StatusLabel).Caption("Statut");
+
+                                columns.Add()
+                                    .Type(GridCommandColumnType.Buttons)
+                                    .Buttons(buttons =>
+                                    {
+                                        buttons.Add()
+                                            .Hint("Télécharger")
+                                            .Icon("download")
+                                            .OnClick("Transfert.Document.onDownloadClick");
+                                    });
+                            })
+                            .DataSource(ds => ds.Mvc()
+                                .Area("Transfert")
+                                .Controller("Document")
+                                .LoadAction("GetSharedWithMeDocuments"))
+                        )
+                    </div>
+                </text>);
+        })
+    )
+</div>
+
+@await Html.PartialAsync("_AddDocumentPopup")
+
+<script src="~/Areas/transfert/javascript/document.js"></script>
