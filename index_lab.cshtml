@@ -1,0 +1,396 @@
+@inject IViewTranslator translator
+@*@inject IRoleAccessUser _roleAccess*@
+
+@model LabViewModel
+@{
+    Layout = "_Layout";
+    Model.Search.LabSearchCriteria.IsManagementMode = false;
+    Model.Search.LabSearchCriteria.EditionMode = ViewBag.Mode;
+    var title = translator.Common["Recherche"];
+    if (ViewBag.Mode == EditionMode.Reporting)
+    {
+        title = "LCB-FT >> " + translator.Common["Reporting"] + " >> " + translator.Common["Dossiers"];
+    }
+    if (ViewBag.Mode == EditionMode.ReportingTiers)
+    {
+        title = "LCB-FT >> " + translator.Common["Reporting"] + " >> " + translator.Common["Tiers"];
+    }
+    if (ViewBag.Mode == EditionMode.Tracfin)
+    {
+        title = "LCB-FT >> " + translator.Common["Reporting"] + " >> " + translator.Common["Tracfin"];
+    }
+}
+
+@{
+    ViewData["Title"] = translator.Common["Lab.TitleDossiersLab"];
+    var currentCulture = Context.Features.Get<IRequestCultureFeature>().RequestCulture.Culture.TwoLetterISOLanguageName;
+}
+
+<div class="smallCaps text-green mt-2 mb-2">
+    <div id="menuSelectMode"></div>
+</div>
+
+<div id="modeContainer">
+    @if (ViewBag.OneMode == null || !ViewBag.OneMode)
+    {
+        @if (Model.Isole)
+        {
+            Model.Search.LabSearchCriteria.IsManagementMode = true;
+            <script>
+                $(document).ready(function () {
+                    $("#menuSelectMode").dxMenu({
+                        icon: "fas fa-tasks color-green2 adjust-icon-menu",
+                        text: _labTranslatableMessageManagementMode,
+
+                    });
+                });
+            </script>
+        }
+        else
+        {
+            @if (ViewBag.Mode == EditionMode.Management && Model.IsWriteLab && !Model.IsReadOnly)
+            {
+                Model.Search.LabSearchCriteria.IsManagementMode = true;
+				<script>
+                    $(document).ready(function () {
+                        $("#menuSelectMode").dxMenu({
+                            items: [
+                                {
+                                    icon: "fas fa-tasks color-green2 adjust-icon-menu",
+                                    text: _labTranslatableMessageManagementMode,
+                                    items: [                                      
+                                        {
+                                            icon: "fas fa-info adjust-icon-submenu",
+                                            text: _labTranslatableMessageResponseRequest,
+                                            onClick: function () { location = '/@(currentCulture)/lab/dossiers/demandeInformation' }
+                                        }
+                                    ]
+                                }
+                            ]
+                        });
+			        });
+				</script>
+            }
+            else if (ViewBag.Mode == EditionMode.Management && Model.IsWriteLab && Model.IsReadOnly)
+            {
+                Model.Search.LabSearchCriteria.IsManagementMode = true;
+				<script>
+	                $(document).ready(function () {
+	                    $("#menuSelectMode").dxMenu({
+	                        items: [
+	                            {
+	                                icon: "fas fa-tasks color-green2 adjust-icon-menu",
+	                                text: _labTranslatableMessageManagementMode,
+	                                items: [
+	                                    {
+	                                        icon:"fas fa-eye adjust-icon-submenu",
+	                                        text: _labTranslatableMessageViewerMode,
+	                                        onClick: function () { location = '/@(currentCulture)/lab/dossiers/viewer' }
+	                                    },
+	                                    {
+	                                        icon: "fas fa-info adjust-icon-submenu",
+	                                        text: _labTranslatableMessageResponseRequest,
+	                                        onClick: function () { location = '/@(currentCulture)/lab/dossiers/demandeInformation' }
+	                                    }
+	                                ]
+	                            }
+	                        ]
+	                    });
+	                });
+				</script>
+            }
+            else if (ViewBag.Mode == EditionMode.Viewer && Model.IsWriteLab && Model.IsReadOnly)
+            {
+				<script>
+	                $(document).ready(function () {
+	                    $("#menuSelectMode").dxMenu({
+	                        items: [
+	                            {
+	                                icon: "fas fa-eye color-green2 adjust-icon-menu",
+	                                text: _labTranslatableMessageViewerMode,
+	                                items: [
+	                                    {
+	                                        icon: "fas fa-tasks adjust-icon-submenu",
+	                                        text: _labTranslatableMessageManagementMode,
+	                                        onClick: function () { location = '/@(currentCulture)/lab/dossiers/management' }
+	                                    },
+	                                    {
+	                                        icon: "fas fa-info adjust-icon-submenu",
+	                                        text: _labTranslatableMessageResponseRequest,
+	                                        onClick: function () { location = '/@(currentCulture)/lab/dossiers/demandeInformation' }
+	                                    }
+	                                ]
+	                            }
+	                        ]
+	                    });
+	                });
+				</script>
+            }
+            else if (ViewBag.Mode == EditionMode.Viewer && !Model.IsWriteLab && Model.IsReadOnly)
+            {
+                <script>
+                    $(document).ready(function () {
+                        $("#menuSelectMode").dxMenu({
+                            items: [
+                                {
+                                    icon: "fas fa-eye color-green2 adjust-icon-menu",
+                                    text: _labTranslatableMessageViewerMode,
+                                    items: []
+                                },
+                                {
+                                    icon: "fas fa-info adjust-icon-submenu",
+                                    text: _labTranslatableMessageResponseRequest,
+                                    onClick: function () { location = '/@(currentCulture)/lab/dossiers/demandeInformation' }
+                                }
+                            ]
+                        });
+                    });
+                </script>
+            }
+        }
+    }
+
+
+    @if (ViewBag.OneMode != null && ViewBag.OneMode == true)
+    {
+        @if (Model.IsReadOnly)
+        {
+            Model.Search.LabSearchCriteria.IsManagementMode = false;
+            <script>
+                $(document).ready(function () {
+                    $("#menuSelectMode").dxMenu({
+                        items: [
+                            {
+                                icon: "fas fa-eye color-green2 adjust-icon-menu",
+                                text: _labTranslatableMessageViewerMode
+                            }
+                        ]
+                    });
+                });
+            </script>
+        }
+    }
+</div>
+
+<script>
+    var _iswritelab = '@Model.IsWriteLab' == 'True' ? true : false;
+</script>
+
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header">
+                <h6 class="m-0 text-green text-font-weight-600">
+                    <i class="fas fa-search mr-2"></i>@title
+                </h6>
+            </div>
+
+            <div class="card-body" id="search-container">
+                @await Html.PartialAsync("SearchDossiersLabView", Model.Search)
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!Model.Search.LabSearchCriteria.IsRobot)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header">
+                    <h6 class="m-0 text-green text-font-weight-600">
+                        <i class="fas fa-poll-h mr-2"></i>@translator.Common["ResultatsRecherche"]
+                    </h6>
+                </div>
+
+                <div class="card-body">
+
+                    @if (ViewBag.Mode != EditionMode.Reporting && ViewBag.Mode != EditionMode.ReportingTiers && ViewBag.Mode != EditionMode.Tracfin)
+                    {
+                        <div class="mb-2" id="actionLabDiv">
+                            @await Html.PartialAsync("_PartialManageActionDossierLab", Model.ManageActionDossierLab)
+                        </div>
+                    }
+                    @{
+                        if (ViewBag.Mode == EditionMode.Management)
+                        {
+                            @await Html.PartialAsync("DataGridPageManager", Model.Search.LabSearchCriteria)
+                        }
+                        if (ViewBag.Mode == EditionMode.Viewer)
+                        {
+                            @await Html.PartialAsync("DataGridPageViewer", Model.Search.LabSearchCriteria)
+                        }
+                        if (ViewBag.Mode == EditionMode.Reporting)
+                        {
+                            Model.Search.LabSearchCriteria.IsReporting = true;
+                            <script>_isReportingDossierLab = true;</script>
+                            @await Html.PartialAsync("DataGridPageReporting", Model.Search.LabSearchCriteria)
+                        }
+                        if (ViewBag.Mode == EditionMode.ReportingTiers)
+                        {
+                            Model.Search.LabSearchCriteria.IsReporting = true;
+                            <script>_isReportingDossierLab = true; _isReportingTiers = true;</script>
+                            @await Html.PartialAsync("DataGridPageReportingTiers", Model.Search.LabSearchCriteria)
+                        }
+                        if (ViewBag.Mode == EditionMode.Tracfin)
+                        {
+                            Model.Search.LabSearchCriteria.IsReporting = true;
+                            <script>_isReportingDossierLab = true;</script>
+                            @await Html.PartialAsync("DataGridPageReportingTracfin", Model.Search.LabSearchCriteria)
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div id="modalTiers">
+    <div id="tiersScrollView">
+    </div>
+</div>
+
+
+@(Html.DevExtreme().Popup()
+    .ID("modalTiers")
+    .ElementAttr(new Dictionary<string, object>
+    { { "class", "popup" } })
+    .ShowTitle(true)
+    .Title("Tiers")
+    .DragEnabled(true).ShowCloseButton(true).ShowTitle(true)
+    .ResizeEnabled(false).Width("35%")
+    )
+@(Html.DevExtreme().Popup()
+    .ID("AuditDossierLabModalPreview")
+    .ElementAttr(new Dictionary<string, object>
+    { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .Width("auto")
+    .Height("auto")
+    .OnShowing("auditDossieLabModalPreview_OnShowing")
+    .ElementAttr("style", "min-Height:95%;overflow-y: scroll;")
+    .TitleTemplate(@<text>
+        <div class="d-flex flex-row align-items-center w-100">
+            <div class="flex-grow-1 font-size-16px text-green text-font-weight-600 smallCaps">
+                <i class="fas fa-history mr-2"></i>@translator.Common["Audit"]
+            </div>
+            <div class="flex-grow-1 text-center smallCaps text-green">
+                @translator.Common["DirectionOfAttachment"]: @ViewBag.DefaultDirectionName
+            </div>
+            <div class="flex-grow-1 d-flex justify-content-end">
+                <button type="button" class="btn btn-link p-0 mr-2" title="Agrandir / Restaurer"
+                    onclick="toggleMaximizePopup('AuditDossierLabModalPreview', '60%', 'auto')">
+                    <i class="fas fa-expand" id="AuditDossierLabModalPreview_maximizeIcon"></i>
+				</button>
+                <button type="button" class="btn btn-link p-0" aria-label="Close"
+                    onclick="$('#AuditDossierLabModalPreview').dxPopup('instance').hide()">
+                    <i class="fas fa-times text-danger" style="font-size:18px;"></i>
+                </button>
+            </div>
+        </div>
+                    </text>))
+@(Html.DevExtreme().Popup()
+    .ID("VisualisationDSModalPreview")
+    .ElementAttr(new Dictionary<string, object>
+    { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true)
+    .ResizeEnabled(true)
+    .Width("80%")
+    .Height("90%")
+    .ElementAttr("style", "min-Height:95%;overflow-y: scroll;")
+    .TitleTemplate(@<text>
+                      		<div class="d-flex flex-row align-items-center w-100">
+			<div class="flex-grow-1 font-size-16px text-green text-font-weight-600 smallCaps">
+				<i class="fas fa-envelope-open-text color-blue2 mr-2"></i> @translator.Common["DeclarationSoupcon"]
+			</div>
+			<div class="flex-grow-1 text-center smallCaps text-green">
+				@translator.Common["DirectionOfAttachment"]: @ViewBag.DefaultDirectionName
+			</div>
+			<div class="flex-grow-1 d-flex justify-content-end">
+                <button type="button" class="btn btn-link p-0 mr-2" title="Agrandir / Restaurer"
+                    onclick="toggleMaximizePopup('VisualisationDSModalPreview', '60%', 'auto')">
+                    <i class="fas fa-expand" id="VisualisationDSModalPreview_maximizeIcon"></i>
+				</button>
+				<button type="button" class="btn btn-link p-0" aria-label="Close"
+					onclick="$('#VisualisationDSModalPreview').dxPopup('instance').hide()">
+					<i class="fas fa-times text-danger" style="font-size:18px;"></i>
+				</button>
+			</div>
+		</div>
+                    </text>))
+@(Html.DevExtreme().Popup()
+    .ID("ExportDossierLabTypeModalPreview")
+    .ElementAttr(new Dictionary<string, object>
+    { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .Width("50%")
+    .Height("35%")
+    .ElementAttr("style", "min-Height:50%;overflow-y: scroll;")
+    .TitleTemplate(@<text>
+        <div class="d-flex flex-row align-items-center w-100">
+            <div class="flex-grow-1 font-size-16px text-green text-font-weight-600 smallCaps">
+                <i class="fas fa-info-circle color-blue mr-2"></i>@translator.Common["Export"]
+            </div>
+            <div class="flex-grow-1 text-center smallCaps text-green">
+                @translator.Common["DirectionOfAttachment"]: @ViewBag.DefaultDirectionName
+            </div>
+            <div class="flex-grow-1 d-flex justify-content-end">
+                <button type="button" class="btn btn-link p-0 mr-2" title="Agrandir / Restaurer"
+                    onclick="toggleMaximizePopup('ExportDossierLabTypeModalPreview', '60%', 'auto')">
+                    <i class="fas fa-expand" id="ExportDossierLabTypeModalPreview_maximizeIcon"></i>
+                </button>
+                <button type="button" class="btn btn-link p-0" aria-label="Close"
+                    onclick="$('#ExportDossierLabTypeModalPreview').dxPopup('instance').hide()">
+                    <i class="fas fa-times text-danger" style="font-size:18px;"></i>
+                </button>
+            </div>
+        </div>
+        </text>))
+
+@(Html.DevExtreme().Popup()
+    .ID(Constants.DeleteDossierPopupId)
+    .ElementAttr(new Dictionary<string, object>
+    { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true).ShowTitle(true)
+    .ResizeEnabled(false)
+    .Width("60%")
+    .Height("auto")
+    .TitleTemplate(@<text>
+        <div class="d-flex flex-row align-items-center w-100">
+            <div class="flex-grow-1 font-size-16px text-green text-font-weight-600 smallCaps">
+                <i class="fas fa-history mr-2"></i>@translator.Common["Lab.TitleDeleteCases"]
+            </div>
+            <div class="flex-grow-1 text-center smallCaps text-green">
+                @translator.Common["DirectionOfAttachment"]: @ViewBag.DefaultDirectionName
+            </div>
+            <div class="flex-grow-1 d-flex justify-content-end">
+                <button type="button" class="btn btn-link p-0 mr-2" title="Agrandir / Restaurer"
+                        onclick="toggleMaximizePopup('@Constants.DeleteDossierPopupId', '60%', 'auto')">
+                    <i class="fas fa-expand" id="DeleteDossierModalPreview_maximizeIcon"></i>
+                </button>
+                <button type="button" class="btn btn-link p-0" aria-label="Close"
+                        onclick="$('#@Constants.DeleteDossierPopupId').dxPopup('instance').hide()">
+                    <i class="fas fa-times text-danger" style="font-size:18px;"></i>
+                </button>
+            </div>
+        </div>
+
+    </text>))
+
+<script>
+    $('#CancelConfirmDeleteDemandeInformationLab').click(function (event) {
+        cancelVisualisationDSModalPreviewLab_onClick();
+    });
+
+    $(document).ready(function () {
+        payssearchLab_load();
+        initbuttonAddManager();
+    });
+</script>
