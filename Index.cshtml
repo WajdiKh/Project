@@ -1,5 +1,6 @@
+@using BacaratWeb.ViewModel.Transfert
+
 @{
-    ViewData["Title"] = "Transfert";
     var currentMode = ViewBag.Mode ?? "all";
 }
 
@@ -13,7 +14,7 @@
 
 <div id="transfertContent">
     <div id="gridAllDocumentsContainer" style="display:none;">
-        @(Html.DevExtreme().DataGrid<BacaratWeb.ViewModel.Transfert.DocumentViewModel>()
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
             .ID("allDocumentsGrid")
             .ShowBorders(true)
             .ColumnAutoWidth(true)
@@ -38,7 +39,7 @@
     </div>
 
     <div id="gridMyDocumentsContainer" style="display:none;">
-        @(Html.DevExtreme().DataGrid<BacaratWeb.ViewModel.Transfert.DocumentViewModel>()
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
             .ID("myDocumentsGrid")
             .ShowBorders(true)
             .ColumnAutoWidth(true)
@@ -62,7 +63,7 @@
     </div>
 
     <div id="gridSharedDocumentsContainer" style="display:none;">
-        @(Html.DevExtreme().DataGrid<BacaratWeb.ViewModel.Transfert.DocumentViewModel>()
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
             .ID("sharedDocumentsGrid")
             .ShowBorders(true)
             .ColumnAutoWidth(true)
@@ -85,5 +86,3 @@
         )
     </div>
 </div>
-
-<script src="~/Areas/transfert/javascript/document.js"></script>
