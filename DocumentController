@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace BacaratWeb.Areas.Transfert.Controllers
 {
+    [Authorize]
     [Area("Transfert")]
     public class DocumentController : Controller
     {
-        [HttpGet]
-        public IActionResult Index()
+        [Route("{culture:required}/transfert/document/{mode?}")]
+        public IActionResult Index(string mode="all")
         {
+            ViewBag.Mode = mode;
             return View();
         }
 
