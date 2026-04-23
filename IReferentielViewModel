@@ -1,0 +1,2 @@
+using BacaratWeb.ViewModel.Transfert;
+IEnumerable<StatutDocumentViewModel> StatutDocuments { get; }
