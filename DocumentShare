@@ -1,0 +1,32 @@
+using BacaratWeb.Entities.Commun;
+using System;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace BacaratWeb.Entities.Transfert
+{
+    [Table("DocumentShare", Schema = "Transfert")]
+    public sealed class DocumentShare
+    {
+        [Key]
+        public int Id { get; set; }
+
+        public int DocumentId { get; set; }
+
+        public int SharedWithUserId { get; set; }
+
+        [Required]
+        [StringLength(320)]
+        public string Email { get; set; }
+
+        public DateTimeOffset SharedDate { get; set; }
+
+        public DateTimeOffset ExpiryDate { get; set; }
+
+        [ForeignKey(nameof(DocumentId))]
+        public Document Document { get; set; }
+
+        [ForeignKey(nameof(SharedWithUserId))]
+        public Utilisateur SharedWithUser { get; set; }
+    }
+}
