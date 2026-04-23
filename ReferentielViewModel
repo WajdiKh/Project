@@ -1,0 +1,8 @@
+using BacaratWeb.ViewModel.Transfert;
+
+private Func<Task<IEnumerable<StatutDocumentViewModel>>> GetStatutDocumentCollection => () =>
+    this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+        () => _service.GetStatutDocuments(),
+        x => x.ProjectTo<StatutDocumentViewModel>(_mapper.ConfigurationProvider));
+
+public IEnumerable<StatutDocumentViewModel> StatutDocuments => GetStatutDocumentCollection().Result;
