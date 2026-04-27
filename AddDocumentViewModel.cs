@@ -22,4 +22,9 @@ namespace BacaratWeb.ViewModel.Transfert
 
         public DateTime? ExpiryDate { get; set; }
     }
+
+[StringLength(255)]
+public string EncryptionKey { get; set; }
+
+public int ExpiryDelayHours { get; set; } = 48;
 }
