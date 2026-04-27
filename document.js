@@ -4,8 +4,7 @@ window.Transfert.Document = window.Transfert.Document || {};
 $(document).ready(function () {
     Transfert.Document.initMenuSelectMode();
     Transfert.Document.applyMode(_transfertCurrentMode || "all");
-
-Transfert.Document.initAddButton();
+    Transfert.Document.initAddButton();
 });
 
 Transfert.Document.getModeLabel = function (mode) {
