@@ -1,4 +1,4 @@
-7@using BacaratWeb.ViewModel.Transfert
+@using BacaratWeb.ViewModel.Transfert
 
 @{
     var currentMode = ViewBag.Mode ?? "all";
@@ -43,7 +43,13 @@
         )
     </div>
 
+    
     <div id="gridMyDocumentsContainer" style="display:none;">
+    <div class="mb-2">
+        <div id="btnAddDocument">
+
+        </div>
+    </div>
     @(Html.DevExtreme().DataGrid<DocumentViewModel>()
         .ID("myDocumentsGrid")
         .ShowBorders(true)
