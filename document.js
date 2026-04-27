@@ -4,6 +4,8 @@ window.Transfert.Document = window.Transfert.Document || {};
 $(document).ready(function () {
     Transfert.Document.initMenuSelectMode();
     Transfert.Document.applyMode(_transfertCurrentMode || "all");
+
+Transfert.Document.initAddButton();
 });
 
 Transfert.Document.getModeLabel = function (mode) {
@@ -99,4 +101,104 @@ Transfert.Document.refreshGrid = function (gridId) {
     if (grid) {
         grid.refresh();
     }
+};
+
+Transfert.Document.initAddButton = function () {
+    $("#btnAddDocument").dxButton({
+        text: "Ajouter",
+        icon: "add",
+        type: "success",
+        onClick: function () {
+            Transfert.Document.openAddPopup();
+        }
+    });
+};
+
+Transfert.Document.openAddPopup = function () {
+
+    $("#addDocumentForm").dxForm({
+        formData: {},
+        items: [
+            {
+                dataField: "Name",
+                label: { text: "Nom" },
+                isRequired: true
+            },
+            {
+                dataField: "Description",
+                label: { text: "Description" }
+            },
+            {
+                dataField: "RecipientEmail",
+                label: { text: "Email destinataire" },
+                isRequired: true
+            },
+            {
+                dataField: "File",
+                label: { text: "Fichier" },
+                editorType: "dxFileUploader",
+                editorOptions: {
+                    multiple: false,
+                    accept: ".zip,.rar,.7z,.tar,.gz",
+                    maxFileSize: 10485760 // 10MB
+                }
+            }
+        ]
+    });
+
+Transfert.Document.submitAddDocument = function () {
+
+    var form = $("#addDocumentForm").dxForm("instance");
+    var data = form.option("formData");
+
+    if (!data.Name || !data.RecipientEmail || !data.File) {
+        DevExpress.ui.notify("Champs obligatoires manquants", "error", 3000);
+        return;
+    }
+
+    var file = data.File[0];
+
+    if (!file) {
+        DevExpress.ui.notify("Fichier obligatoire", "error", 3000);
+        return;
+    }
+
+    if (file.size > 10485760) {
+        DevExpress.ui.notify("Fichier > 10Mo", "error", 3000);
+        return;
+    }
+
+    var formData = new FormData();
+    formData.append("Name", data.Name);
+    formData.append("Description", data.Description);
+    formData.append("RecipientEmail", data.RecipientEmail);
+    formData.append("File", file);
+
+    $.ajax({
+        url: "/Transfert/Document/Add",
+        method: "POST",
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function () {
+            DevExpress.ui.notify("Document ajouté", "success", 3000);
+
+            $("#addDocumentPopup").dxPopup("instance").hide();
+            Transfert.Document.refreshGrid("myDocumentsGrid");
+        },
+        error: function () {
+            DevExpress.ui.notify("Erreur lors de l'ajout", "error", 3000);
+        }
+    });
+};
+
+    $("#btnSubmitAddDocument").dxButton({
+        text: "Ajouter",
+        type: "success",
+        onClick: function () {
+            Transfert.Document.submitAddDocument();
+        }
+    });
+
+    $("#addDocumentPopup").dxPopup("instance").show();
 };
