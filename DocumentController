@@ -31,12 +31,56 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         }
 
         [HttpPost]
-        public IActionResult Add(AddDocumentViewModel model)
-        {
-            if (!ModelState.IsValid)
-                return BadRequest("Données invalides.");
+public async Task<IActionResult> Add(AddDocumentViewModel model)
+{
+    if (!ModelState.IsValid)
+        return BadRequest("Données invalides.");
 
-            return Ok(new { success = true });
+    if (model.File == null || model.File.Length == 0)
+        return BadRequest("Fichier obligatoire.");
+
+    if (model.File.Length > 10 * 1024 * 1024)
+        return BadRequest("Fichier trop volumineux.");
+
+    byte[] fileBytes;
+    using (var ms = new MemoryStream())
+    {
+        await model.File.CopyToAsync(ms);
+        fileBytes = ms.ToArray();
+    }
+
+    // ⚠️ temporaire (à remplacer par user connecté)
+    var userId = 1;
+
+    var document = new Document
+    {
+        Name = model.Name,
+        Description = model.Description,
+        FileContent = fileBytes,
+        FileSize = model.File.Length,
+        ContentType = model.File.ContentType,
+        UploadDate = DateTimeOffset.Now,
+        ExpiryDate = model.ExpiryDate ?? DateTimeOffset.Now.AddDays(2),
+        OwnerId = userId,
+        SecurityCode = Guid.NewGuid().ToString("N").Substring(0, 6)
+    };
+
+    var share = new DocumentShare
+    {
+        Email = model.RecipientEmail,
+        SharedDate = DateTimeOffset.Now,
+        ExpiryDate = document.ExpiryDate
+    };
+
+    // ⚠️ pour l'instant sans service
+    _context.Documents.Add(document);
+    share.Document = document;
+    _context.DocumentShares.Add(share);
+
+    await _context.SaveChangesAsync();
+
+    return Ok(new { success = true });
+}
         }
 
         [HttpPost]
