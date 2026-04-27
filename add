@@ -1,0 +1,72 @@
+[HttpPost]
+[Route("{culture:required}/transfert/document/add")]
+public async Task<IActionResult> Add(AddDocumentViewModel model, CancellationToken token)
+{
+    if (!ModelState.IsValid)
+        return BadRequest("Données invalides.");
+
+    if (model.File == null || model.File.Length == 0)
+        return BadRequest("Le fichier est obligatoire.");
+
+    if (model.File.Length > 10 * 1024 * 1024)
+        return BadRequest("La taille du document ne doit pas dépasser 10Mo.");
+
+    var extension = Path.GetExtension(model.File.FileName)?.ToLowerInvariant();
+    var allowedExtensions = new[] { ".zip", ".rar", ".7z", ".tar", ".gz" };
+
+    if (!allowedExtensions.Contains(extension))
+        return BadRequest("Le fichier doit être une archive : zip, rar, 7z, tar ou gz.");
+
+    var recipient = await _utilisateurService.GetUtilisateurByEmailAsync(model.RecipientEmail, token);
+
+    if (recipient == null)
+        return BadRequest("L'utilisateur n'existe pas dans BacaratWeb Transfert. Merci d'effectuer une demande d'habilitation pour le destinataire.");
+
+    var statutActif = await _documentService.GetStatutDocumentByCodeAsync("Active", token);
+
+    if (statutActif == null)
+        return BadRequest("Le statut actif est introuvable.");
+
+    byte[] fileContent;
+    using (var memoryStream = new MemoryStream())
+    {
+        await model.File.CopyToAsync(memoryStream, token);
+        fileContent = memoryStream.ToArray();
+    }
+
+    var expiryDate = model.ExpiryDate.HasValue
+        ? new DateTimeOffset(model.ExpiryDate.Value)
+        : DateTimeOffset.Now.AddDays(2);
+
+    var document = new Document
+    {
+        Name = model.Name,
+        Description = model.Description,
+        OriginalFileName = model.File.FileName,
+        FileExtension = extension,
+        ContentType = model.File.ContentType,
+        FileContent = fileContent,
+        FileSize = model.File.Length,
+        UploadDate = DateTimeOffset.Now,
+        ExpiryDate = expiryDate,
+        OwnerId = CurrentUser.Id,
+        StatutDocumentId = statutActif.Id,
+        SecurityCode = GenerateSecurityCode(),
+        EncryptionKey = null
+    };
+
+    var documentShare = new DocumentShare
+    {
+        SharedWithUserId = recipient.Id,
+        Email = recipient.Email,
+        SharedDate = DateTimeOffset.Now,
+        ExpiryDate = expiryDate
+    };
+
+    var result = await _documentService.AddDocumentAsync(document, documentShare, token);
+
+    if (!result)
+        return BadRequest("Erreur lors de l'ajout du document.");
+
+    return Ok(new { success = true });
+}
