@@ -1,8 +1,8 @@
-using BacaratWeb.Entities.Transfert;
 using BacaratWeb.Services.Commun.Interfaces;
-using System.Collections.Generic;
+using BacaratWeb.Entities.Transfert;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace BacaratWeb.Services.Transfert.Services.Interfaces
 {
