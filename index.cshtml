@@ -43,7 +43,7 @@
         )
     </div>
 
-   <div id="gridMyDocumentsContainer" style="display:none;">
+    <div id="gridMyDocumentsContainer" style="display:none;">
     @(Html.DevExtreme().DataGrid<DocumentViewModel>()
         .ID("myDocumentsGrid")
         .ShowBorders(true)
@@ -68,32 +68,32 @@
             .Controller("Document")
             .LoadAction("GetMyDocuments"))
     )
-</div>
+    </div>
 
-<div id="gridSharedDocumentsContainer" style="display:none;">
-    @(Html.DevExtreme().DataGrid<DocumentViewModel>()
-        .ID("sharedDocumentsGrid")
-        .ShowBorders(true)
-        .ColumnAutoWidth(true)
-        .SearchPanel(s => s.Visible(true).Placeholder("Rechercher..."))
-        .Columns(columns =>
-        {
-            columns.AddFor(m => m.Name).Caption("Nom du document");
-            columns.AddFor(m => m.Description).Caption("Description");
-            columns.AddFor(m => m.ContentType).Caption("Type");
-            columns.AddFor(m => m.FileSize).Caption("Taille");
-            columns.AddFor(m => m.UploadDate).Caption("Date d'ajout");
-            columns.AddFor(m => m.ExpiryDate).Caption("Date d'expiration");
-            columns.AddFor(m => m.OwnerName).Caption("Propriétaire");
+    <div id="gridSharedDocumentsContainer" style="display:none;">
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+            .ID("sharedDocumentsGrid")
+            .ShowBorders(true)
+            .ColumnAutoWidth(true)
+            .SearchPanel(s => s.Visible(true).Placeholder("Rechercher..."))
+            .Columns(columns =>
+            {
+                columns.AddFor(m => m.Name).Caption("Nom du document");
+                columns.AddFor(m => m.Description).Caption("Description");
+                columns.AddFor(m => m.ContentType).Caption("Type");
+                columns.AddFor(m => m.FileSize).Caption("Taille");
+                columns.AddFor(m => m.UploadDate).Caption("Date d'ajout");
+                columns.AddFor(m => m.ExpiryDate).Caption("Date d'expiration");
+                columns.AddFor(m => m.OwnerName).Caption("Propriétaire");
 
-            columns.Add()
-                .Caption("Statut")
-                .DataField($"StatutDocumentName{language}");
-        })
-        .DataSource(ds => ds.Mvc()
-            .Area("Transfert")
-            .Controller("Document")
-            .LoadAction("GetSharedWithMeDocuments"))
-    )
-</div>
+                columns.Add()
+                    .Caption("Statut")
+                    .DataField($"StatutDocumentName{language}");
+            })
+            .DataSource(ds => ds.Mvc()
+                .Area("Transfert")
+                .Controller("Document")
+                .LoadAction("GetSharedWithMeDocuments"))
+        )
+    </div>
 </div>
