@@ -1,4 +1,4 @@
-@using BacaratWeb.ViewModel.Transfert
+7@using BacaratWeb.ViewModel.Transfert
 
 @{
     var currentMode = ViewBag.Mode ?? "all";
@@ -97,3 +97,18 @@
         )
     </div>
 </div>
+@(Html.DevExtreme().Popup()
+    .ID("addDocumentPopup")
+    .Width(500)
+    .Height("auto")
+    .ShowTitle(true)
+    .Title("Ajouter un document")
+    .DragEnabled(true)
+    .CloseOnOutsideClick(true)
+    .ContentTemplate(@<text>
+        <div id="addDocumentForm"></div>
+        <div class="mt-3 text-right">
+            <div id="btnSubmitAddDocument"></div>
+        </div>
+    </text>)
+)
