@@ -119,4 +119,9 @@ public async Task<IActionResult> Add(AddDocumentViewModel model)
             return BadRequest("Téléchargement non implémenté.");
         }
     }
+
+private static string GenerateSecurityCode()
+{
+    return Guid.NewGuid().ToString("N").Substring(0, 6).ToUpperInvariant();
+}
 }
