@@ -1,12 +1,12 @@
 using BacaratWeb.Entities.Transfert;
-using BacaratWeb.Model.Entities;
 using BacaratWeb.Services.Commun;
 using BacaratWeb.Services.Transfert.Services.Interfaces;
-using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using BacaratWeb.Model.Entities;
+using System.Linq;
+using Microsoft.EntityFrameworkCore;
 
 namespace BacaratWeb.Services.Transfert.Services
 {
