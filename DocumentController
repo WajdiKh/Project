@@ -1,5 +1,7 @@
 using BacaratWeb.ViewModel.Transfert;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using System.Collections.Generic;
 
 namespace BacaratWeb.Areas.Transfert.Controllers
 {
