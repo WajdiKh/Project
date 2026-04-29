@@ -325,3 +325,41 @@ $("#btnEnregistrerTemplate").dxButton("instance").option("onClick", function () 
 
     Transfert.Document.submitAddDocument();
 });
+
+    Transfert.Document.initFileUploaderChange = function () {
+    $("#FileUploader").on("change", function () {
+        var fileInput = this;
+        var container = $("#selected-document-name-container");
+
+        container.empty();
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+            return;
+        }
+
+        var file = fileInput.files[0];
+
+        var allowedExtensions = [".zip", ".rar", ".tar", ".gz", ".7z"];
+        var extension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+
+        if (allowedExtensions.indexOf(extension) === -1) {
+            DevExpress.ui.notify("Tous les fichiers doivent être zippés : rar, tar, gz, zip, 7z.", "error", 3000);
+            fileInput.value = "";
+            container.empty();
+            return;
+        }
+
+        if (file.size > 10485760) {
+            DevExpress.ui.notify("La taille du document ne doit pas dépasser 10Mo.", "error", 3000);
+            fileInput.value = "";
+            container.empty();
+            return;
+        }
+
+        container.html(
+            '<div class="text-green mt-2 text-truncate">' +
+            file.name +
+            '</div>'
+        );
+    });
+};
