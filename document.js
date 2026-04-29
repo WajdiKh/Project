@@ -300,3 +300,14 @@ Transfert.Document.initAddDocumentValidators = function () {
         ]
     });
 };
+
+Transfert.Document.validateSelectedFile = function () {
+    var fileInput = $("#FileUploader")[0];
+
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        DevExpress.ui.notify(_transfertTranslatableDocumentFileRequired, "error", 3000);
+        return false;
+    }
+
+    return true;
+};
