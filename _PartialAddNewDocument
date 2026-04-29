@@ -1,0 +1,133 @@
+
+@inject IViewTranslator translator
+
+@{
+    var expiryDelaysHour = new[]{
+        new {Id = 24, Label = "24h"},
+        new {Id = 48, Label = "48h"},
+        new {Id = 72, Label = "72h"},
+    };
+}
+
+<div class="card-body">
+    @using (Html.BeginForm(FormMethod.Post, new { id = TransfertConstants.AddNewDocumentFormId }))
+    {
+        @using (Html.DevExtreme().ValidationGroup(TransfertConstants.AddNewDocumentFormValidationGroupName))
+        {
+            <div class="row mb-5">
+                <div class="col-sm-12 col-md-2">
+                    <div class="text-truncate text-green"> @translator.Common["FileName"] :</div>
+                </div>
+                <div class="col-sm-12 col-md-10">
+                    @(Html.DevExtreme()
+                        .TextBox()
+                        .ID("Name")
+                        .Height(30)
+                        .Name("Name")
+                        .Width("100%"))
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-sm-12 col-md-2">
+                    <div class="text-truncate text-green"> @translator.Common["Description"] :</div>
+                </div>
+                <div class="col-sm-12 col-md-10">
+                    @(Html.DevExtreme()
+                        .TextArea()
+                        .ID("Description")
+                        .Height(90)
+                        .Name("Description")
+                        .Width("100%"))
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-sm-12 col-md-2">
+                    <div class="text-truncate text-green">@translator.Common["ExpirationDelay"] :</div>
+                </div>
+                <div class="col-sm-12 col-md-10">
+                    @(Html.DevExtreme()
+                    .SelectBox()
+                    .ID("ExpiryDelayHours")
+                    .Name("ExpiryDelayHours")
+                    .DataSource(expiryDelaysHour)
+                    .ValueExpr("Id")
+                    .DisplayExpr("Label")
+                    .Value(48)
+                    .Width("100%"))
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-sm-12 col-md-2">
+                    <div class="text-truncate text-green"> @translator.Common["EncryptionKey"] :</div>
+                </div>
+                <div class="col-sm-12 col-md-10">
+                    @(Html.DevExtreme()
+                        .TextBox()
+                        .ID("EncryptionKey")
+                        .Height(30)
+                        .Name("EncryptionKey")
+                        .Width("100%"))
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-sm-12 col-md-2">
+                    <div class="text-truncate text-green">@translator.Common["Email"] :</div>
+                </div>
+                <div class="col-sm-12 col-md-10">
+                    @(Html.DevExtreme()
+                        .TextBox()
+                        .ID("RecipientEmail")
+                        .Height(30)
+                        .Name("RecipientEmail")
+                        .Width("100%"))
+                </div>
+            </div>
+            <div class="row mb-3" id="inputFile">
+                 <div class="col-sm-12 col-md-2">
+                    <div class="text-truncate text-green">@translator.Common["File"] :</div>
+                </div>
+                <div class="col-sm-12 col-md-10 input-group">
+                    <div class="custom-file">
+                        <input type="file" class="custom-file-input" id="FileUploader" name="File">
+                        <label class="custom-file-label" for="FileUploader">@translator.Common["Selectfile"]</label>
+                    </div>
+                </div>
+                <div id="selected-document-name-container">
+                </div>
+
+                <style>
+                    .custom-file-input ~ .custom-file-label::after { content: '@translator.Common["Browse"]'; }
+
+                    .custom-file-label { height: 30px; }
+
+                    .custom-file-label::after {
+                        height: 30px;
+                        line-height: 12px;
+                    }
+                </style>
+            </div>
+            <div class="row mt-5">
+                <div class="col d-flex justify-content-end align-items-center">
+                    <div class="mr-2">
+                        @(Html.DevExtreme()
+                            .Button()
+                            .ID("btnEnregistrerTemplate")
+                            .Text(translator.Common["Save"])
+                            .UseSubmitBehavior(false)
+                            .Type(ButtonType.Normal)
+                            .Icon("save")
+                            .ElementAttr("class", "color-blue"))
+                    </div>
+                    <div>
+                        @(Html.DevExtreme()
+                            .Button()
+                            .ID("btnFermer")
+                            .Icon("close")
+                            .Text(translator.Common["Close"])
+                            .ElementAttr("class", "color-red"))
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
