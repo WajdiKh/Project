@@ -254,8 +254,9 @@ Transfert.Document.submitAddDocument = function () {
             DevExpress.ui.notify(xhr.responseText || "Erreur lors de l'ajout", "error", 3000);
         
 Transfert.Document.initAddDocumentValidators = function () {
+
     $("#Name").dxValidator({
-        validationGroup: "AddNewDocumentFormValidationGroup",
+        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
         validationRules: [
             { type: "required", message: _transfertTranslatableDocumentNameRequired },
             { type: "stringLength", max: 255, message: _transfertTranslatableDocumentNameMaxLength }
@@ -263,21 +264,21 @@ Transfert.Document.initAddDocumentValidators = function () {
     });
 
     $("#Description").dxValidator({
-        validationGroup: "AddNewDocumentFormValidationGroup",
+        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
         validationRules: [
             { type: "stringLength", max: 1000, message: _transfertTranslatableDocumentDescriptionMaxLength }
         ]
     });
 
     $("#EncryptionKey").dxValidator({
-        validationGroup: "AddNewDocumentFormValidationGroup",
+        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
         validationRules: [
             { type: "stringLength", max: 255, message: _transfertTranslatableDocumentEncryptionKeyMaxLength }
         ]
     });
 
     $("#RecipientEmail").dxValidator({
-        validationGroup: "AddNewDocumentFormValidationGroup",
+        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
         validationRules: [
             { type: "required", message: _transfertTranslatableDocumentRecipientEmailRequired },
             { type: "email", message: _transfertTranslatableDocumentRecipientEmailEmail },
@@ -286,7 +287,7 @@ Transfert.Document.initAddDocumentValidators = function () {
     });
 
     $("#FileUploader").dxValidator({
-        validationGroup: "AddNewDocumentFormValidationGroup",
+        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
         validationRules: [
             {
                 type: "custom",
