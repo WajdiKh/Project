@@ -1,0 +1,12 @@
+var _transfertTranslatableDocumentNameRequired = "@Html.Raw(translator.Common["Transfert.Document.NameRequired"])";
+var _transfertTranslatableDocumentNameMaxLength = "@Html.Raw(translator.Common["Transfert.Document.NameMaxLength"])";
+
+var _transfertTranslatableDocumentDescriptionMaxLength = "@Html.Raw(translator.Common["Transfert.Document.DescriptionMaxLength"])";
+
+var _transfertTranslatableDocumentEncryptionKeyMaxLength = "@Html.Raw(translator.Common["Transfert.Document.EncryptionKeyMaxLength"])";
+
+var _transfertTranslatableDocumentRecipientEmailRequired = "@Html.Raw(translator.Common["Transfert.Document.RecipientEmailRequired"])";
+var _transfertTranslatableDocumentRecipientEmailEmail = "@Html.Raw(translator.Common["Transfert.Document.RecipientEmailEmail"])";
+var _transfertTranslatableDocumentRecipientEmailMaxLength = "@Html.Raw(translator.Common["Transfert.Document.RecipientEmailMaxLength"])";
+
+var _transfertTranslatableDocumentFileRequired = "@Html.Raw(translator.Common["Transfert.Document.FileRequired"])";
