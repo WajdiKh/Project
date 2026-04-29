@@ -311,3 +311,17 @@ Transfert.Document.validateSelectedFile = function () {
 
     return true;
 };
+
+$("#btnEnregistrerTemplate").dxButton("instance").option("onClick", function () {
+    var result = DevExpress.validationEngine.validateGroup(_transfertAddNewDocumentFormValidationGroupName);
+
+    if (!result.isValid) {
+        return;
+    }
+
+    if (!Transfert.Document.validateSelectedFile()) {
+        return;
+    }
+
+    Transfert.Document.submitAddDocument();
+});
