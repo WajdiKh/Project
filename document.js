@@ -257,31 +257,31 @@ Transfert.Document.initAddDocumentValidators = function () {
     $("#Name").dxValidator({
         validationGroup: "AddNewDocumentFormValidationGroup",
         validationRules: [
-            { type: "required", message: _transfertDocumentNameRequired },
-            { type: "stringLength", max: 255, message: _transfertDocumentNameMaxLength }
+            { type: "required", message: _transfertTranslatableDocumentNameRequired },
+            { type: "stringLength", max: 255, message: _transfertTranslatableDocumentNameMaxLength }
         ]
     });
 
     $("#Description").dxValidator({
         validationGroup: "AddNewDocumentFormValidationGroup",
         validationRules: [
-            { type: "stringLength", max: 1000, message: _transfertDocumentDescriptionMaxLength }
+            { type: "stringLength", max: 1000, message: _transfertTranslatableDocumentDescriptionMaxLength }
         ]
     });
 
     $("#EncryptionKey").dxValidator({
         validationGroup: "AddNewDocumentFormValidationGroup",
         validationRules: [
-            { type: "stringLength", max: 255, message: _transfertDocumentEncryptionKeyMaxLength }
+            { type: "stringLength", max: 255, message: _transfertTranslatableDocumentEncryptionKeyMaxLength }
         ]
     });
 
     $("#RecipientEmail").dxValidator({
         validationGroup: "AddNewDocumentFormValidationGroup",
         validationRules: [
-            { type: "required", message: _transfertDocumentRecipientEmailRequired },
-            { type: "email", message: _transfertDocumentRecipientEmailEmail },
-            { type: "stringLength", max: 320, message: _transfertDocumentRecipientEmailMaxLength }
+            { type: "required", message: _transfertTranslatableDocumentRecipientEmailRequired },
+            { type: "email", message: _transfertTranslatableDocumentRecipientEmailEmail },
+            { type: "stringLength", max: 320, message: _transfertTranslatableDocumentRecipientEmailMaxLength }
         ]
     });
 
@@ -290,7 +290,7 @@ Transfert.Document.initAddDocumentValidators = function () {
         validationRules: [
             {
                 type: "custom",
-                message: _transfertDocumentFileRequired,
+                message: _transfertTranslatableDocumentFileRequired,
                 validationCallback: function () {
                     var fileInput = $("#FileUploader")[0];
                     return fileInput && fileInput.files && fileInput.files.length > 0;
