@@ -255,3 +255,50 @@ Transfert.Document.submitAddDocument = function () {
         }
     });
 };
+
+Transfert.Document.initAddDocumentValidators = function () {
+    $("#Name").dxValidator({
+        validationGroup: "AddNewDocumentFormValidationGroup",
+        validationRules: [
+            { type: "required", message: "Le nom du fichier est obligatoire." },
+            { type: "stringLength", max: 255, message: "Le nom du fichier ne doit pas dépasser 255 caractères." }
+        ]
+    });
+
+    $("#Description").dxValidator({
+        validationGroup: "AddNewDocumentFormValidationGroup",
+        validationRules: [
+            { type: "stringLength", max: 1000, message: "La description ne doit pas dépasser 1000 caractères." }
+        ]
+    });
+
+    $("#EncryptionKey").dxValidator({
+        validationGroup: "AddNewDocumentFormValidationGroup",
+        validationRules: [
+            { type: "stringLength", max: 255, message: "La clé de chiffrement ne doit pas dépasser 255 caractères." }
+        ]
+    });
+
+    $("#RecipientEmail").dxValidator({
+        validationGroup: "AddNewDocumentFormValidationGroup",
+        validationRules: [
+            { type: "required", message: "L'e-mail est obligatoire." },
+            { type: "email", message: "Le format de l'e-mail est invalide." },
+            { type: "stringLength", max: 320, message: "L'e-mail ne doit pas dépasser 320 caractères." }
+        ]
+    });
+
+    $("#FileUploader").dxValidator({
+        validationGroup: "AddNewDocumentFormValidationGroup",
+        validationRules: [
+            {
+                type: "custom",
+                message: "Le fichier est obligatoire.",
+                validationCallback: function () {
+                    var fileInput = $("#FileUploader")[0];
+                    return fileInput && fileInput.files && fileInput.files.length > 0;
+                }
+            }
+        ]
+    });
+};
