@@ -252,39 +252,36 @@ Transfert.Document.submitAddDocument = function () {
         },
         error: function (xhr) {
             DevExpress.ui.notify(xhr.responseText || "Erreur lors de l'ajout", "error", 3000);
-        }
-    });
-};
-
+        
 Transfert.Document.initAddDocumentValidators = function () {
     $("#Name").dxValidator({
         validationGroup: "AddNewDocumentFormValidationGroup",
         validationRules: [
-            { type: "required", message: "Le nom du fichier est obligatoire." },
-            { type: "stringLength", max: 255, message: "Le nom du fichier ne doit pas dépasser 255 caractères." }
+            { type: "required", message: _transfertDocumentNameRequired },
+            { type: "stringLength", max: 255, message: _transfertDocumentNameMaxLength }
         ]
     });
 
     $("#Description").dxValidator({
         validationGroup: "AddNewDocumentFormValidationGroup",
         validationRules: [
-            { type: "stringLength", max: 1000, message: "La description ne doit pas dépasser 1000 caractères." }
+            { type: "stringLength", max: 1000, message: _transfertDocumentDescriptionMaxLength }
         ]
     });
 
     $("#EncryptionKey").dxValidator({
         validationGroup: "AddNewDocumentFormValidationGroup",
         validationRules: [
-            { type: "stringLength", max: 255, message: "La clé de chiffrement ne doit pas dépasser 255 caractères." }
+            { type: "stringLength", max: 255, message: _transfertDocumentEncryptionKeyMaxLength }
         ]
     });
 
     $("#RecipientEmail").dxValidator({
         validationGroup: "AddNewDocumentFormValidationGroup",
         validationRules: [
-            { type: "required", message: "L'e-mail est obligatoire." },
-            { type: "email", message: "Le format de l'e-mail est invalide." },
-            { type: "stringLength", max: 320, message: "L'e-mail ne doit pas dépasser 320 caractères." }
+            { type: "required", message: _transfertDocumentRecipientEmailRequired },
+            { type: "email", message: _transfertDocumentRecipientEmailEmail },
+            { type: "stringLength", max: 320, message: _transfertDocumentRecipientEmailMaxLength }
         ]
     });
 
@@ -293,7 +290,7 @@ Transfert.Document.initAddDocumentValidators = function () {
         validationRules: [
             {
                 type: "custom",
-                message: "Le fichier est obligatoire.",
+                message: _transfertDocumentFileRequired,
                 validationCallback: function () {
                     var fileInput = $("#FileUploader")[0];
                     return fileInput && fileInput.files && fileInput.files.length > 0;
