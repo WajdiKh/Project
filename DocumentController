@@ -197,4 +197,22 @@ public async Task<IActionResult> SaveDocument(AddDocumentViewModel model, Cancel
 
     return Ok(new { success = true });
 }
+
+private static string GenerateSecurityCode()
+{
+    return Guid.NewGuid().ToString("N").Substring(0, 6).ToUpperInvariant();
+}
+
+private string GetModelStateErrorMessage()
+{
+    var errorKey = ModelState.Values
+        .SelectMany(v => v.Errors)
+        .Select(e => e.ErrorMessage)
+        .FirstOrDefault();
+
+    if (string.IsNullOrWhiteSpace(errorKey))
+        return "Données invalides.";
+
+    return _translator.Common[errorKey];
+}
 }
