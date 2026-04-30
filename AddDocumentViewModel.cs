@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 
@@ -6,25 +5,25 @@ namespace BacaratWeb.ViewModel.Transfert
 {
     public class AddDocumentViewModel
     {
-        [Required(ErrorMessage = "Le fichier est obligatoire.")]
+        [Required(ErrorMessage = "Transfert.Document.FileRequired")]
         public IFormFile File { get; set; }
 
-        [Required(ErrorMessage = "Le nom est obligatoire.")]
-        [StringLength(255)]
+        [Required(ErrorMessage = "Transfert.Document.NameRequired")]
+        [StringLength(255, ErrorMessage = "Transfert.Document.NameMaxLength")]
         public string Name { get; set; }
 
-        [StringLength(1000)]
+        [StringLength(1000, ErrorMessage = "Transfert.Document.DescriptionMaxLength")]
         public string Description { get; set; }
 
-        [Required(ErrorMessage = "Le destinataire est obligatoire.")]
-        [EmailAddress(ErrorMessage = "Email invalide.")]
+        [Required(ErrorMessage = "Transfert.Document.RecipientEmailRequired")]
+        [EmailAddress(ErrorMessage = "Transfert.Document.RecipientEmailEmail")]
+        [StringLength(320, ErrorMessage = "Transfert.Document.RecipientEmailMaxLength")]
         public string RecipientEmail { get; set; }
 
-        public DateTime? ExpiryDate { get; set; }
+        [StringLength(255, ErrorMessage = "Transfert.Document.EncryptionKeyMaxLength")]
+        public string EncryptionKey { get; set; }
+
+        [Range(24, 72, ErrorMessage = "Transfert.Document.ExpiryDelayHoursRange")]
+        public int ExpiryDelayHours { get; set; } = 48;
     }
-
-[StringLength(255)]
-public string EncryptionKey { get; set; }
-
-public int ExpiryDelayHours { get; set; } = 48;
 }
