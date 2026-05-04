@@ -73,16 +73,33 @@ namespace BacaratWeb.Services.Transfert.Services
                 .ConfigureAwait(false);
         }
 
-        public async Task<bool> AddDocumentAsync(Document document, DocumentShare documentShare, CancellationToken token = default)
-        {
-            await Context.Documents.AddAsync(document, token).ConfigureAwait(false);
+        public async Task<bool> AddDocumentAsync(
+    Document document,
+    DocumentShare documentShare,
+    CancellationToken token = default)
+{
+    using var transaction = await Context.Database.BeginTransactionAsync(token);
 
-            documentShare.Document = document;
+    try
+    {
+        await Context.Documents.AddAsync(document, token);
 
-            await Context.DocumentShares.AddAsync(documentShare, token).ConfigureAwait(false);
+        documentShare.Document = document;
 
-            return await Context.SaveChangesAsync(token).ConfigureAwait(false) > 0;
-        }
+        await Context.DocumentShares.AddAsync(documentShare, token);
+
+        var saved = await Context.SaveChangesAsync(token) > 0;
+
+        await transaction.CommitAsync(token);
+
+        return saved;
+    }
+    catch
+    {
+        await transaction.RollbackAsync(token);
+        throw;
+    }
+}
 
         public async Task<IEnumerable<Document>> GetMyDocumentsAsync(int ownerId, CancellationToken token = default)
         {
