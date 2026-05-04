@@ -10,3 +10,8 @@ var _transfertTranslatableDocumentRecipientEmailEmail = "@Html.Raw(translator.Co
 var _transfertTranslatableDocumentRecipientEmailMaxLength = "@Html.Raw(translator.Common["Transfert.Document.RecipientEmailMaxLength"])";
 
 var _transfertTranslatableDocumentFileRequired = "@Html.Raw(translator.Common["Transfert.Document.FileRequired"])";
+
+var _transfertAddNewDocumentFormId = "@TransfertConstants.AddNewDocumentFormId";
+
+var _transfertDocumentSuccesAjout = "@Html.Raw(translator.Common["Transfert.Document.SuccesAjout"])";
+var _transfertDocumentSaveError = "@Html.Raw(translator.Common["Transfert.Document.SaveError"])";
