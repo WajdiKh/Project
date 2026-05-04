@@ -363,3 +363,41 @@ $("#btnEnregistrerTemplate").dxButton("instance").option("onClick", function () 
         );
     });
 };
+Transfert.Document.saveDocument = function () {
+    var validationResult = DevExpress.validationEngine.validateGroup(
+        _transfertAddNewDocumentFormValidationGroupName
+    );
+
+    if (!validationResult.isValid) {
+        return;
+    }
+
+    if (!Transfert.Document.validateSelectedFile()) {
+        return;
+    }
+
+    var form = $("#" + _transfertAddNewDocumentFormId)[0];
+    var formData = new FormData(form);
+
+    $.ajax({
+        url: "/" + _currentCulture + "/transfert/document/save-document",
+        type: "POST",
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function () {
+            DevExpress.ui.notify(_transfertDocumentSuccesAjout, "success", 3000);
+
+            $("#" + _transfertAddNewDocumentPopupId)
+                .dxPopup("instance")
+                .hide();
+
+            Transfert.Document.refreshGrid("myDocumentsGrid");
+            Transfert.Document.refreshGrid("allDocumentsGrid");
+        },
+        error: function (xhr) {
+            var message = xhr.responseText || _transfertDocumentSaveError;
+            DevExpress.ui.notify(message, "error", 5000);
+        }
+    });
+};
