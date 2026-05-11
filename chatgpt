@@ -369,4 +369,20 @@ public async Task<IActionResult> ShareDocument(ShareDocumentViewModel model, Can
     return Ok(new { success = true });
 }
 
+@{
+    var minDate = DateTimeOffset.Now;
+    var expiryDate = Model.ExpiryDate;
+    var maxDate = Model.DocumentExpiryDate;
+}
+
+@(Html.DevExtreme()
+    .DateBox()
+    .ID("ShareExpiryDate")
+    .Name("ExpiryDate")
+    .Type(DateBoxType.DateTime)
+    .Value(expiryDate.LocalDateTime)
+    .Min(minDate.LocalDateTime)
+    .Max(maxDate.LocalDateTime)
+    .Width("100%"))
+
 
