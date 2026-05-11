@@ -1,133 +1,128 @@
-
+@using BacaratWeb.ViewModel.Transfert
 @inject IViewTranslator translator
 
 @{
-    var expiryDelaysHour = new[]{
-        new {Id = 24, Label = "24h"},
-        new {Id = 48, Label = "48h"},
-        new {Id = 72, Label = "72h"},
-    };
+    var currentMode = ViewBag.Mode ?? "all";
+    var language = Context.Features.Get<IRequestCultureFeature>().RequestCulture.Culture.ToString().ToCamelCase();
 }
 
-<div class="card-body">
-    @using (Html.BeginForm(FormMethod.Post, new { id = TransfertConstants.AddNewDocumentFormId }))
-    {
-        @using (Html.DevExtreme().ValidationGroup(TransfertConstants.AddNewDocumentFormValidationGroupName))
-        {
-            <div class="row mb-5">
-                <div class="col-sm-12 col-md-2">
-                    <div class="text-truncate text-green"> @translator.Common["FileName"] :</div>
-                </div>
-                <div class="col-sm-12 col-md-10">
-                    @(Html.DevExtreme()
-                        .TextBox()
-                        .ID("Name")
-                        .Height(30)
-                        .Name("Name")
-                        .Width("100%"))
-                </div>
-            </div>
-            <div class="row mb-3">
-                <div class="col-sm-12 col-md-2">
-                    <div class="text-truncate text-green"> @translator.Common["Description"] :</div>
-                </div>
-                <div class="col-sm-12 col-md-10">
-                    @(Html.DevExtreme()
-                        .TextArea()
-                        .ID("Description")
-                        .Height(90)
-                        .Name("Description")
-                        .Width("100%"))
-                </div>
-            </div>
-            <div class="row mb-3">
-                <div class="col-sm-12 col-md-2">
-                    <div class="text-truncate text-green">@translator.Common["ExpirationDelay"] :</div>
-                </div>
-                <div class="col-sm-12 col-md-10">
-                    @(Html.DevExtreme()
-                    .SelectBox()
-                    .ID("ExpiryDelayHours")
-                    .Name("ExpiryDelayHours")
-                    .DataSource(expiryDelaysHour)
-                    .ValueExpr("Id")
-                    .DisplayExpr("Label")
-                    .Value(48)
-                    .Width("100%"))
-                </div>
-            </div>
-            <div class="row mb-3">
-                <div class="col-sm-12 col-md-2">
-                    <div class="text-truncate text-green"> @translator.Common["EncryptionKey"] :</div>
-                </div>
-                <div class="col-sm-12 col-md-10">
-                    @(Html.DevExtreme()
-                        .TextBox()
-                        .ID("EncryptionKey")
-                        .Height(30)
-                        .Name("EncryptionKey")
-                        .Width("100%"))
-                </div>
-            </div>
-            <div class="row mb-3">
-                <div class="col-sm-12 col-md-2">
-                    <div class="text-truncate text-green">@translator.Common["Email"] :</div>
-                </div>
-                <div class="col-sm-12 col-md-10">
-                    @(Html.DevExtreme()
-                        .TextBox()
-                        .ID("RecipientEmail")
-                        .Height(30)
-                        .Name("RecipientEmail")
-                        .Width("100%"))
-                </div>
-            </div>
-            <div class="row mb-3" id="inputFile">
-                 <div class="col-sm-12 col-md-2">
-                    <div class="text-truncate text-green">@translator.Common["File"] :</div>
-                </div>
-                <div class="col-sm-12 col-md-10 input-group">
-                    <div class="custom-file">
-                        <input type="file" class="custom-file-input" id="FileUploader" name="File">
-                        <label class="custom-file-label" for="FileUploader">@translator.Common["Selectfile"]</label>
-                    </div>
-                </div>
-                <div id="selected-document-name-container">
-                </div>
 
-                <style>
-                    .custom-file-input ~ .custom-file-label::after { content: '@translator.Common["Browse"]'; }
-
-                    .custom-file-label { height: 30px; }
-
-                    .custom-file-label::after {
-                        height: 30px;
-                        line-height: 12px;
-                    }
-                </style>
-            </div>
-            <div class="row mt-5">
-                <div class="col d-flex justify-content-end align-items-center">
-                    <div class="mr-2">
-                        @(Html.DevExtreme()
-                            .Button()
-                            .ID("btnEnregistrerTemplate")
-                            .Text(translator.Common["Save"])
-                            .UseSubmitBehavior(false)
-                            .Type(ButtonType.Normal)
-                            .Icon("save")
-                            .ElementAttr("class", "color-blue"))
-                    </div>
-                    <div>
-                        @(Html.DevExtreme()
-                            .Button()
-                            .ID("btnFermer")
-                            .Icon("close")
-                            .Text(translator.Common["Close"])
-                            .ElementAttr("class", "color-red"))
-                    </div>
-                </div>
-            </div>
-        }
-    }
+<div class="smallCaps text-green mt-2 mb-2">
+    <div id="menuSelectMode" class="align-menu-items-center"></div>
 </div>
+
+<script>
+    var _transfertCurrentMode = '@currentMode';
+</script>
+
+<div id="transfertContent">
+    <div id="gridAllDocumentsContainer" style="display:none;">
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+            .ID("allDocumentsGrid")
+            .ShowBorders(true)
+            .ColumnAutoWidth(true)
+            .SearchPanel(s => s.Visible(true).Placeholder("Rechercher..."))
+            .Columns(columns =>
+            {
+                columns.AddFor(m => m.Name).Caption("Nom du document");
+                columns.AddFor(m => m.Description).Caption("Description");
+                columns.AddFor(m => m.ContentType).Caption("Type");
+                columns.AddFor(m => m.FileSize).Caption("Taille");
+                columns.AddFor(m => m.UploadDate).Caption("Date d'ajout");
+                columns.AddFor(m => m.ExpiryDate).Caption("Date d'expiration");
+                columns.AddFor(m => m.OwnerName).Caption("Propriétaire");
+                
+                columns.AddFor(m => m.Email).Caption("Destinataire");
+                
+                columns.Add()
+                .Caption("Statut")
+                .DataField($"StatutDocumentName{language}");
+            })
+            .DataSource(ds => ds.Mvc()
+                .Area("Transfert")
+                .Controller("Document")
+                .LoadAction("GetAllDocuments"))
+        )
+    </div>
+
+    
+    <div id="gridMyDocumentsContainer" style="display:none;">
+    <div class="mb-5">
+        <div id="btnAddDocument"></div>
+    </div>
+    @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+        .ID("myDocumentsGrid")
+        .ShowBorders(true)
+        .ColumnAutoWidth(true)
+        .SearchPanel(s => s.Visible(true).Placeholder("Rechercher..."))
+        .Columns(columns =>
+        {
+            columns.AddFor(m => m.Name).Caption("Nom du document");
+            columns.AddFor(m => m.Description).Caption("Description");
+            columns.AddFor(m => m.ContentType).Caption("Type");
+            columns.AddFor(m => m.FileSize).Caption("Taille");
+            columns.AddFor(m => m.UploadDate).Caption("Date d'ajout");
+            columns.AddFor(m => m.ExpiryDate).Caption("Date d'expiration");
+            columns.AddFor(m => m.Email).Caption("Destinataire");
+
+            columns.Add()
+                .Caption("Statut")
+                .DataField($"StatutDocumentName{language}");
+        })
+        .DataSource(ds => ds.Mvc()
+            .Area("Transfert")
+            .Controller("Document")
+            .LoadAction("GetMyDocuments"))
+    )
+    </div>
+
+    <div id="gridSharedDocumentsContainer" style="display:none;">
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+            .ID("sharedDocumentsGrid")
+            .ShowBorders(true)
+            .ColumnAutoWidth(true)
+            .SearchPanel(s => s.Visible(true).Placeholder("Rechercher..."))
+            .Columns(columns =>
+            {
+                columns.AddFor(m => m.Name).Caption("Nom du document");
+                columns.AddFor(m => m.Description).Caption("Description");
+                columns.AddFor(m => m.ContentType).Caption("Type");
+                columns.AddFor(m => m.FileSize).Caption("Taille");
+                columns.AddFor(m => m.UploadDate).Caption("Date d'ajout");
+                columns.AddFor(m => m.ExpiryDate).Caption("Date d'expiration");
+                columns.AddFor(m => m.OwnerName).Caption("Propriétaire");
+
+                columns.Add()
+                    .Caption("Statut")
+                    .DataField($"StatutDocumentName{language}");
+            })
+            .DataSource(ds => ds.Mvc()
+                .Area("Transfert")
+                .Controller("Document")
+                .LoadAction("GetSharedWithMeDocuments"))
+        )
+    </div>
+</div>
+
+@(Html.DevExtreme().Popup()
+    .ID(TransfertConstants.AddNewDocumentPopupId)
+    .ElementAttr(new Dictionary<string, object>
+        { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true)
+    .ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .TitleTemplate(@<text>
+        <div class="d-flex flex-row align-items-center justify-content-between">
+            <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+                <i class="fas fa-pen mr-2" aria-hidden="true"></i>@translator.Common["Add"]
+            </div>
+            <button type="button"
+                class="popup-close-btn"
+                aria-label="@translator.Common["Close"]"
+                onclick="Transfert.Document.closeAddDocumentPopup();"
+                style="cursor: pointer; font-size: 24px; background: none; border: none; padding: 0; color: inherit;">
+                &times;
+            </button>
+        </div>
+    </text>))
