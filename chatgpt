@@ -1,249 +1,372 @@
-// DocumentService 
-using BacaratWeb.Entities.Transfert;
-using BacaratWeb.Services.Commun;
-using BacaratWeb.Services.Transfert.Interfaces;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using BacaratWeb.Model.Entities;
-using System.Linq;
-using Microsoft.EntityFrameworkCore;
+// TransfertConstants
+public const string ShareDocumentPopupId = "ShareDocumentPopup";
+public const string ShareDocumentFormId = "ShareDocumentForm";
+public const string ShareDocumentFormValidationGroupName = "ShareDocumentFormValidationGroup";
 
-namespace BacaratWeb.Services.Transfert
-{
-    public class DocumentService : BacaratWebService<Document>, IDocumentService
+// _ViewStart
+var _transfertShareDocumentPopupId = "@TransfertConstants.ShareDocumentPopupId";
+var _transfertShareDocumentFormId = "@TransfertConstants.ShareDocumentFormId";
+var _transfertShareDocumentFormValidationGroupName = "@TransfertConstants.ShareDocumentFormValidationGroupName";
+
+var _transfertTranslatableDocumentShareEmailRequired = "@Html.Raw(translator.Common["Transfert.Document.ShareEmailRequired"])";
+var _transfertTranslatableDocumentShareEmailEmail = "@Html.Raw(translator.Common["Transfert.Document.ShareEmailEmail"])";
+var _transfertTranslatableDocumentShareEmailMaxLength = "@Html.Raw(translator.Common["Transfert.Document.ShareEmailMaxLength"])";
+var _transfertTranslatableDocumentShareExpiryDateRequired = "@Html.Raw(translator.Common["Transfert.Document.ShareExpiryDateRequired"])";
+var _transfertDocumentShareSuccess = "@Html.Raw(translator.Common["Transfert.Document.ShareSuccess"])";
+var _transfertDocumentShareError = "@Html.Raw(translator.Common["Transfert.Document.ShareError"])";
+
+// Index.cshtml
+<div class="mb-5 d-flex">
+    <div id="btnAddDocument" class="mr-2"></div>
+    <div id="btnShareDocument"></div>
+</div>
+
+// popup
+@(Html.DevExtreme().Popup()
+    .ID(TransfertConstants.ShareDocumentPopupId)
+    .ElementAttr(new Dictionary<string, object>
+        { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true)
+    .ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .TitleTemplate(@<text>
+        <div class="d-flex flex-row align-items-center justify-content-between">
+            <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+                <i class="fas fa-share-alt mr-2" aria-hidden="true"></i>Partage avec d'autres utilisateurs
+            </div>
+            <button type="button"
+                class="popup-close-btn"
+                onclick="Transfert.Document.closeShareDocumentPopup();"
+                style="cursor: pointer; font-size: 24px; background: none; border: none; padding: 0; color: inherit;">
+                &times;
+            </button>
+        </div>
+    </text>))
+
+// MyDocumemtsGrid
+.Selection(s => s.Mode(SelectionMode.Single))
+.OnSelectionChanged("Transfert.Document.onMyDocumentsSelectionChanged")
+
+_PartialShareDocument
+@inject IViewTranslator translator
+@model BacaratWeb.ViewModel.Transfert.ShareDocumentViewModel
+
+<div class="card-body">
+    @using (Html.BeginForm(FormMethod.Post, new { id = TransfertConstants.ShareDocumentFormId }))
     {
-        public DocumentService(BacaratWebContext context)
-            : base(context)
+        @using (Html.DevExtreme().ValidationGroup(TransfertConstants.ShareDocumentFormValidationGroupName))
         {
+            <input type="hidden" id="DocumentId" name="DocumentId" value="@Model.DocumentId" />
+
+            <div class="row mb-3">
+                <div class="col-sm-12 col-md-3">
+                    <div class="text-truncate text-green">@translator.Common["Email"] :</div>
+                </div>
+                <div class="col-sm-12 col-md-9">
+                    @(Html.DevExtreme()
+                        .TextBox()
+                        .ID("ShareEmails")
+                        .Name("Emails")
+                        .Height(30)
+                        .Width("100%"))
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-sm-12 col-md-3">
+                    <div class="text-truncate text-green">Date d'expiration :</div>
+                </div>
+                <div class="col-sm-12 col-md-9">
+                    @(Html.DevExtreme()
+                        .DateBox()
+                        .ID("ShareExpiryDate")
+                        .Name("ExpiryDate")
+                        .Type(DateBoxType.DateTime)
+                        .Value(Model.ExpiryDate)
+                        .Min(DateTime.Now)
+                        .Max(Model.DocumentExpiryDate)
+                        .Width("100%"))
+                </div>
+            </div>
+
+            <div class="row mt-5">
+                <div class="col d-flex justify-content-end align-items-center">
+                    <div class="mr-2">
+                        @(Html.DevExtreme()
+                            .Button()
+                            .ID("btnEnvoyerShareDocument")
+                            .Text("Envoyer")
+                            .UseSubmitBehavior(false)
+                            .Type(ButtonType.Normal)
+                            .Icon("email")
+                            .ElementAttr("class", "color-blue")
+                            .OnClick("Transfert.Document.shareDocument"))
+                    </div>
+                    <div>
+                        @(Html.DevExtreme()
+                            .Button()
+                            .ID("btnCancelShareDocument")
+                            .Icon("close")
+                            .Text("Annuler")
+                            .ElementAttr("class", "color-red")
+                            .OnClick("Transfert.Document.closeShareDocumentPopup"))
+                    </div>
+                </div>
+            </div>
         }
-
-        public async Task<bool> AddAsync(Document entity, CancellationToken token = default)
-        {
-            await Context.Documents.AddAsync(entity, token).ConfigureAwait(false);
-            return await Context.SaveChangesAsync(token).ConfigureAwait(false) > 0;
-        }
-
-        public async Task<bool> UpdateAsync(Document entity, CancellationToken token = default)
-        {
-            Context.Documents.Update(entity);
-            return await Context.SaveChangesAsync(token).ConfigureAwait(false) > 0;
-        }
-
-        public async Task<bool> DeleteAsync(Document entity, CancellationToken token = default)
-        {
-            Context.Documents.Remove(entity);
-            return await Context.SaveChangesAsync(token).ConfigureAwait(false) > 0;
-        }
-
-        public async Task<Document> GetAsync(int id, bool include = false, CancellationToken token = default)
-        {
-            IQueryable<Document> query = Context.Documents;
-
-            if (include)
-            {
-                query = query
-                    .Include(x => x.Owner)
-                    .Include(x => x.StatutDocument)
-                    .Include(x => x.DocumentShares);
-            }
-
-            return await query.FirstOrDefaultAsync(x => x.Id == id, token)
-                .ConfigureAwait(false);
-        }
-
-        public async Task<IEnumerable<Document>> GetManyAsync(bool include = false, CancellationToken token = default)
-        {
-            IQueryable<Document> query = Context.Documents;
-
-            if (include)
-            {
-                query = query
-                    .Include(x => x.Owner)
-                    .Include(x => x.StatutDocument)
-                    .Include(x => x.DocumentShares);
-            }
-
-            return await query.ToListAsync(token).ConfigureAwait(false);
-        }
-
-        public async Task<bool> ExistsAsync(Document entity, CancellationToken token = default)
-        {
-            return await Context.Documents
-                .AnyAsync(x => x.Id == entity.Id, token)
-                .ConfigureAwait(false);
-        }
-
-         public async Task<bool> AddDocumentAsync(Document document, CancellationToken token = default)
-        {
-            await Context.Documents.AddAsync(document, token);
-
-            return await Context.SaveChangesAsync(token) > 0;
-        }
-
-        public async Task<IEnumerable<Document>> GetMyDocumentsAsync(int ownerId, CancellationToken token = default)
-        {
-            return await Context.Documents
-                .Include(x => x.Owner)
-                .Include(x => x.StatutDocument)
-                .Where(x => x.OwnerId == ownerId)
-                .OrderByDescending(x => x.UploadDate)
-                .ToListAsync(token)
-                .ConfigureAwait(false);
-        }
-
-        public async Task<IEnumerable<DocumentShare>> GetSharedWithMeDocumentsAsync(int userId, string email, CancellationToken token = default)
-        {
-            return await Context.DocumentShares
-                .Include(x => x.Document)
-                    .ThenInclude(x => x.Owner)
-                .Include(x => x.Document)
-                    .ThenInclude(x => x.StatutDocument)
-                .Where(x => x.SharedWithUserId == userId || x.Email == email)
-                .OrderByDescending(x => x.SharedDate)
-                .ToListAsync(token)
-                .ConfigureAwait(false);
-        }
-
-        public async Task<StatutDocument> GetStatutDocumentByCodeAsync(string code, CancellationToken token = default)
-        {
-            return await Context.StatutDocuments
-                .FirstOrDefaultAsync(x => x.Code == code && x.IsActive, token)
-                .ConfigureAwait(false);
-        }
-        }
-}
-// IDocumentService
-using BacaratWeb.Services.Commun.Interfaces;
-using BacaratWeb.Entities.Transfert;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-
-namespace BacaratWeb.Services.Transfert.Interfaces
-{
-    public interface IDocumentService : IBacaratWebService<Document>
-    {
-        Task<bool> AddDocumentAsync(Document document, CancellationToken token = default);
-
-        Task<IEnumerable<Document>> GetMyDocumentsAsync(int ownerId, CancellationToken token = default);
-
-        Task<IEnumerable<DocumentShare>> GetSharedWithMeDocumentsAsync(int userId, string email, CancellationToken token = default);
-
-        Task<StatutDocument> GetStatutDocumentByCodeAsync(string code, CancellationToken token = default);
     }
-}
-// DocumentViewModel
+</div>
+// ShareDocumentViewModel
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace BacaratWeb.ViewModel.Transfert
 {
-    [Serializable]
-    public class DocumentViewModel
+    public class ShareDocumentViewModel
     {
-        public int Id { get; set; }
-
-        public string Name { get; set; }
-
-        public string Description { get; set; }
-
-        public string ContentType { get; set; }
-
-        public long FileSize { get; set; }
-
-        public DateTimeOffset UploadDate { get; set; }
-
-        public DateTimeOffset ExpiryDate { get; set; }
-
-        public string OwnerName { get; set; }
-
-        public string Email { get; set; }
-
-        public string StatutDocumentNameFr { get; set; }
-
-        public string StatutDocumentNameEn { get; set; }
-    }
-}
-// DocumentShare 
-using BacaratWeb.Entities.Commun;
-using System;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-
-namespace BacaratWeb.Entities.Transfert
-{
-    [Table("DocumentShare", Schema = "Transfert")]
-    public sealed class DocumentShare
-    {
-        [Key]
-        public int Id { get; set; }
-
+        [Required]
         public int DocumentId { get; set; }
 
-        public int SharedWithUserId { get; set; }
+        [Required(ErrorMessage = "Transfert.Document.ShareEmailRequired")]
+        [StringLength(320, ErrorMessage = "Transfert.Document.ShareEmailMaxLength")]
+        public string Emails { get; set; }
 
-        [Required]
-        [StringLength(320)]
-        public string Email { get; set; }
-
-        public DateTimeOffset SharedDate { get; set; }
-
+        [Required(ErrorMessage = "Transfert.Document.ShareExpiryDateRequired")]
         public DateTimeOffset ExpiryDate { get; set; }
 
-        [ForeignKey(nameof(DocumentId))]
-        public Document Document { get; set; }
-
-        [ForeignKey(nameof(SharedWithUserId))]
-        public Utilisateur SharedWithUser { get; set; }
+        public DateTimeOffset DocumentExpiryDate { get; set; }
     }
 }
-// TransfertConstants 
-namespace BacaratWeb.Areas.Transfert.Helpers
+
+// Document.js
+Transfert.Document.selectedDocument = null;
+
+Transfert.Document.initShareButton = function () {
+    $("#btnShareDocument").dxButton({
+        text: "Partagés avec d'autres utilisateurs",
+        icon: "share",
+        disabled: true,
+        elementAttr: {
+            class: "color-blue"
+        },
+        onClick: function () {
+            Transfert.Document.openSharePopup();
+        }
+    });
+};
+
+// Document.ready
+Transfert.Document.initShareButton();
+
+Transfert.Document.onMyDocumentsSelectionChanged = function (e) {
+    var selectedRows = e.selectedRowsData;
+
+    Transfert.Document.selectedDocument =
+        selectedRows && selectedRows.length > 0 ? selectedRows[0] : null;
+
+    var button = $("#btnShareDocument").dxButton("instance");
+    if (button) {
+        button.option("disabled", !Transfert.Document.selectedDocument);
+    }
+};
+
+Transfert.Document.closeShareDocumentPopup = function () {
+    closePopup(_transfertShareDocumentPopupId);
+};
+
+Transfert.Document.openSharePopup = function () {
+    if (!Transfert.Document.selectedDocument) {
+        return;
+    }
+
+    $.ajax({
+        method: "GET",
+        cache: false,
+        url: "/" + culture + "/transfert/share-document",
+        data: {
+            documentId: Transfert.Document.selectedDocument.Id
+        }
+    }).done(function (htmlContent) {
+        showScrollablePopup(_transfertShareDocumentPopupId, htmlContent);
+        Transfert.Document.initShareDocumentValidators();
+    }).fail(function (e) {
+        if (e.status === 401) {
+            $("#modalReconnect").dxPopup("instance").show();
+            return;
+        }
+
+        if (e.status === 403) {
+            DevExpress.ui.notify(_commonTranslatableMessagePasDePermissionAction, "error");
+            return;
+        }
+
+        DevExpress.ui.notify(e.responseText || _commonTranslatableMessageErrorLoadForm, "error");
+    });
+};
+
+Transfert.Document.initShareDocumentValidators = function () {
+    $("#ShareEmails").dxValidator({
+        validationGroup: _transfertShareDocumentFormValidationGroupName,
+        validationRules: [
+            { type: "required", message: _transfertTranslatableDocumentShareEmailRequired },
+            { type: "stringLength", max: 320, message: _transfertTranslatableDocumentShareEmailMaxLength },
+            {
+                type: "custom",
+                message: _transfertTranslatableDocumentShareEmailEmail,
+                validationCallback: function (e) {
+                    if (!e.value) {
+                        return false;
+                    }
+
+                    var emails = e.value.split(";");
+                    var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                    for (var i = 0; i < emails.length; i++) {
+                        var email = emails[i].trim();
+
+                        if (!email || !emailRegex.test(email)) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
+            }
+        ]
+    });
+
+    $("#ShareExpiryDate").dxValidator({
+        validationGroup: _transfertShareDocumentFormValidationGroupName,
+        validationRules: [
+            { type: "required", message: _transfertTranslatableDocumentShareExpiryDateRequired }
+        ]
+    });
+};
+
+Transfert.Document.shareDocument = function () {
+    if (!validateGroup(_transfertShareDocumentFormValidationGroupName)) {
+        return;
+    }
+
+    var form = $("#" + _transfertShareDocumentFormId)[0];
+    var formData = new FormData(form);
+
+    $.ajax({
+        url: "/" + culture + "/transfert/share-document",
+        type: "POST",
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function () {
+            DevExpress.ui.notify(_transfertDocumentShareSuccess, "success", 3000);
+
+            $("#" + _transfertShareDocumentPopupId)
+                .dxPopup("instance")
+                .hide();
+
+            Transfert.Document.refreshGrid("myDocumentsGrid");
+            Transfert.Document.refreshGrid("allDocumentsGrid");
+        },
+        error: function (xhr) {
+            DevExpress.ui.notify(xhr.responseText || _transfertDocumentShareError, "error", 5000);
+        }
+    });
+};
+
+// IDocumentService
+Task<Document> GetDocumentByIdAndOwnerAsync(int documentId, int ownerId, CancellationToken token = default);
+
+Task<bool> ShareDocumentAsync(int documentId, IEnumerable<DocumentShare> shares, CancellationToken token = default);
+
+// DocumentService
+public async Task<Document> GetDocumentByIdAndOwnerAsync(int documentId, int ownerId, CancellationToken token = default)
 {
-    public static class TransfertConstants
+    return await Context.Documents
+        .Include(x => x.DocumentShares)
+        .FirstOrDefaultAsync(x => x.Id == documentId && x.OwnerId == ownerId, token);
+}
+
+public async Task<bool> ShareDocumentAsync(int documentId, IEnumerable<DocumentShare> shares, CancellationToken token = default)
+{
+    var existingShares = Context.DocumentShares.Where(x => x.DocumentId == documentId);
+
+    Context.DocumentShares.RemoveRange(existingShares);
+
+    await Context.DocumentShares.AddRangeAsync(shares, token);
+
+    return await Context.SaveChangesAsync(token) > 0;
+}
+
+// DocumentController
+[HttpGet]
+[Route("{culture}/transfert/share-document")]
+public async Task<IActionResult> ShareDocument(int documentId, CancellationToken token = default)
+{
+    var document = await _documentService.GetDocumentByIdAndOwnerAsync(documentId, CurrentUser.Id, token);
+
+    if (document == null)
+        return NotFound();
+
+    var vm = new ShareDocumentViewModel
     {
-        public const string AddNewDocumentPopupId = "AddNewDocumentPopup";
-        public const string AddNewDocumentFormId = "AddNewDocumentForm";
-        public const string AddNewDocumentFormValidationGroupName = "AddNewDocumentFormValidationGroup";
+        DocumentId = document.Id,
+        ExpiryDate = DateTimeOffset.Now,
+        DocumentExpiryDate = document.ExpiryDate
+    };
+
+    return PartialView("/Areas/Transfert/Views/Document/_PartialShareDocument.cshtml", vm);
+}
+
+[HttpPost]
+[Route("{culture}/transfert/share-document")]
+public async Task<IActionResult> ShareDocument(ShareDocumentViewModel model, CancellationToken token = default)
+{
+    if (!ModelState.IsValid)
+        return BadRequest(GetModelStateErrorMessage());
+
+    var document = await _documentService.GetDocumentByIdAndOwnerAsync(model.DocumentId, CurrentUser.Id, token);
+
+    if (document == null)
+        return NotFound();
+
+    if (model.ExpiryDate < DateTimeOffset.Now || model.ExpiryDate > document.ExpiryDate)
+        return BadRequest(_translator.Common["Transfert.Document.ShareExpiryDateInvalid"]);
+
+    var emails = model.Emails
+        .Split(';')
+        .Select(x => x.Trim())
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    var shares = new List<DocumentShare>();
+
+    foreach (var email in emails)
+    {
+        var user = await _utilisateurService.GetUtilisateurByEmailAsync(email, token);
+
+        if (user == null)
+        {
+            return BadRequest("L'utilisateur n'existe pas dans BacaratWeb Transfert. Merci d'effectuer une demande d'habilitation pour le destinataire.");
+        }
+
+        shares.Add(new DocumentShare
+        {
+            DocumentId = document.Id,
+            SharedWithUserId = user.Id,
+            Email = user.Email,
+            SharedDate = DateTimeOffset.Now,
+            ExpiryDate = model.ExpiryDate
+        });
     }
+
+    var saved = await _documentService.ShareDocumentAsync(document.Id, shares, token);
+
+    if (!saved)
+        return BadRequest(_translator.Common["Transfert.Document.ShareError"]);
+
+    return Ok(new { success = true });
 }
-// _ViewStart 
-@using Microsoft.Extensions.Options
-@using BacaratWeb.Shared.Configurations
 
-@inject IOptions<ApplicationSettings> _settings
-@inject IViewTranslator translator
 
-<script>
-    var _transfertTranslatableDocumentNameRequired = "@Html.Raw(translator.Common["Transfert.Document.NameRequired"])";
-    var _transfertTranslatableDocumentNameMaxLength = "@Html.Raw(translator.Common["Transfert.Document.NameMaxLength"])";
-    var _transfertTranslatableDocumentDescriptionMaxLength = "@Html.Raw(translator.Common["Transfert.Document.DescriptionMaxLength"])";
-    var _transfertTranslatableDocumentEncryptionKeyMaxLength = "@Html.Raw(translator.Common["Transfert.Document.EncryptionKeyMaxLength"])";
-    var _transfertTranslatableDocumentRecipientEmailRequired = "@Html.Raw(translator.Common["Transfert.Document.RecipientEmailRequired"])";
-    var _transfertTranslatableDocumentRecipientEmailEmail = "@Html.Raw(translator.Common["Transfert.Document.RecipientEmailEmail"])";
-    var _transfertTranslatableDocumentRecipientEmailMaxLength = "@Html.Raw(translator.Common["Transfert.Document.RecipientEmailMaxLength"])";
-    var _transfertTranslatableDocumentFileRequired = "@Html.Raw(translator.Common["Transfert.Document.FileRequired"])";
-    var _transfertTranslatableDocumentFileExtension = "@Html.Raw(translator.Common["Transfert.Document.FileExtension"])";
-    var _transfertTranslatableDocumentFileSize = "@Html.Raw(translator.Common["Transfert.Document.FileSize"])";
-    var _transfertDocumentSuccesAjout = "@Html.Raw(translator.Common["Transfert.Document.SuccesAjout"])";
-    var _transfertDocumentSaveError = "@Html.Raw(translator.Common["Transfert.Document.SaveError"])";
-    
-    var _transfertAddNewDocumentPopupId = "@TransfertConstants.AddNewDocumentPopupId";
-    var _transfertAddNewDocumentFormValidationGroupName = "@TransfertConstants.AddNewDocumentFormValidationGroupName";
-    var _transfertAddNewDocumentFormId = "@TransfertConstants.AddNewDocumentFormId";
-
-    
-</script>
-
-<environment include="Production">
-    <link href="~/css/min/bacarat-area-transfert.min.css?version_@(_settings.Value.ReleaseVersion)" rel="stylesheet" />
-    <script src="~/js/min/bacarat-area-transfert.min.js?version_@(_settings.Value.ReleaseVersion)"></script>
-</environment>
-<environment include="Development">
-    <link href="~/areas/transfert/css/document.css" rel="stylesheet" />
-    <script src="~/areas/transfert/javascript/document.js"></script>
-</environment>
-
-@{
-    Layout = "_Layout";
-}
