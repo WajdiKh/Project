@@ -1,403 +1,128 @@
-window.Transfert = window.Transfert || {};
-window.Transfert.Document = window.Transfert.Document || {};
+@using BacaratWeb.ViewModel.Transfert
+@inject IViewTranslator translator
 
-$(document).ready(function () {
-    Transfert.Document.initMenuSelectMode();
-    Transfert.Document.initAddButton();
-    Transfert.Document.applyMode(_transfertCurrentMode || "all");
-});
+@{
+    var currentMode = ViewBag.Mode ?? "all";
+    var language = Context.Features.Get<IRequestCultureFeature>().RequestCulture.Culture.ToString().ToCamelCase();
+}
 
-Transfert.Document.getModeLabel = function (mode) {
-    if (mode === "mine") {
-        return "Mes documents";
-    }
 
-    if (mode === "shared") {
-        return "Partagés avec moi";
-    }
+<div class="smallCaps text-green mt-2 mb-2">
+    <div id="menuSelectMode" class="align-menu-items-center"></div>
+</div>
 
-    return "Tous les documents";
-};
+<script>
+    var _transfertCurrentMode = '@currentMode';
+</script>
 
-Transfert.Document.getModeIcon = function (mode) {
-    if (mode === "mine") {
-        return "fas fa-user color-green2 adjust-icon-menu";
-    }
+<div id="transfertContent">
+    <div id="gridAllDocumentsContainer" style="display:none;">
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+            .ID("allDocumentsGrid")
+            .ShowBorders(true)
+            .ColumnAutoWidth(true)
+            .SearchPanel(s => s.Visible(true).Placeholder("Rechercher..."))
+            .Columns(columns =>
+            {
+                columns.AddFor(m => m.Name).Caption("Nom du document");
+                columns.AddFor(m => m.Description).Caption("Description");
+                columns.AddFor(m => m.ContentType).Caption("Type");
+                columns.AddFor(m => m.FileSize).Caption("Taille");
+                columns.AddFor(m => m.UploadDate).Caption("Date d'ajout");
+                columns.AddFor(m => m.ExpiryDate).Caption("Date d'expiration");
+                columns.AddFor(m => m.OwnerName).Caption("Propriétaire");
+                
+                columns.AddFor(m => m.Email).Caption("Destinataire");
+                
+                columns.Add()
+                .Caption("Statut")
+                .DataField($"StatutDocumentName{language}");
+            })
+            .DataSource(ds => ds.Mvc()
+                .Area("Transfert")
+                .Controller("Document")
+                .LoadAction("GetAllDocuments"))
+        )
+    </div>
 
-    if (mode === "shared") {
-        return "fas fa-share-alt color-green2 adjust-icon-menu";
-    }
-
-    return "fas fa-list color-green2 adjust-icon-menu";
-};
-
-Transfert.Document.getMenuItems = function (mode) {
-    return [
+    
+    <div id="gridMyDocumentsContainer" style="display:none;">
+    <div class="mb-5">
+        <div id="btnAddDocument"></div>
+    </div>
+    @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+        .ID("myDocumentsGrid")
+        .ShowBorders(true)
+        .ColumnAutoWidth(true)
+        .SearchPanel(s => s.Visible(true).Placeholder("Rechercher..."))
+        .Columns(columns =>
         {
-            icon: Transfert.Document.getModeIcon(mode),
-            text: Transfert.Document.getModeLabel(mode),
-            items: [
-                {
-                    icon: "fas fa-list adjust-icon-submenu",
-                    text: "Tous les documents",
-                    onClick: function () {
-                        Transfert.Document.applyMode("all");
-                    }
-                },
-                {
-                    icon: "fas fa-user adjust-icon-submenu",
-                    text: "Mes documents",
-                    onClick: function () {
-                        Transfert.Document.applyMode("mine");
-                    }
-                },
-                {
-                    icon: "fas fa-share-alt adjust-icon-submenu",
-                    text: "Partagés avec moi",
-                    onClick: function () {
-                        Transfert.Document.applyMode("shared");
-                    }
-                }
-            ]
-        }
-    ];
-};
+            columns.AddFor(m => m.Name).Caption("Nom du document");
+            columns.AddFor(m => m.Description).Caption("Description");
+            columns.AddFor(m => m.ContentType).Caption("Type");
+            columns.AddFor(m => m.FileSize).Caption("Taille");
+            columns.AddFor(m => m.UploadDate).Caption("Date d'ajout");
+            columns.AddFor(m => m.ExpiryDate).Caption("Date d'expiration");
+            columns.AddFor(m => m.Email).Caption("Destinataire");
 
-Transfert.Document.initMenuSelectMode = function () {
-    $("#menuSelectMode").dxMenu({
-        items: Transfert.Document.getMenuItems(_transfertCurrentMode || "all")
-    });
-};
+            columns.Add()
+                .Caption("Statut")
+                .DataField($"StatutDocumentName{language}");
+        })
+        .DataSource(ds => ds.Mvc()
+            .Area("Transfert")
+            .Controller("Document")
+            .LoadAction("GetMyDocuments"))
+    )
+    </div>
 
-Transfert.Document.applyMode = function (mode) {
-    _transfertCurrentMode = mode;
-
-    $("#gridAllDocumentsContainer").hide();
-    $("#gridMyDocumentsContainer").hide();
-    $("#gridSharedDocumentsContainer").hide();
-
-    if (mode === "mine") {
-        $("#gridMyDocumentsContainer").show();
-        Transfert.Document.refreshGrid("myDocumentsGrid");
-    } else if (mode === "shared") {
-        $("#gridSharedDocumentsContainer").show();
-        Transfert.Document.refreshGrid("sharedDocumentsGrid");
-    } else {
-        $("#gridAllDocumentsContainer").show();
-        Transfert.Document.refreshGrid("allDocumentsGrid");
-    }
-
-    var menu = $("#menuSelectMode").dxMenu("instance");
-    if (menu) {
-        menu.option("items", Transfert.Document.getMenuItems(mode));
-    }
-};
-
-Transfert.Document.refreshGrid = function (gridId) {
-    var grid = $("#" + gridId).dxDataGrid("instance");
-    if (grid) {
-        grid.refresh();
-    }
-};
-
-Transfert.Document.initAddButton = function () {
-    $("#btnAddDocument").dxButton({
-        text: "Ajouter",
-        icon: "add",
-        type: "success",
-        onClick: function () {
-            Transfert.Document.openAddPopup();
-        }
-    });
-};
-
-Transfert.Document.openAddPopup = function () {
-    $("#addDocumentForm").dxForm({
-        formData: {},
-        labelLocation: "top",
-        items: [
+    <div id="gridSharedDocumentsContainer" style="display:none;">
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+            .ID("sharedDocumentsGrid")
+            .ShowBorders(true)
+            .ColumnAutoWidth(true)
+            .SearchPanel(s => s.Visible(true).Placeholder("Rechercher..."))
+            .Columns(columns =>
             {
-                dataField: "Name",
-                label: { text: "Nom" },
-                isRequired: true
-            },
-            {
-                dataField: "Description",
-                label: { text: "Description" },
-                editorType: "dxTextArea",
-                editorOptions: {
-                    height: 90
-                }
-            },
-            {
-                dataField: "RecipientEmail",
-                label: { text: "Email destinataire" },
-                isRequired: true
-            },
-            {
-                dataField: "ExpiryDelayHours",
-                label: { text: "Durée d'expiration" },
-                editorType: "dxSelectBox",
-                editorOptions: {
-                    dataSource: [
-                        { value: 24, text: "24h" },
-                        { value: 48, text: "48h" },
-                        { value: 72, text: "72h" }
-                    ],
-                    valueExpr: "value",
-                    displayExpr: "text",
-                    value: 48
-                }
-            },
-            {
-                dataField: "EncryptionKey",
-                label: { text: "Clé de chiffrement" }
-            },
-            {
-                dataField: "File",
-                label: { text: "Fichier" },
-                editorType: "dxFileUploader",
-                editorOptions: {
-                    multiple: false,
-                    uploadMode: "useForm",
-                    accept: ".zip,.rar,.7z,.tar,.gz",
-                    maxFileSize: 10485760,
-                    selectButtonText: "Sélectionner un fichier",
-                    labelText: "",
-                    onValueChanged: function (e) {
-                        var form = $("#addDocumentForm").dxForm("instance");
-                        var data = form.option("formData");
+                columns.AddFor(m => m.Name).Caption("Nom du document");
+                columns.AddFor(m => m.Description).Caption("Description");
+                columns.AddFor(m => m.ContentType).Caption("Type");
+                columns.AddFor(m => m.FileSize).Caption("Taille");
+                columns.AddFor(m => m.UploadDate).Caption("Date d'ajout");
+                columns.AddFor(m => m.ExpiryDate).Caption("Date d'expiration");
+                columns.AddFor(m => m.OwnerName).Caption("Propriétaire");
 
-                        data.File = e.value;
+                columns.Add()
+                    .Caption("Statut")
+                    .DataField($"StatutDocumentName{language}");
+            })
+            .DataSource(ds => ds.Mvc()
+                .Area("Transfert")
+                .Controller("Document")
+                .LoadAction("GetSharedWithMeDocuments"))
+        )
+    </div>
+</div>
 
-                        form.option("formData", data);
-                    }
-                }
-            }
-        ]
-    });
-
-    $("#btnSubmitAddDocument").dxButton({
-        text: "Ajouter",
-        type: "success",
-        onClick: function () {
-            Transfert.Document.submitAddDocument();
-        }
-    });
-
-    $("#addDocumentPopup").dxPopup("instance").show();
-};
-
-Transfert.Document.submitAddDocument = function () {
-    var form = $("#addDocumentForm").dxForm("instance");
-    var data = form.option("formData");
-
-    if (!data.Name || !data.RecipientEmail) {
-        DevExpress.ui.notify("Champs obligatoires manquants", "error", 3000);
-        return;
-    }
-
-    var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.RecipientEmail)) {
-        DevExpress.ui.notify("Email invalide", "error", 3000);
-        return;
-    }
-
-    if (!data.File || data.File.length === 0) {
-        DevExpress.ui.notify("Fichier obligatoire", "error", 3000);
-        return;
-    }
-
-    var file = data.File[0];
-
-    if (!file) {
-        DevExpress.ui.notify("Fichier obligatoire", "error", 3000);
-        return;
-    }
-
-    var allowedExtensions = [".zip", ".rar", ".7z", ".tar", ".gz"];
-    var extension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
-
-    if (allowedExtensions.indexOf(extension) === -1) {
-        DevExpress.ui.notify("Le fichier doit être une archive : zip, rar, 7z, tar ou gz", "error", 3000);
-        return;
-    }
-
-    if (file.size > 10485760) {
-        DevExpress.ui.notify("La taille du fichier ne doit pas dépasser 10Mo", "error", 3000);
-        return;
-    }
-
-    var formData = new FormData();
-    formData.append("Name", data.Name);
-    formData.append("Description", data.Description || "");
-    formData.append("RecipientEmail", data.RecipientEmail);
-    formData.append("ExpiryDelayHours", data.ExpiryDelayHours || 48);
-    formData.append("EncryptionKey", data.EncryptionKey || "");
-    formData.append("File", file);
-
-    $.ajax({
-        url: "/fr/transfert/document/add",
-        method: "POST",
-        data: formData,
-        processData: false,
-        contentType: false,
-        success: function () {
-            DevExpress.ui.notify("Document ajouté", "success", 3000);
-
-            $("#addDocumentPopup").dxPopup("instance").hide();
-
-            Transfert.Document.refreshGrid("myDocumentsGrid");
-            Transfert.Document.refreshGrid("allDocumentsGrid");
-        },
-        error: function (xhr) {
-            DevExpress.ui.notify(xhr.responseText || "Erreur lors de l'ajout", "error", 3000);
-        
-Transfert.Document.initAddDocumentValidators = function () {
-
-    $("#Name").dxValidator({
-        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
-        validationRules: [
-            { type: "required", message: _transfertTranslatableDocumentNameRequired },
-            { type: "stringLength", max: 255, message: _transfertTranslatableDocumentNameMaxLength }
-        ]
-    });
-
-    $("#Description").dxValidator({
-        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
-        validationRules: [
-            { type: "stringLength", max: 1000, message: _transfertTranslatableDocumentDescriptionMaxLength }
-        ]
-    });
-
-    $("#EncryptionKey").dxValidator({
-        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
-        validationRules: [
-            { type: "stringLength", max: 255, message: _transfertTranslatableDocumentEncryptionKeyMaxLength }
-        ]
-    });
-
-    $("#RecipientEmail").dxValidator({
-        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
-        validationRules: [
-            { type: "required", message: _transfertTranslatableDocumentRecipientEmailRequired },
-            { type: "email", message: _transfertTranslatableDocumentRecipientEmailEmail },
-            { type: "stringLength", max: 320, message: _transfertTranslatableDocumentRecipientEmailMaxLength }
-        ]
-    });
-
-    $("#FileUploader").dxValidator({
-        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
-        validationRules: [
-            {
-                type: "custom",
-                message: _transfertTranslatableDocumentFileRequired,
-                validationCallback: function () {
-                    var fileInput = $("#FileUploader")[0];
-                    return fileInput && fileInput.files && fileInput.files.length > 0;
-                }
-            }
-        ]
-    });
-};
-
-Transfert.Document.validateSelectedFile = function () {
-    var fileInput = $("#FileUploader")[0];
-
-    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        DevExpress.ui.notify(_transfertTranslatableDocumentFileRequired, "error", 3000);
-        return false;
-    }
-
-    return true;
-};
-
-$("#btnEnregistrerTemplate").dxButton("instance").option("onClick", function () {
-    var result = DevExpress.validationEngine.validateGroup(_transfertAddNewDocumentFormValidationGroupName);
-
-    if (!result.isValid) {
-        return;
-    }
-
-    if (!Transfert.Document.validateSelectedFile()) {
-        return;
-    }
-
-    Transfert.Document.submitAddDocument();
-});
-
-    Transfert.Document.initFileUploaderChange = function () {
-    $("#FileUploader").on("change", function () {
-        var fileInput = this;
-        var container = $("#selected-document-name-container");
-
-        container.empty();
-
-        if (!fileInput.files || fileInput.files.length === 0) {
-            return;
-        }
-
-        var file = fileInput.files[0];
-
-        var allowedExtensions = [".zip", ".rar", ".tar", ".gz", ".7z"];
-        var extension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
-
-        if (allowedExtensions.indexOf(extension) === -1) {
-            DevExpress.ui.notify("Tous les fichiers doivent être zippés : rar, tar, gz, zip, 7z.", "error", 3000);
-            fileInput.value = "";
-            container.empty();
-            return;
-        }
-
-        if (file.size > 10485760) {
-            DevExpress.ui.notify("La taille du document ne doit pas dépasser 10Mo.", "error", 3000);
-            fileInput.value = "";
-            container.empty();
-            return;
-        }
-
-        container.html(
-            '<div class="text-green mt-2 text-truncate">' +
-            file.name +
-            '</div>'
-        );
-    });
-};
-Transfert.Document.saveDocument = function () {
-    var validationResult = DevExpress.validationEngine.validateGroup(
-        _transfertAddNewDocumentFormValidationGroupName
-    );
-
-    if (!validationResult.isValid) {
-        return;
-    }
-
-    if (!Transfert.Document.validateSelectedFile()) {
-        return;
-    }
-
-    var form = $("#" + _transfertAddNewDocumentFormId)[0];
-    var formData = new FormData(form);
-
-    $.ajax({
-        url: "/" + _currentCulture + "/transfert/document/save-document",
-        type: "POST",
-        data: formData,
-        processData: false,
-        contentType: false,
-        success: function () {
-            DevExpress.ui.notify(_transfertDocumentSuccesAjout, "success", 3000);
-
-            $("#" + _transfertAddNewDocumentPopupId)
-                .dxPopup("instance")
-                .hide();
-
-            Transfert.Document.refreshGrid("myDocumentsGrid");
-            Transfert.Document.refreshGrid("allDocumentsGrid");
-        },
-        error: function (xhr) {
-            var message = xhr.responseText || _transfertDocumentSaveError;
-            DevExpress.ui.notify(message, "error", 5000);
-        }
-    });
-};
+@(Html.DevExtreme().Popup()
+    .ID(TransfertConstants.AddNewDocumentPopupId)
+    .ElementAttr(new Dictionary<string, object>
+        { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true)
+    .ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .TitleTemplate(@<text>
+        <div class="d-flex flex-row align-items-center justify-content-between">
+            <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+                <i class="fas fa-pen mr-2" aria-hidden="true"></i>@translator.Common["Add"]
+            </div>
+            <button type="button"
+                class="popup-close-btn"
+                aria-label="@translator.Common["Close"]"
+                onclick="Transfert.Document.closeAddDocumentPopup();"
+                style="cursor: pointer; font-size: 24px; background: none; border: none; padding: 0; color: inherit;">
+                &times;
+            </button>
+        </div>
+    </text>))
