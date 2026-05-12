@@ -1,9 +1,0 @@
-[HttpGet]
-public async Task<IActionResult> GetMyDocuments(CancellationToken token = default)
-{
-    var documents = await _documentService.GetMyDocumentsAsync(CurrentUser.Id, token);
-
-    var data = _mapper.Map<IEnumerable<DocumentViewModel>>(documents);
-
-    return Json(data);
-}
