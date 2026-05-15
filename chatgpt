@@ -1,0 +1,96 @@
+// ============================================================================
+// FICHIER : DocumentController.cs
+// OBJECTIF : utiliser les dates du DocumentShare dans la notification,
+// et non plus les dates du Document.
+// ============================================================================
+
+
+// ============================================================================
+// 1) REMPLACER CETTE LIGNE DANS SaveShareDocument
+// ============================================================================
+
+// Ancien code :
+// var notificationsSent = await SendNotificationDocumentPartage(recipients, document, token);
+
+// Nouveau code :
+var notificationsSent = await SendNotificationDocumentPartage(document, model, token);
+
+
+// ============================================================================
+// 2) REMPLACER LA MÉTHODE SendNotificationDocumentPartage PAR CELLE-CI
+// ============================================================================
+
+private async Task<bool> SendNotificationDocumentPartage(
+    Document document,
+    ShareDocumentViewModel model,
+    CancellationToken token = default)
+{
+    var emailNotifications = new List<EmailNotification>();
+
+    var emails = ExtractShareEmails(model.Emails);
+
+    foreach (var email in emails)
+    {
+        var recipient = await _utilisateurService
+            .GetUtilisateurByEmailAsync(email, token);
+
+        if (recipient == null)
+            continue;
+
+        var template = await _emailNotificationTemplateService.GetEmailNotification(
+            (int)ActiviteModule.TRANSFERT,
+            (int)NotificationType.DocumentPartage,
+            recipient.LangueId,
+            token);
+
+        if (template == null)
+            throw new CustomMessageException("Notification template not found");
+
+        var cultureInfo = Culture.GetCultureByLanguageId(template.LangueId);
+
+        // IMPORTANT :
+        // Les dates utilisées ici sont celles du partage créé :
+        // - model.StartDate = date de début du partage
+        // - model.ExpiryDate = date d'expiration du partage
+        // Et non plus :
+        // - document.UploadDate
+        // - document.ExpiryDate
+        var bodyArgs = new object[]
+        {
+            document.Name,
+            CurrentUser.FullName,
+            model.StartDate.ToString("dddd d MMMM yyyy HH:mm:ss 'UTC'zzz", cultureInfo),
+            model.ExpiryDate.ToString("dddd d MMMM yyyy HH:mm:ss 'UTC'zzz", cultureInfo),
+            null,
+            document.SecurityCode,
+            document.EncryptionKey
+        };
+
+        emailNotifications.Add(new EmailNotification
+        {
+            EmailTo = recipient.Email,
+            Subject = template.Subject,
+            Body = string.Format(cultureInfo, template.Body, bodyArgs),
+            DateNotification = DateTime.Now
+        });
+    }
+
+    if (!emailNotifications.Any())
+        return false;
+
+    return await _emailNotificationService.PushNotifications(emailNotifications, token);
+}
+
+
+// ============================================================================
+// 3) REMARQUE IMPORTANTE
+// ============================================================================
+// Cette version reconstruit les destinataires depuis model.Emails.
+// Comme SaveShareDocument a déjà validé que tous les emails existent avant,
+// c'est fonctionnel.
+// Mais pour éviter une 2e recherche utilisateur en base,
+// une version encore plus propre serait de passer directement la liste
+// des DocumentShare créés à la méthode de notification.
+// Si tu veux optimiser ensuite, il faudra faire retourner les shares créés
+// par AddDocumentShares.
+// ============================================================================
