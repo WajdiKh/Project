@@ -69,9 +69,12 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetMyDocuments()
+        public async Task<IActionResult> GetMyDocuments(CancellationToken token = default)
         {
-            var data = new List<DocumentViewModel>();
+            var documents = await _documentService.GetMyDocumentsAsync(CurrentUser.Id, token);
+
+            var data = _mapper.Map<IEnumerable<DocumentViewModel>>(documents);
+
             return Json(data);
         }
 
@@ -101,8 +104,6 @@ namespace BacaratWeb.Areas.Transfert.Controllers
 
                 if (model.File.Length > 10 * 1024 * 1024)
                     return BadRequest(_translator.Common["Transfert.Document.FileSize"]);
-
-                var recipient = await _utilisateurService.GetUtilisateurByEmailAsync(model.RecipientEmail, token);
 
                 var statutActif = await _documentService.GetStatutDocumentByCodeAsync(nameof(StatutDocumentTransfert.Active), token);
 
@@ -140,14 +141,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
 
                 if (!saved)
                     return BadRequest(_translator.Common["Transfert.Document.ErrorWhileSavingDocument"]);
-
-                var notificationSent = await SendNotificationDocumentPartage(recipient, document, token);
-
-                if(!notificationSent)
-                {
-                    throw new CustomMessageException("Failed to send Notification");
-                }
-                
+                    
                 return Ok(new { success = true });
             }
             catch(Exception ex)
@@ -156,46 +150,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                 return StatusCode(500, _translator.Common["Transfert.Document.ErrorWhileSavingDocument"]);
             }
         }
-
-        private async Task<bool> SendNotificationDocumentPartage(
-            Utilisateur recipient, 
-            Document document, 
-            CancellationToken token = default)
-        {
-            var template = await _emailNotificationTemplateService.GetEmailNotification(
-                (int)ActiviteModule.TRANSFERT, 
-                (int)NotificationType.DocumentPartage, 
-                recipient.LangueId, 
-                token);
-
-            if(template == null)
-            {
-                throw new CustomMessageException("Notification template not found");
-            }
-            
-            var cultureInfo = Culture.GetCultureByLanguageId(template.LangueId);
-
-            var bodyArgs = new object[] {
-                document.Name,
-                CurrentUser.FullName,
-                document.UploadDate.ToString("dddd d MMMM yyyy HH:mm:ss 'UTC'zzz", cultureInfo),
-                document.ExpiryDate.ToString("dddd d MMMM yyyy HH:mm:ss 'UTC'zzz", cultureInfo),
-                null,
-                document.SecurityCode,
-                document.EncryptionKey
-            };
-            
-            var emailNotification = new EmailNotification
-            {
-                EmailTo = recipient.Email,
-                Subject = template.Subject,
-                Body = string.Format(cultureInfo, template.Body, bodyArgs),
-                DateNotification = DateTime.Now
-            };
-            
-            return await _emailNotificationService.PushNotification(emailNotification, token);
-        }
-
+        
         private static string GenerateSecurityCode()
         {
             return Guid.NewGuid().ToString("N").Substring(0, 6).ToUpperInvariant();
@@ -265,6 +220,211 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         public IActionResult DownloadFile(int id)
         {
             return BadRequest("Téléchargement non implémenté.");
+        }
+
+        [HttpGet("{culture:required}/transfert/share-document")]
+        public async Task<IActionResult> ShareDocument(int documentId, CancellationToken token = default)
+        {
+            var document = await _documentService.GetAsync(documentId, true, token);
+
+            if (document == null)
+                return NotFound();
+
+            var now = DateTimeOffset.Now;
+
+            var vm = new ShareDocumentViewModel
+            {
+                DocumentId = document.Id,
+                StartDate = now,
+                ExpiryDate = document.ExpiryDate,
+                DocumentExpiryDate = document.ExpiryDate
+            };
+
+            return PartialView(
+                "/Areas/Transfert/Views/Document/_PartialShareDocument.cshtml",
+                vm);
+        }
+
+        [HttpPost("{culture:required}/transfert/save-share-document")]
+        public async Task<IActionResult> SaveShareDocument(ShareDocumentViewModel model, CancellationToken token = default)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                    return BadRequest(GetModelStateErrorMessage());
+
+                var document = await GetDocumentForShare(model.DocumentId, token);
+
+                ValidateShareDates(model, document);
+
+                var emails = ExtractShareEmails(model.Emails);
+
+                var recipients = await GetShareRecipientsAsync(emails, token);
+
+                ValidateShareRecipients(emails, recipients);
+
+                AddDocumentShares(document, recipients, model);
+
+                var saved = await _documentService.UpdateAsync(document, token);
+
+                if (!saved)
+                    return BadRequest(_translator.Common["Transfert.Document.SaveError"]);
+
+                var notificationsSent = await SendNotificationDocumentPartage(recipients, document, token);
+
+                if (!notificationsSent)
+                    return BadRequest(_translator.Common["Transfert.Document.ShareNotificationError"]);
+
+                return Ok(new { success = true });
+            }
+            catch (CustomMessageException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.TraceError(ex);
+
+                return StatusCode(
+                    500,
+                    _translator.Common["Transfert.Document.SaveError"]);
+            }
+        }
+
+        private async Task<Document> GetDocumentForShare(int documentId, CancellationToken token)
+        {
+            var document = await _documentService.GetAsync(documentId, true, token);
+
+            if (document == null)
+            {
+                throw new CustomMessageException(
+                    _translator.Common["Transfert.Document.DocumentNotFound"]);
+            }
+
+            return document;
+        }
+
+        private void ValidateShareDates(ShareDocumentViewModel model, Document document)
+        {
+            if (model.StartDate.Date < DateTimeOffset.Now.Date)
+            {
+                throw new CustomMessageException(
+                    _translator.Common["Transfert.Document.ShareStartDateInvalid"]);
+            }
+
+            if (model.ExpiryDate.Date <= model.StartDate.Date)
+            {
+                throw new CustomMessageException(
+                    _translator.Common["Transfert.Document.ShareExpiryDateInvalid"]);
+            }
+        }
+
+        private List<string> ExtractShareEmails(string emails)
+        {
+            return emails
+                .Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private async Task<List<Utilisateur>> GetShareRecipientsAsync(IEnumerable<string> emails, CancellationToken token)
+        {
+            var recipients = new List<Utilisateur>();
+
+            foreach (var email in emails)
+            {
+                var user = await _utilisateurService
+                    .GetUtilisateurByEmailAsync(email, token);
+
+                if (user != null)
+                    recipients.Add(user);
+            }
+
+            return recipients;
+        }
+
+        private void ValidateShareRecipients(IEnumerable<string> emails, IEnumerable<Utilisateur> recipients)
+        {
+            var recipientEmails = recipients
+                .Select(x => x.Email)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var invalidEmails = emails
+                .Where(x => !recipientEmails.Contains(x))
+                .ToList();
+
+            if (invalidEmails.Any())
+            {
+                throw new CustomMessageException(
+                    string.Format(
+                        _translator.Common["Transfert.Document.ShareUserNotFound"],
+                        string.Join(", ", invalidEmails)));
+            }
+        }
+
+        private void AddDocumentShares(Document document, IEnumerable<Utilisateur> recipients, ShareDocumentViewModel model)
+        {
+            document.DocumentShares ??= new List<DocumentShare>();
+
+            foreach (var recipient in recipients)
+            {
+                document.DocumentShares.Add(new DocumentShare
+                {
+                    DocumentId = document.Id,
+                    SharedWithUserId = recipient.Id,
+                    Email = recipient.Email,
+                    SharedDate = model.StartDate,
+                    ExpiryDate = model.ExpiryDate
+                });
+            }
+        }
+
+        private async Task<bool> SendNotificationDocumentPartage(
+            IEnumerable<Utilisateur> recipients,
+            Document document,
+            CancellationToken token = default)
+        {
+            var emailNotifications = new List<EmailNotification>();
+
+            foreach (var recipient in recipients)
+            {
+                var template = await _emailNotificationTemplateService.GetEmailNotification(
+                    (int)ActiviteModule.TRANSFERT,
+                    (int)NotificationType.DocumentPartage,
+                    recipient.LangueId,
+                    token);
+
+                if (template == null)
+                    throw new CustomMessageException("Notification template not found");
+
+                var cultureInfo = Culture.GetCultureByLanguageId(template.LangueId);
+
+                var bodyArgs = new object[]
+                {
+                    document.Name,
+                    CurrentUser.FullName,
+                    document.UploadDate.ToString("dddd d MMMM yyyy HH:mm:ss 'UTC'zzz", cultureInfo),
+                    document.ExpiryDate.ToString("dddd d MMMM yyyy HH:mm:ss 'UTC'zzz", cultureInfo),
+                    null,
+                    document.SecurityCode,
+                    document.EncryptionKey
+                };
+
+                emailNotifications.Add(new EmailNotification
+                {
+                    EmailTo = recipient.Email,
+                    Subject = template.Subject,
+                    Body = string.Format(cultureInfo, template.Body, bodyArgs),
+                    DateNotification = DateTime.Now
+                });
+            }
+
+            if (!emailNotifications.Any())
+                return false;
+
+            return await _emailNotificationService.PushNotifications(emailNotifications, token);
         }
     }
 }
