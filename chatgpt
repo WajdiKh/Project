@@ -1,0 +1,147 @@
+/* =========================================================
+   INSERTIONS DES TRADUCTIONS
+   PARTIE : PARTAGE DE DOCUMENTS
+   ========================================================= */
+
+/* =========================================================
+   Transfert.Document.ShareEmailsRequired
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareEmailsRequired',
+    N'Le champ e-mail est obligatoire.',
+    N'The email field is required.'
+);
+
+/* =========================================================
+   Transfert.Document.ShareEmailInvalid
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareEmailInvalid',
+    N'Un ou plusieurs e-mails sont invalides.',
+    N'One or more email addresses are invalid.'
+);
+
+/* =========================================================
+   Transfert.Document.ShareEmailMaxLength
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareEmailMaxLength',
+    N'Le champ e-mail ne doit pas dépasser 4000 caractères.',
+    N'The email field must not exceed 4000 characters.'
+);
+
+/* =========================================================
+   Transfert.Document.ShareStartDateRequired
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareStartDateRequired',
+    N'La date de début du partage est obligatoire.',
+    N'The share start date is required.'
+);
+
+/* =========================================================
+   Transfert.Document.ShareStartDateInvalid
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareStartDateInvalid',
+    N'La date de début du partage doit être supérieure ou égale à la date du jour.',
+    N'The share start date must be greater than or equal to today.'
+);
+
+/* =========================================================
+   Transfert.Document.ShareExpiryDateRequired
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareExpiryDateRequired',
+    N'La date d''expiration du partage est obligatoire.',
+    N'The share expiration date is required.'
+);
+
+/* =========================================================
+   Transfert.Document.ShareExpiryDateInvalid
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareExpiryDateInvalid',
+    N'La date d''expiration du partage doit être supérieure ou égale à la date de début du partage.',
+    N'The share expiration date must be greater than or equal to the share start date.'
+);
+
+/* =========================================================
+   Transfert.Document.ShareExpiryDateDocumentInvalid
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareExpiryDateDocumentInvalid',
+    N'La date d''expiration du partage ne doit pas dépasser la date d''expiration du document.',
+    N'The share expiration date must not exceed the document expiration date.'
+);
+
+/* =========================================================
+   Transfert.Document.ShareUserNotFound
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareUserNotFound',
+    N'Les utilisateurs suivants sont introuvables : {0}',
+    N'The following users were not found: {0}'
+);
+
+/* =========================================================
+   Transfert.Document.ShareDocumentNotFound
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareDocumentNotFound',
+    N'Document introuvable.',
+    N'Document not found.'
+);
+
+/* =========================================================
+   Transfert.Document.ShareSaveError
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareSaveError',
+    N'Une erreur est survenue lors du partage du document.',
+    N'An error occurred while sharing the document.'
+);
+
+/* =========================================================
+   Transfert.Document.ShareSuccess
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareSuccess',
+    N'Le document a été partagé avec succès.',
+    N'The document has been shared successfully.'
+);
+
+/* =========================================================
+   Transfert.Document.ShareNotificationError
+   ========================================================= */
+
+INSERT INTO Common.Translation (Code, FrenchTranslation, EnglishTranslation)
+VALUES (
+    'Transfert.Document.ShareNotificationError',
+    N'Une erreur est survenue lors de l''envoi des notifications.',
+    N'An error occurred while sending notifications.'
+);
