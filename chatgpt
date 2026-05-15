@@ -1,0 +1,66 @@
+// Garde la ligne unique :
+// "Date de partage : de ... à ..."
+// c’est parfaitement acceptable UX.
+//
+// Le vrai problème était surtout :
+// - les secondes
+// - le rendu brut UTC
+//
+// ============================================================================
+// UTILISE PLUTÔT CE FORMAT
+// ============================================================================
+
+var bodyArgs = new object[]
+{
+    document.Name,
+    CurrentUser.FullName,
+
+    // Date début partage
+    model.StartDate.ToString(
+        "dddd d MMMM yyyy 'à' HH:mm '(UTC'zzz')'",
+        cultureInfo),
+
+    // Date expiration partage
+    model.ExpiryDate.ToString(
+        "dddd d MMMM yyyy 'à' HH:mm '(UTC'zzz')'",
+        cultureInfo),
+
+    null,
+    document.SecurityCode,
+    document.EncryptionKey
+};
+
+
+// ============================================================================
+// TON TEMPLATE EMAIL PEUT RESTER COMME ÇA
+// ============================================================================
+//
+// <li>Date de partage : de {2} à {3}</li>
+//
+// ============================================================================
+// LE RENDU FINAL SERA
+// ============================================================================
+//
+// Date de partage :
+// de vendredi 15 mai 2026 à 00:00 (UTC+02:00)
+// à samedi 16 mai 2026 à 00:00 (UTC+02:00)
+//
+// ============================================================================
+// AVANTAGES
+// ============================================================================
+//
+// ✅ Lisible
+// ✅ International
+// ✅ Compatible multi-fuseaux
+// ✅ Pas ambigu
+// ✅ Tu gardes DateTimeOffset
+// ✅ Pas besoin de timezone utilisateur
+//
+// ============================================================================
+// ÉVITE ABSOLUMENT
+// ============================================================================
+//
+// "HH:mm:ss 'UTC'zzz"
+//
+// car ça fait trop technique/log système.
+// ============================================================================
