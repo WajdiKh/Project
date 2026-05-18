@@ -1,66 +1,38 @@
-// Garde la ligne unique :
-// "Date de partage : de ... à ..."
-// c’est parfaitement acceptable UX.
-//
-// Le vrai problème était surtout :
-// - les secondes
-// - le rendu brut UTC
-//
-// ============================================================================
-// UTILISE PLUTÔT CE FORMAT
-// ============================================================================
+Contact : LAM Philippe / CHEN Lingjie
 
-var bodyArgs = new object[]
-{
-    document.Name,
-    CurrentUser.FullName,
-
-    // Date début partage
-    model.StartDate.ToString(
-        "dddd d MMMM yyyy 'à' HH:mm '(UTC'zzz')'",
-        cultureInfo),
-
-    // Date expiration partage
-    model.ExpiryDate.ToString(
-        "dddd d MMMM yyyy 'à' HH:mm '(UTC'zzz')'",
-        cultureInfo),
-
-    null,
-    document.SecurityCode,
-    document.EncryptionKey
-};
+Objectif: 
 
 
-// ============================================================================
-// TON TEMPLATE EMAIL PEUT RESTER COMME ÇA
-// ============================================================================
-//
-// <li>Date de partage : de {2} à {3}</li>
-//
-// ============================================================================
-// LE RENDU FINAL SERA
-// ============================================================================
-//
-// Date de partage :
-// de vendredi 15 mai 2026 à 00:00 (UTC+02:00)
-// à samedi 16 mai 2026 à 00:00 (UTC+02:00)
-//
-// ============================================================================
-// AVANTAGES
-// ============================================================================
-//
-// ✅ Lisible
-// ✅ International
-// ✅ Compatible multi-fuseaux
-// ✅ Pas ambigu
-// ✅ Tu gardes DateTimeOffset
-// ✅ Pas besoin de timezone utilisateur
-//
-// ============================================================================
-// ÉVITE ABSOLUMENT
-// ============================================================================
-//
-// "HH:mm:ss 'UTC'zzz"
-//
-// car ça fait trop technique/log système.
-// ============================================================================
+
+Important !!!
+Ajouter dans DocumentShare, le créateur du partage (CreateurId). Et l'alimenter lorsqu'on ajoute un partage.
+
+Lorsqu'on sélectionne une ligne dans le tableau "Mes documents", afficher le bouton " Paramètres de partage"
+Vérifier que l'utilisateur courant est le créateur du document sélectionné ou bien administrateur globaux.
+
+Afficher un popup lorsqu'on cliquer sur le bouton "Paramètres de partage"
+Dans le popup, afficher :
+un tableau avec la liste des partages du document :
+Mails des personnes partagé
+créateur du partage
+date de début de partage
+date de fin de partage
+un bouton "Fermer" pour fermer le popup
+une croix pour fermer le popup
+un bouton "Modifier" désactivé de base tant qu'une ligne dans la liste de partage n'est pas sélectionné
+un bouton "Supprimer" désactivé de base tant qu'une ligne dans la liste de partage n'est pas sélectionné
+
+
+Fonctionnalités :
+
+Un bouton "Fermer" et une croix pour fermer le popup
+Un bouton pour modifier la ligne sélectionnée
+le popup de modification (le même que l'ajout de partage) s'affiche qui permet de modifier les valeurs (mails, date début et fin)
+Un bouton pour supprimer la ligne, avec un message de confirmation de suppression  : Voulez-vous supprimer le partage ?
+Deux boutons : "Oui" pour supprimer la ligne ; "Non" pour fermer la popup de confirmation
+
+
+Utilisateur : Utilisateurs du module transfert ; Admin globaux qui ont accès au module
+
+
+
