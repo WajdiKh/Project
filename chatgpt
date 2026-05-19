@@ -1353,3 +1353,70 @@ private static string FormatUserName(string prenom, string nom)
 // ou ne plus l'utiliser. Elle est remplacée par BuildDocumentShares.
 // Garder ExtractShareEmails, GetShareRecipientsAsync et ValidateShareRecipients.
 // ============================================================================
+// ==============================
+// Nouveau fichier
+// BacaratWeb.Core.Helper/UtilisateurHelper.cs
+// ==============================
+
+using System;
+
+namespace BacaratWeb.Core.Helper
+{
+    public static class UtilisateurHelper
+    {
+        public static string FormatUserName(string nom, string prenom)
+        {
+            nom = nom?.Trim().ToUpperInvariant() ?? string.Empty;
+
+            prenom = prenom?.Trim() ?? string.Empty;
+
+            return string.IsNullOrWhiteSpace(prenom)
+                ? nom
+                : $"{nom} {prenom}";
+        }
+    }
+}
+
+// ==============================
+// DocumentController.cs
+// Ajouter le using
+// ==============================
+
+using BacaratWeb.Core.Helper;
+
+// ==============================
+// DocumentController.cs
+// Supprimer l'ancienne méthode locale
+// ==============================
+
+// À SUPPRIMER complètement si elle existe encore
+
+private static string FormatUserName(Utilisateur utilisateur)
+{
+    ...
+}
+
+// ==============================
+// DocumentController.cs
+// Remplacer tous les appels
+// ==============================
+
+// AVANT
+FormatUserName(createur)
+
+// APRÈS
+UtilisateurHelper.FormatUserName(
+    createur.Nom,
+    createur.Prenom)
+
+// ==============================
+// Exemple concret
+// ==============================
+
+// AVANT
+CreateurName = FormatUserName(createur)
+
+// APRÈS
+CreateurName = UtilisateurHelper.FormatUserName(
+    createur.Nom,
+    createur.Prenom)
