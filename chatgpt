@@ -1,42 +1,94 @@
-/* Table utilisée :
-   [Commun].[Traduction]
-   Colonnes :
-   - [Id]
-   - [FrenchTranslate]
-   - [EnglishTranslate]
-*/
+// Oui, parce qu’en passant par popup.option("title", "..."),
+// on utilise le titre standard DevExtreme et non plus ton TitleTemplate custom.
+// Pour garder le style, il faut remettre un TitleTemplate statique dans Index.cshtml
+// avec un conteneur dont le texte sera mis à jour en JS.
 
-MERGE [Commun].[Traduction] AS target
-USING
-(
-    VALUES
-    (
-        N'Transfert',
-        N'Transfert',
-        N'Transfer'
-    ),
-    (
-        N'Transfert.Document.ShareWithUsers',
-        N'Partage avec d''autres utilisateurs',
-        N'Share with other users'
-    ),
-    (
-        N'Transfert.Document.SharedEmails',
-        N'Emails de partage',
-        N'Shared emails'
-    ),
-    (
-        N'Transfert.Document.AddedBy',
-        N'Ajouté par',
-        N'Added by'
+// =========================
+// Index.cshtml
+// Popup ShareDocumentPopup : remplacer le TitleTemplate par ceci
+// =========================
+
+.TitleTemplate(@<text>
+    <div class="d-flex flex-row align-items-center justify-content-between">
+        <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+            <i class="fas fa-share-alt mr-2" aria-hidden="true"></i>
+            <span id="shareDocumentPopupTitle"></span>
+        </div>
+        <button type="button"
+                class="popup-close-btn"
+                onclick="Transfert.Document.closeShareDocumentPopup();"
+                style="cursor: pointer; font-size: 24px; background: none; border: none; padding: 0; color: inherit;">
+            &times;
+        </button>
+    </div>
+</text>)
+
+
+// =========================
+// Index.cshtml
+// Popup ShareSettingsDocumentPopup : remplacer le TitleTemplate par ceci
+// =========================
+
+.TitleTemplate(@<text>
+    <div class="d-flex flex-row align-items-center justify-content-between">
+        <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+            <i class="fas fa-cogs mr-2" aria-hidden="true"></i>
+            <span id="shareSettingsDocumentPopupTitle"></span>
+        </div>
+        <button type="button"
+                class="popup-close-btn"
+                onclick="Transfert.Document.closeShareSettingsPopup();"
+                style="cursor: pointer; font-size: 24px; background: none; border: none; padding: 0; color: inherit;">
+            &times;
+        </button>
+    </div>
+</text>)
+
+
+// =========================
+// document.js
+// Garde cette méthode
+// =========================
+
+Transfert.Document.buildPopupTitle = function (suffix) {
+    if (!Transfert.Document.selectedDocument) {
+        return suffix;
+    }
+
+    return _transfertTranslatableTransfer +
+        " >> " +
+        Transfert.Document.selectedDocument.Name +
+        " >> " +
+        suffix;
+};
+
+
+// =========================
+// document.js
+// Dans openSharePopup, remplacer popup.option("title", ...) par :
+// =========================
+
+$("#shareDocumentPopupTitle").text(
+    Transfert.Document.buildPopupTitle(
+        _transfertTranslatableDocumentShareWithUsers
     )
-)
-AS source ([Id], [FrenchTranslate], [EnglishTranslate])
-ON target.[Id] = source.[Id]
-WHEN MATCHED THEN
-    UPDATE SET
-        target.[FrenchTranslate] = source.[FrenchTranslate],
-        target.[EnglishTranslate] = source.[EnglishTranslate]
-WHEN NOT MATCHED THEN
-    INSERT ([Id], [FrenchTranslate], [EnglishTranslate])
-    VALUES (source.[Id], source.[FrenchTranslate], source.[EnglishTranslate]);
+);
+
+
+// =========================
+// document.js
+// Dans openShareSettingsPopup, remplacer popup.option("title", ...) par :
+// =========================
+
+$("#shareSettingsDocumentPopupTitle").text(
+    Transfert.Document.buildPopupTitle(
+        _transfertTranslatableDocumentShareSettings
+    )
+);
+
+
+// =========================
+// Important
+// Ne mets plus popup.option("title", "...") pour ces deux popups,
+// sinon DevExtreme repasse sur le titre standard et tu perds ton style.
+// =========================
