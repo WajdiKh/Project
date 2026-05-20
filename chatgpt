@@ -1,382 +1,42 @@
-// =========================
-// INDEX.CSHTML
-// =========================
+/* Table utilisée :
+   [Commun].[Traduction]
+   Colonnes :
+   - [Id]
+   - [FrenchTranslate]
+   - [EnglishTranslate]
+*/
 
-// REMPLACER init popup ShareDocumentPopup PAR :
-
-@(Html.DevExtreme().Popup()
-    .ID(TransfertConstants.ShareDocumentPopupId)
-    .ElementAttr(new Dictionary<string, object>
-    {
-        { "class", "popup" }
-    })
-    .ShowTitle(true)
-    .DragEnabled(true)
-    .ShowCloseButton(true)
-    .ResizeEnabled(false)
-    .Width("80%")
-    .Height("auto"))
-
-// REMPLACER init popup ShareSettingsDocumentPopup PAR :
-
-@(Html.DevExtreme().Popup()
-    .ID(TransfertConstants.ShareSettingsDocumentPopupId)
-    .ElementAttr(new Dictionary<string, object>
-    {
-        { "class", "popup" }
-    })
-    .ShowTitle(true)
-    .DragEnabled(true)
-    .ShowCloseButton(true)
-    .ResizeEnabled(false)
-    .Width("80%")
-    .Height("auto"))
-
-
-
-// =========================
-// _PARTIALSHARESETTINGSDOCUMENT.CSHTML
-// =========================
-
-// REMPLACER LE DATAGRID PAR :
-
-@(Html.DevExtreme().DataGrid<DocumentShareViewModel>()
-    .ID("shareSettingsGrid")
-    .ShowBorders(true)
-    .ColumnAutoWidth(true)
-    .Selection(s => s.Mode(SelectionMode.Single))
-    .OnSelectionChanged("Transfert.Document.onShareSettingsSelectionChanged")
-    .Columns(columns =>
-    {
-        columns.AddFor(m => m.Email)
-            .Caption("Emails de partage");
-
-        columns.AddFor(m => m.CreateurName)
-            .Caption("Ajouté par");
-
-        columns.AddFor(m => m.SharedDate)
-            .Caption("Date début")
-            .DataType(GridColumnDataType.DateTime)
-            .Format("dd/MM/yyyy HH:mm");
-
-        columns.AddFor(m => m.ExpiryDate)
-            .Caption("Date fin")
-            .DataType(GridColumnDataType.DateTime)
-            .Format("dd/MM/yyyy HH:mm");
-    })
-    .DataSource(ds => ds.Mvc()
-        .RouteName("apiRoute")
-        .Area("Transfert")
-        .Controller("Document")
-        .LoadAction("GetDocumentShares")
-        .LoadParams(new { documentId = Model.DocumentId }))
+MERGE [Commun].[Traduction] AS target
+USING
+(
+    VALUES
+    (
+        N'Transfert',
+        N'Transfert',
+        N'Transfer'
+    ),
+    (
+        N'Transfert.Document.ShareWithUsers',
+        N'Partage avec d''autres utilisateurs',
+        N'Share with other users'
+    ),
+    (
+        N'Transfert.Document.SharedEmails',
+        N'Emails de partage',
+        N'Shared emails'
+    ),
+    (
+        N'Transfert.Document.AddedBy',
+        N'Ajouté par',
+        N'Added by'
+    )
 )
-
-
-
-// =========================
-// DOCUMENT.JS
-// =========================
-
-// REMPLACER initShareButton PAR :
-
-Transfert.Document.initShareButton = function () {
-    $("#btnShareDocument").dxButton({
-        text: _transfertTranslatableDocumentShareWith,
-        icon: "share",
-        visible: false,
-        elementAttr: {
-            class: "color-blue"
-        },
-        onClick: function () {
-            Transfert.Document.openSharePopup();
-        }
-    });
-};
-
-
-// REMPLACER onMyDocumentsSelectionChanged PAR :
-
-Transfert.Document.onMyDocumentsSelectionChanged = function (e) {
-
-    var selectedRows = e.selectedRowsData;
-
-    Transfert.Document.selectedDocument =
-        selectedRows && selectedRows.length > 0
-            ? selectedRows[0]
-            : null;
-
-    var hasSelection = !!Transfert.Document.selectedDocument;
-
-    var shareButton = $("#btnShareDocument").dxButton("instance");
-
-    if (shareButton) {
-        shareButton.option("visible", hasSelection);
-    }
-
-    var shareSettingsButton = $("#btnShareSettingsDocument").dxButton("instance");
-
-    if (shareSettingsButton) {
-        shareSettingsButton.option("visible", hasSelection);
-    }
-};
-
-
-// AJOUTER CETTE MÉTHODE :
-
-Transfert.Document.buildPopupTitle = function (suffix) {
-
-    if (!Transfert.Document.selectedDocument) {
-        return suffix;
-    }
-
-    return _transfertTranslatableTransfer +
-        " >> " +
-        Transfert.Document.selectedDocument.Name +
-        " >> " +
-        suffix;
-};
-
-
-// REMPLACER openSharePopup PAR :
-
-Transfert.Document.openSharePopup = function () {
-
-    if (!Transfert.Document.selectedDocument) {
-        return;
-    }
-
-    var popup = $("#" + _transfertShareDocumentPopupId)
-        .dxPopup("instance");
-
-    popup.option(
-        "title",
-        Transfert.Document.buildPopupTitle(
-            _transfertTranslatableDocumentShareWithUsers
-        )
-    );
-
-    $.ajax({
-        method: "GET",
-        cache: false,
-        url: "/" + culture + "/transfert/share-document",
-        data: {
-            documentId: Transfert.Document.selectedDocument.Id
-        }
-    }).done(function (htmlContent) {
-
-        showScrollablePopup(
-            _transfertShareDocumentPopupId,
-            htmlContent
-        );
-
-        Transfert.Document.initShareDocumentValidators();
-
-    }).fail(function (e) {
-
-        if (e.status === 401) {
-            $("#modalReconnect").dxPopup("instance").show();
-            return;
-        }
-
-        if (e.status === 403) {
-            DevExpress.ui.notify(
-                _commonTranslatableMessagePasDePermissionAction,
-                "error"
-            );
-            return;
-        }
-
-        DevExpress.ui.notify(
-            e.responseText || _commonTranslatableMessageErrorLoadForm,
-            "error"
-        );
-    });
-};
-
-
-// REMPLACER openShareSettingsPopup PAR :
-
-Transfert.Document.openShareSettingsPopup = function () {
-
-    if (!Transfert.Document.selectedDocument) {
-        return;
-    }
-
-    var popup = $("#" + _transfertShareSettingsDocumentPopupId)
-        .dxPopup("instance");
-
-    popup.option(
-        "title",
-        Transfert.Document.buildPopupTitle(
-            _transfertTranslatableDocumentShareSettings
-        )
-    );
-
-    $.ajax({
-        method: "GET",
-        cache: false,
-        url: "/" + culture + "/transfert/share-settings",
-        data: {
-            documentId: Transfert.Document.selectedDocument.Id
-        }
-    }).done(function (htmlContent) {
-
-        showScrollablePopup(
-            _transfertShareSettingsDocumentPopupId,
-            htmlContent
-        );
-
-        Transfert.Document.selectedDocumentShare = null;
-
-    }).fail(function (e) {
-
-        if (e.status === 401) {
-            $("#modalReconnect").dxPopup("instance").show();
-            return;
-        }
-
-        if (e.status === 403) {
-            DevExpress.ui.notify(
-                _commonTranslatableMessagePasDePermissionAction,
-                "error"
-            );
-            return;
-        }
-
-        DevExpress.ui.notify(
-            e.responseText || _commonTranslatableMessageErrorLoadForm,
-            "error"
-        );
-    });
-};
-
-
-// REMPLACER LA VALIDATION ShareExpiryDate PAR :
-
-$("#ShareExpiryDate").dxValidator({
-    validationGroup: _transfertShareDocumentFormValidationGroupName,
-    validationRules: [
-        {
-            type: "required",
-            message: _transfertTranslatableDocumentShareExpiryDateRequired
-        },
-        {
-            type: "custom",
-            message: _transfertTranslatableDocumentShareExpiryDateInvalid,
-            validationCallback: function (e) {
-
-                var startDate = $("#ShareStartDate")
-                    .dxDateBox("instance")
-                    .option("value");
-
-                var expiryDate = e.value;
-
-                if (!startDate || !expiryDate) {
-                    return false;
-                }
-
-                var start = new Date(startDate);
-                var expiry = new Date(expiryDate);
-
-                start.setHours(0, 0, 0, 0);
-                expiry.setHours(0, 0, 0, 0);
-
-                return expiry > start;
-            }
-        },
-        {
-            type: "custom",
-            message: _transfertTranslatableDocumentShareExpiryDateDocumentInvalid,
-            validationCallback: function (e) {
-
-                var documentExpiryDate =
-                    $("#DocumentExpiryDate").val();
-
-                var expiryDate = e.value;
-
-                if (!documentExpiryDate || !expiryDate) {
-                    return false;
-                }
-
-                var documentExpiry =
-                    new Date(documentExpiryDate);
-
-                var expiry =
-                    new Date(expiryDate);
-
-                documentExpiry.setHours(0, 0, 0, 0);
-                expiry.setHours(0, 0, 0, 0);
-
-                return expiry <= documentExpiry;
-            }
-        }
-    ]
-});
-
-
-
-// =========================
-// _VIEWSTART
-// =========================
-
-// AJOUTER :
-
-var _transfertTranslatableTransfer =
-    "@Html.Raw(translator.Common["Transfert"])";
-
-var _transfertTranslatableDocumentShareWithUsers =
-    "@Html.Raw(translator.Common["Transfert.Document.ShareWithUsers"])";
-
-
-
-// =========================
-// SCRIPT SQL TRADUCTIONS
-// =========================
-
--- FR
-
-IF NOT EXISTS (
-    SELECT 1
-    FROM Traduction
-    WHERE Cle = 'Transfert'
-)
-BEGIN
-    INSERT INTO Traduction (Cle, Fr, En)
-    VALUES (
-        'Transfert',
-        'Transfert',
-        'Transfer'
-    );
-END
-ELSE
-BEGIN
-    UPDATE Traduction
-    SET
-        Fr = 'Transfert',
-        En = 'Transfer'
-    WHERE Cle = 'Transfert';
-END;
-
-
-IF NOT EXISTS (
-    SELECT 1
-    FROM Traduction
-    WHERE Cle = 'Transfert.Document.ShareWithUsers'
-)
-BEGIN
-    INSERT INTO Traduction (Cle, Fr, En)
-    VALUES (
-        'Transfert.Document.ShareWithUsers',
-        'Partage avec d''autres utilisateurs',
-        'Share with other users'
-    );
-END
-ELSE
-BEGIN
-    UPDATE Traduction
-    SET
-        Fr = 'Partage avec d''autres utilisateurs',
-        En = 'Share with other users'
-    WHERE Cle = 'Transfert.Document.ShareWithUsers';
-END;
+AS source ([Id], [FrenchTranslate], [EnglishTranslate])
+ON target.[Id] = source.[Id]
+WHEN MATCHED THEN
+    UPDATE SET
+        target.[FrenchTranslate] = source.[FrenchTranslate],
+        target.[EnglishTranslate] = source.[EnglishTranslate]
+WHEN NOT MATCHED THEN
+    INSERT ([Id], [FrenchTranslate], [EnglishTranslate])
+    VALUES (source.[Id], source.[FrenchTranslate], source.[EnglishTranslate]);
