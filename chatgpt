@@ -1,506 +1,1085 @@
-// DocumentService.cs
-using BacaratWeb.Entities.Transfert;
-using BacaratWeb.Services.Commun;
-using BacaratWeb.Services.Transfert.Interfaces;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using BacaratWeb.Model.Entities;
-using System.Linq;
-using Microsoft.EntityFrameworkCore;
+// ==========================================================
+// ===================== INDEX.CSHTML =======================
+// ==========================================================
 
-namespace BacaratWeb.Services.Transfert
-{
-    public class DocumentService : BacaratWebService<Document>, IDocumentService
-    {
-        public DocumentService(BacaratWebContext context)
-            : base(context)
-        {
-        }
+@using BacaratWeb.ViewModel.Transfert
+@inject IViewTranslator translator
 
-        public async Task<bool> AddAsync(Document entity, CancellationToken token = default)
-        {
-            await Context.Documents.AddAsync(entity, token).ConfigureAwait(false);
-            return await Context.SaveChangesAsync(token).ConfigureAwait(false) > 0;
-        }
+@{
+    var currentMode = ViewBag.Mode ?? "all";
+    var language = Context.Features.Get<IRequestCultureFeature>()
+        .RequestCulture.Culture.ToString().ToCamelCase();
 
-        public async Task<bool> UpdateAsync(Document entity, CancellationToken token = default)
-        {
-            Context.Documents.Update(entity);
-            return await Context.SaveChangesAsync(token).ConfigureAwait(false) > 0;
-        }
+    var isFrench = Context.Features.Get<IRequestCultureFeature>()
+        .RequestCulture.Culture.TwoLetterISOLanguageName == "fr";
+}
 
-        public async Task<bool> DeleteAsync(Document entity, CancellationToken token = default)
-        {
-            Context.Documents.Remove(entity);
-            return await Context.SaveChangesAsync(token).ConfigureAwait(false) > 0;
-        }
+<div class="smallCaps text-green mt-2 mb-2">
+    <div id="menuSelectMode" class="align-menu-items-center"></div>
+</div>
 
-        public async Task<Document> GetAsync(int id, bool include = false, CancellationToken token = default)
-        {
-            IQueryable<Document> query = Context.Documents;
+<script>
+    var _transfertCurrentMode = '@currentMode';
+</script>
 
-            if (include)
+<div id="transfertContent">
+
+    <!-- ====================================== -->
+    <!-- TOUS LES DOCUMENTS -->
+    <!-- ====================================== -->
+
+    <div id="gridAllDocumentsContainer" style="display:none;">
+
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+            .Width("100%")
+            .ID("allDocumentsGrid")
+
+            .AllowColumnReordering(true)
+            .AllowColumnResizing(true)
+            .ColumnResizingMode(ColumnResizingMode.Widget)
+            .ColumnAutoWidth(true)
+
+            .HoverStateEnabled(true)
+            .RowAlternationEnabled(true)
+            .ShowBorders(true)
+
+            .RemoteOperations(false)
+
+            .ColumnChooser(cc => cc.Enabled(true).AllowSearch(true))
+            .ColumnFixing(c => c.Enabled(true))
+
+            .SearchPanel(s => s
+                .Visible(true)
+                .HighlightCaseSensitive(false)
+                .Placeholder(translator.Common["Search"]))
+
+            .FilterRow(f => f
+                .Visible(true)
+                .ApplyFilter(GridApplyFilterMode.Auto))
+
+            .HeaderFilter(f => f.Visible(true))
+
+            .GroupPanel(g => g.Visible(true))
+            .Grouping(g => g.AutoExpandAll(false))
+
+            .Paging(p => p.PageSize(10))
+
+            .Pager(pager =>
+                pager.ShowPageSizeSelector(true)
+                    .ShowNavigationButtons(true)
+                    .AllowedPageSizes(new List<int> { 5, 10, 20, 50 }))
+
+            .Export(e => e.Enabled(true)
+                .AllowExportSelectedData(true))
+
+            .RepaintChangesOnly(true)
+
+            .Columns(columns =>
             {
-                query = query
-                    .Include(x => x.Owner)
-                    .Include(x => x.StatutDocument)
-                    .Include(x => x.DocumentShares);
-            }
+                columns.AddFor(m => m.Name)
+                    .Caption(translator.Common["Transfert.Document.Name"]);
 
-            return await query.FirstOrDefaultAsync(x => x.Id == id, token)
-                .ConfigureAwait(false);
-        }
+                columns.AddFor(m => m.Description)
+                    .Caption(translator.Common["Description"]);
 
-        public async Task<IEnumerable<Document>> GetManyAsync(bool include = false, CancellationToken token = default)
-        {
-            IQueryable<Document> query = Context.Documents;
+                columns.AddFor(m => m.ContentType)
+                    .Caption(translator.Common["Type"]);
 
-            if (include)
+                columns.Add()
+                    .Caption(translator.Common["Size"])
+                    .CalculateCellValue(@<text>
+                        function(data) {
+                            if(!data.FileSize)
+                                return "";
+
+                            var size = data.FileSize / 1024 / 1024;
+
+                            return size.toFixed(2) + " @(isFrench ? "Mo" : "Mb")";
+                        }
+                    </text>);
+
+                columns.AddFor(m => m.UploadDate)
+                    .Caption(translator.Common["Transfert.Document.UploadDate"])
+                    .DataType(GridColumnDataType.DateTime)
+                    .Format("dd/MM/yyyy HH:mm");
+
+                columns.AddFor(m => m.ExpiryDate)
+                    .Caption(translator.Common["EndDate"])
+                    .DataType(GridColumnDataType.DateTime)
+                    .Format("dd/MM/yyyy HH:mm");
+
+                columns.AddFor(m => m.OwnerName)
+                    .Caption(translator.Common["Owner"]);
+
+                columns.Add()
+                    .Caption(translator.Common["Statut"])
+                    .DataField($"StatutDocumentName{language}");
+
+                columns.Add()
+                    .Caption(translator.Common["Actions"])
+                    .Width(120)
+                    .CellTemplate(@<text>
+
+                        <div class="d-flex align-items-center">
+
+                            <div class="mr-2">
+                                <a href="javascript:void(0)"
+                                   onclick="Transfert.Document.downloadDocument(<%= data.Id %>)">
+                                    <i class="fas fa-download color-blue"></i>
+                                </a>
+                            </div>
+
+                        </div>
+
+                    </text>);
+            })
+
+            .DataSource(ds => ds.Mvc()
+                .RouteName("apiRoute")
+                .Area("Transfert")
+                .Controller("Document")
+                .LoadAction("GetAllDocuments"))
+        )
+    </div>
+
+    <!-- ====================================== -->
+    <!-- MES DOCUMENTS -->
+    <!-- ====================================== -->
+
+    <div id="gridMyDocumentsContainer" style="display:none;">
+
+        <div class="mb-5 d-flex align-items-center">
+            <div id="btnAddDocument"></div>
+            <div id="btnShareDocument" class="ml-3"></div>
+            <div id="btnShareSettingsDocument" class="ml-3"></div>
+        </div>
+
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+            .Width("100%")
+            .ID("myDocumentsGrid")
+
+            .AllowColumnReordering(true)
+            .AllowColumnResizing(true)
+            .ColumnResizingMode(ColumnResizingMode.Widget)
+            .ColumnAutoWidth(true)
+
+            .HoverStateEnabled(true)
+            .RowAlternationEnabled(true)
+            .ShowBorders(true)
+
+            .RemoteOperations(false)
+
+            .ColumnChooser(cc => cc.Enabled(true).AllowSearch(true))
+            .ColumnFixing(c => c.Enabled(true))
+
+            .SearchPanel(s => s
+                .Visible(true)
+                .HighlightCaseSensitive(false)
+                .Placeholder(translator.Common["Search"]))
+
+            .FilterRow(f => f
+                .Visible(true)
+                .ApplyFilter(GridApplyFilterMode.Auto))
+
+            .HeaderFilter(f => f.Visible(true))
+
+            .GroupPanel(g => g.Visible(true))
+            .Grouping(g => g.AutoExpandAll(false))
+
+            .Paging(p => p.PageSize(10))
+
+            .Pager(pager =>
+                pager.ShowPageSizeSelector(true)
+                    .ShowNavigationButtons(true)
+                    .AllowedPageSizes(new List<int> { 5, 10, 20, 50 }))
+
+            .Export(e => e.Enabled(true)
+                .AllowExportSelectedData(true))
+
+            .Selection(s => s.Mode(SelectionMode.Single))
+            .OnSelectionChanged("Transfert.Document.onMyDocumentsSelectionChanged")
+
+            .Columns(columns =>
             {
-                query = query
-                    .Include(x => x.Owner)
-                    .Include(x => x.StatutDocument)
-                    .Include(x => x.DocumentShares);
+                columns.AddFor(m => m.Name)
+                    .Caption(translator.Common["Transfert.Document.Name"]);
+
+                columns.AddFor(m => m.Description)
+                    .Caption(translator.Common["Description"]);
+
+                columns.AddFor(m => m.ContentType)
+                    .Caption(translator.Common["Type"]);
+
+                columns.Add()
+                    .Caption(translator.Common["Size"])
+                    .CalculateCellValue(@<text>
+                        function(data) {
+                            if(!data.FileSize)
+                                return "";
+
+                            var size = data.FileSize / 1024 / 1024;
+
+                            return size.toFixed(2) + " @(isFrench ? "Mo" : "Mb")";
+                        }
+                    </text>);
+
+                columns.AddFor(m => m.UploadDate)
+                    .Caption(translator.Common["Transfert.Document.UploadDate"])
+                    .DataType(GridColumnDataType.DateTime)
+                    .Format("dd/MM/yyyy HH:mm");
+
+                columns.AddFor(m => m.ExpiryDate)
+                    .Caption(translator.Common["EndDate"])
+                    .DataType(GridColumnDataType.DateTime)
+                    .Format("dd/MM/yyyy HH:mm");
+
+                columns.AddFor(m => m.OwnerName)
+                    .Caption(translator.Common["Owner"]);
+
+                columns.Add()
+                    .Caption(translator.Common["Statut"])
+                    .DataField($"StatutDocumentName{language}");
+
+                columns.Add()
+                    .Caption(translator.Common["Actions"])
+                    .Width(150)
+                    .CellTemplate(@<text>
+
+                        <div class="d-flex align-items-center">
+
+                            <div class="mr-3">
+                                <a href="javascript:void(0)"
+                                   onclick="Transfert.Document.downloadDocument(<%= data.Id %>)">
+                                    <i class="fas fa-download color-blue"></i>
+                                </a>
+                            </div>
+
+                            <div>
+                                <a href="javascript:void(0)"
+                                   onclick="Transfert.Document.confirmDeleteDocument(<%= data.Id %>)">
+                                    <i class="fas fa-trash color-red"></i>
+                                </a>
+                            </div>
+
+                        </div>
+
+                    </text>);
+            })
+
+            .DataSource(ds => ds.Mvc()
+                .RouteName("apiRoute")
+                .Area("Transfert")
+                .Controller("Document")
+                .LoadAction("GetMyDocuments"))
+        )
+    </div>
+
+    <!-- ====================================== -->
+    <!-- PARTAGES AVEC MOI -->
+    <!-- ====================================== -->
+
+    <div id="gridSharedDocumentsContainer" style="display:none;">
+
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+            .Width("100%")
+            .ID("sharedDocumentsGrid")
+
+            .AllowColumnReordering(true)
+            .AllowColumnResizing(true)
+            .ColumnResizingMode(ColumnResizingMode.Widget)
+            .ColumnAutoWidth(true)
+
+            .HoverStateEnabled(true)
+            .RowAlternationEnabled(true)
+            .ShowBorders(true)
+
+            .RemoteOperations(false)
+
+            .ColumnChooser(cc => cc.Enabled(true).AllowSearch(true))
+            .ColumnFixing(c => c.Enabled(true))
+
+            .SearchPanel(s => s
+                .Visible(true)
+                .HighlightCaseSensitive(false)
+                .Placeholder(translator.Common["Search"]))
+
+            .FilterRow(f => f
+                .Visible(true)
+                .ApplyFilter(GridApplyFilterMode.Auto))
+
+            .HeaderFilter(f => f.Visible(true))
+
+            .GroupPanel(g => g.Visible(true))
+            .Grouping(g => g.AutoExpandAll(false))
+
+            .Paging(p => p.PageSize(10))
+
+            .Pager(pager =>
+                pager.ShowPageSizeSelector(true)
+                    .ShowNavigationButtons(true)
+                    .AllowedPageSizes(new List<int> { 5, 10, 20, 50 }))
+
+            .Export(e => e.Enabled(true)
+                .AllowExportSelectedData(true))
+
+            .Columns(columns =>
+            {
+                columns.AddFor(m => m.Name)
+                    .Caption(translator.Common["Transfert.Document.Name"]);
+
+                columns.AddFor(m => m.Description)
+                    .Caption(translator.Common["Description"]);
+
+                columns.AddFor(m => m.ContentType)
+                    .Caption(translator.Common["Type"]);
+
+                columns.Add()
+                    .Caption(translator.Common["Size"])
+                    .CalculateCellValue(@<text>
+                        function(data) {
+                            if(!data.FileSize)
+                                return "";
+
+                            var size = data.FileSize / 1024 / 1024;
+
+                            return size.toFixed(2) + " @(isFrench ? "Mo" : "Mb")";
+                        }
+                    </text>);
+
+                columns.AddFor(m => m.UploadDate)
+                    .Caption(translator.Common["Transfert.Document.UploadDate"])
+                    .DataType(GridColumnDataType.DateTime)
+                    .Format("dd/MM/yyyy HH:mm");
+
+                columns.AddFor(m => m.ExpiryDate)
+                    .Caption(translator.Common["EndDate"])
+                    .DataType(GridColumnDataType.DateTime)
+                    .Format("dd/MM/yyyy HH:mm");
+
+                columns.AddFor(m => m.OwnerName)
+                    .Caption(translator.Common["Owner"]);
+
+                columns.Add()
+                    .Caption(translator.Common["Statut"])
+                    .DataField($"StatutDocumentName{language}");
+
+                columns.Add()
+                    .Caption(translator.Common["Actions"])
+                    .Width(120)
+                    .CellTemplate(@<text>
+
+                        <div class="d-flex align-items-center">
+
+                            <div class="mr-2">
+                                <a href="javascript:void(0)"
+                                   onclick="Transfert.Document.downloadDocument(<%= data.Id %>)">
+                                    <i class="fas fa-download color-blue"></i>
+                                </a>
+                            </div>
+
+                        </div>
+
+                    </text>);
+            })
+
+            .DataSource(ds => ds.Mvc()
+                .RouteName("apiRoute")
+                .Area("Transfert")
+                .Controller("Document")
+                .LoadAction("GetSharedWithMeDocuments"))
+        )
+    </div>
+
+</div>
+
+
+// ==========================================================
+// ====================== DOCUMENT.JS =======================
+// ==========================================================
+
+Transfert.Document.confirmDeleteDocument = function (documentId) {
+
+    var dialog = DevExpress.ui.dialog.custom({
+        title: _transfertTranslatableDocumentDelete,
+        messageHtml: _transfertTranslatableDocumentDeleteConfirmation,
+        buttons: [
+            {
+                text: _transfertTranslatableDocumentYes,
+                onClick: function () {
+                    return true;
+                }
+            },
+            {
+                text: _transfertTranslatableDocumentNo,
+                onClick: function () {
+                    return false;
+                }
             }
+        ]
+    });
 
-            return await query.ToListAsync(token).ConfigureAwait(false);
+    dialog.show().done(function (dialogResult) {
+
+        if (!dialogResult)
+            return;
+
+        Transfert.Document.deleteDocument(documentId);
+    });
+};
+
+Transfert.Document.deleteDocument = function (documentId) {
+
+    $.ajax({
+        url: "/" + culture + "/transfert/delete-document",
+        type: "POST",
+        data: {
+            documentId: documentId
+        },
+        success: function () {
+
+            DevExpress.ui.notify(
+                _transfertTranslatableDocumentDeleteSuccess,
+                "success",
+                3000);
+
+            Transfert.Document.refreshGrid("myDocumentsGrid");
+            Transfert.Document.refreshGrid("allDocumentsGrid");
+            Transfert.Document.refreshGrid("sharedDocumentsGrid");
+        },
+        error: function (xhr) {
+
+            DevExpress.ui.notify(
+                xhr.responseText ||
+                _transfertTranslatableDocumentDeleteError,
+                "error",
+                5000);
         }
+    });
+};
 
-        public async Task<bool> ExistsAsync(Document entity, CancellationToken token = default)
-        {
-            return await Context.Documents
-                .AnyAsync(x => x.Id == entity.Id, token)
-                .ConfigureAwait(false);
-        }
+Transfert.Document.downloadDocument = function (documentId) {
 
-        public async Task<bool> AddDocumentAsync(Document document, CancellationToken token = default)
-        {
-            await Context.Documents.AddAsync(document, token);
+    window.open(
+        "/" + culture + "/transfert/download/" + documentId,
+        "_blank");
+};
 
-            return await Context.SaveChangesAsync(token) > 0;
-        }
 
-        public async Task<IEnumerable<Document>> GetMyDocumentsAsync(int ownerId, CancellationToken token = default)
-        {
-            return await Context.Documents
-                .Include(x => x.Owner)
-                .Include(x => x.StatutDocument)
-                .Where(x => x.OwnerId == ownerId)
-                .OrderByDescending(x => x.UploadDate)
-                .ToListAsync(token);
-        }
+// ==========================================================
+// ================== IDOCUMENTSERVICE ======================
+// ==========================================================
 
-        public async Task<IEnumerable<DocumentShare>> GetSharedWithMeDocumentsAsync(int userId, string email, CancellationToken token = default)
-        {
-            return await Context.DocumentShares
-                .Include(x => x.Document)
-                    .ThenInclude(x => x.Owner)
-                .Include(x => x.Document)
-                    .ThenInclude(x => x.StatutDocument)
-                .Where(x => x.SharedWithUserId == userId || x.Email == email)
-                .OrderByDescending(x => x.SharedDate)
-                .ToListAsync(token)
-                .ConfigureAwait(false);
-        }
+Task<IEnumerable<Document>> GetAllDocumentsAsync(
+    int userId,
+    string email,
+    CancellationToken token = default);
 
-        public async Task<StatutDocument> GetStatutDocumentByCodeAsync(string code, CancellationToken token = default)
-        {
-            return await Context.StatutDocuments
-                .FirstOrDefaultAsync(x => x.Code == code && x.IsActive, token)
-                .ConfigureAwait(false);
-        }
+Task<bool> DeleteDocumentAsync(
+    int documentId,
+    int currentUserId,
+    CancellationToken token = default);
 
-        public async Task<Document> GetDocumentByIdAndOwnerAsync(int documentId, int ownerId, CancellationToken token = default)
-        {
-            return await Context.Documents
-                .Include(x => x.DocumentShares)
-                .FirstOrDefaultAsync(x => x.Id == documentId && x.OwnerId == ownerId, token);
-        }
+Task<Document> GetDocumentForDownloadAsync(
+    int documentId,
+    CancellationToken token = default);
 
-        public async Task<bool> ShareDocumentAsync(int documentId, IEnumerable<DocumentShare> shares, CancellationToken token = default)
-        {
-            var existingShares = Context.DocumentShares.Where(x => x.DocumentId == documentId);
+Task<bool> CanUserDownloadDocumentAsync(
+    int documentId,
+    int userId,
+    string email,
+    CancellationToken token = default);
 
-            Context.DocumentShares.RemoveRange(existingShares);
 
-            await Context.DocumentShares.AddRangeAsync(shares, token);
+// ==========================================================
+// ==================== DOCUMENTSERVICE =====================
+// ==========================================================
 
-            return await Context.SaveChangesAsync(token) > 0;
-        }
-
-        public async Task<IEnumerable<DocumentShare>> GetDocumentSharesAsync(int documentId, CancellationToken token = default)
-        {
-            return await Context.DocumentShares
-                .Include(x => x.Createur)
-                .Include(x => x.SharedWithUser)
-                .Where(x => x.DocumentId == documentId)
-                .OrderByDescending(x => x.SharedDate)
-                .ToListAsync(token);
-        }
-
-        public async Task<DocumentShare> GetDocumentShareAsync(int documentShareId, CancellationToken token = default)
-        {
-            return await Context.DocumentShares
-                .Include(x => x.Document)
-                    .ThenInclude(x => x.Owner)
-                .Include(x => x.Createur)
-                .Include(x => x.SharedWithUser)
-                .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
-        }
-
-        public async Task<bool> AddDocumentSharesAsync(IEnumerable<DocumentShare> shares, CancellationToken token = default)
-        {
-            var sharesToAdd = shares.ToList();
-
-            if (!sharesToAdd.Any())
-                return false;
-
-            await Context.DocumentShares.AddRangeAsync(sharesToAdd, token);
-
-            return await Context.SaveChangesAsync(token) > 0;
-        }
-
-        public async Task<bool> ReplaceDocumentShareAsync(int documentShareId, IEnumerable<DocumentShare> replacementShares, CancellationToken token = default)
-        {
-            var existingShare = await Context.DocumentShares
-                .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
-
-            if (existingShare == null)
-                return false;
-
-            Context.DocumentShares.Remove(existingShare);
-
-            var sharesToAdd = replacementShares.ToList();
-
-            if (sharesToAdd.Any())
-                await Context.DocumentShares.AddRangeAsync(sharesToAdd, token);
-
-            return await Context.SaveChangesAsync(token) > 0;
-        }
-
-        public async Task<bool> DeleteDocumentShareAsync(int documentShareId, CancellationToken token = default)
-        {
-            var share = await Context.DocumentShares
-                .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
-
-            if (share == null)
-                return false;
-
-            Context.DocumentShares.Remove(share);
-
-            return await Context.SaveChangesAsync(token) > 0;
-        }
-    }
-}
-
-// IDocumentService.cs
-using BacaratWeb.Services.Commun.Interfaces;
-using BacaratWeb.Entities.Transfert;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-
-namespace BacaratWeb.Services.Transfert.Interfaces
+public async Task<IEnumerable<Document>> GetAllDocumentsAsync(
+    int userId,
+    string email,
+    CancellationToken token = default)
 {
-    public interface IDocumentService : IBacaratWebService<Document>
-    {
-        Task<bool> AddDocumentAsync(Document document, CancellationToken token = default);
-        Task<IEnumerable<Document>> GetMyDocumentsAsync(int ownerId, CancellationToken token = default);
-        Task<IEnumerable<DocumentShare>> GetSharedWithMeDocumentsAsync(int userId, string email, CancellationToken token = default);
-        Task<StatutDocument> GetStatutDocumentByCodeAsync(string code, CancellationToken token = default);
-        Task<Document> GetDocumentByIdAndOwnerAsync(int documentId, int ownerId, CancellationToken token = default);
-        Task<bool> ShareDocumentAsync(int documentId, IEnumerable<DocumentShare> shares, CancellationToken token = default);
-        Task<IEnumerable<DocumentShare>> GetDocumentSharesAsync(int documentId, CancellationToken token = default);
-        Task<DocumentShare> GetDocumentShareAsync(int documentShareId, CancellationToken token = default);
-        Task<bool> AddDocumentSharesAsync(IEnumerable<DocumentShare> shares, CancellationToken token = default);
-        Task<bool> ReplaceDocumentShareAsync(int documentShareId, IEnumerable<DocumentShare> replacementShares, CancellationToken token = default);
-        Task<bool> DeleteDocumentShareAsync(int documentShareId, CancellationToken token = default);
-    }
+    return await Context.Documents
+        .Include(x => x.Owner)
+        .Include(x => x.StatutDocument)
+        .Include(x => x.DocumentShares)
+        .Where(x =>
+            x.OwnerId == userId
+            ||
+            x.DocumentShares.Any(s =>
+                s.SharedWithUserId == userId
+                || s.Email == email))
+        .Distinct()
+        .OrderByDescending(x => x.UploadDate)
+        .ToListAsync(token);
 }
 
-// Document.cs
-using BacaratWeb.Entities.Commun;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-
-namespace BacaratWeb.Entities.Transfert
+public async Task<bool> DeleteDocumentAsync(
+    int documentId,
+    int currentUserId,
+    CancellationToken token = default)
 {
-    [Table("Document", Schema = "Transfert")]
-    public sealed class Document
+    var document = await Context.Documents
+        .Include(x => x.DocumentShares)
+        .FirstOrDefaultAsync(
+            x => x.Id == documentId,
+            token);
+
+    if (document == null)
+        return false;
+
+    if (document.OwnerId != currentUserId)
+        return false;
+
+    if (document.DocumentShares.Any())
+        Context.DocumentShares.RemoveRange(document.DocumentShares);
+
+    Context.Documents.Remove(document);
+
+    return await Context.SaveChangesAsync(token) > 0;
+}
+
+public async Task<Document> GetDocumentForDownloadAsync(
+    int documentId,
+    CancellationToken token = default)
+{
+    return await Context.Documents
+        .Include(x => x.Owner)
+        .Include(x => x.DocumentShares)
+        .FirstOrDefaultAsync(
+            x => x.Id == documentId,
+            token);
+}
+
+public async Task<bool> CanUserDownloadDocumentAsync(
+    int documentId,
+    int userId,
+    string email,
+    CancellationToken token = default)
+{
+    return await Context.Documents
+        .AnyAsync(x =>
+            x.Id == documentId
+            &&
+            (
+                x.OwnerId == userId
+                ||
+                x.DocumentShares.Any(s =>
+                    s.SharedWithUserId == userId
+                    || s.Email == email)
+            ),
+            token);
+}
+
+
+// ==========================================================
+// ================== TRANSFERTMAPPINGPROFILE ==============
+// ==========================================================
+
+CreateMap<Document, DocumentViewModel>()
+    .ForMember(dest => dest.OwnerName,
+        opt => opt.MapFrom(src =>
+            src.Owner != null
+                ? ((src.Owner.Prenom ?? string.Empty)
+                    + " "
+                    + (src.Owner.Nom ?? string.Empty).ToUpper())
+                : string.Empty))
+    .ForMember(dest => dest.ContentType,
+        opt => opt.MapFrom(src =>
+            src.FileExtension.ToLower()))
+    .ForMember(dest => dest.StatutDocumentNameFr,
+        opt => opt.MapFrom(src =>
+            src.StatutDocument != null
+                ? src.StatutDocument.FrenchName
+                : string.Empty))
+    .ForMember(dest => dest.StatutDocumentNameEn,
+        opt => opt.MapFrom(src =>
+            src.StatutDocument != null
+                ? src.StatutDocument.EnglishName
+                : string.Empty));
+
+CreateMap<DocumentShare, DocumentViewModel>()
+    .ForMember(dest => dest.Id,
+        opt => opt.MapFrom(src => src.Document.Id))
+    .ForMember(dest => dest.Name,
+        opt => opt.MapFrom(src => src.Document.Name))
+    .ForMember(dest => dest.Description,
+        opt => opt.MapFrom(src => src.Document.Description))
+    .ForMember(dest => dest.ContentType,
+        opt => opt.MapFrom(src =>
+            src.Document.FileExtension.ToLower()))
+    .ForMember(dest => dest.FileSize,
+        opt => opt.MapFrom(src => src.Document.FileSize))
+    .ForMember(dest => dest.UploadDate,
+        opt => opt.MapFrom(src => src.Document.UploadDate))
+    .ForMember(dest => dest.ExpiryDate,
+        opt => opt.MapFrom(src => src.Document.ExpiryDate))
+    .ForMember(dest => dest.OwnerName,
+        opt => opt.MapFrom(src =>
+            src.Document.Owner != null
+                ? ((src.Document.Owner.Prenom ?? string.Empty)
+                    + " "
+                    + (src.Document.Owner.Nom ?? string.Empty).ToUpper())
+                : string.Empty))
+    .ForMember(dest => dest.StatutDocumentNameFr,
+        opt => opt.MapFrom(src =>
+            src.Document.StatutDocument != null
+                ? src.Document.StatutDocument.FrenchName
+                : string.Empty))
+    .ForMember(dest => dest.StatutDocumentNameEn,
+        opt => opt.MapFrom(src =>
+            src.Document.StatutDocument != null
+                ? src.Document.StatutDocument.EnglishName
+                : string.Empty));
+
+
+// ==========================================================
+// ================== DOCUMENTCONTROLLER ====================
+// ==========================================================
+
+[HttpGet]
+public async Task<IActionResult> GetAllDocuments(
+    CancellationToken token = default)
+{
+    var documents = await _documentService
+        .GetAllDocumentsAsync(
+            CurrentUser.Id,
+            CurrentUser.Email,
+            token);
+
+    var data = _mapper.Map<IEnumerable<DocumentViewModel>>(documents);
+
+    return Json(data);
+}
+
+[HttpPost("{culture:required}/transfert/delete-document")]
+public async Task<IActionResult> DeleteDocument(
+    int documentId,
+    CancellationToken token = default)
+{
+    try
     {
-        public Document()
+        var deleted = await _documentService.DeleteDocumentAsync(
+            documentId,
+            CurrentUser.Id,
+            token);
+
+        if (!deleted)
         {
-            DocumentShares = new HashSet<DocumentShare>();
+            return BadRequest(
+                _translator.Common["Transfert.Document.DeleteError"]);
         }
 
-        [Key]
-        public int Id { get; set; }
+        return Ok(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        _logger.TraceError(ex);
 
-        [Required]
-        [StringLength(255)]
-        public string Name { get; set; }
-
-        [StringLength(1000)]
-        public string Description { get; set; }
-
-        [Required]
-        [StringLength(255)]
-        public string OriginalFileName { get; set; }
-
-        [Required]
-        [StringLength(20)]
-        public string FileExtension { get; set; }
-
-        [StringLength(100)]
-        public string ContentType { get; set; }
-
-        [Required]
-        public byte[] FileContent { get; set; }
-
-        public long FileSize { get; set; }
-
-        public DateTimeOffset UploadDate { get; set; }
-
-        public DateTimeOffset ExpiryDate { get; set; }
-
-        public int OwnerId { get; set; }
-
-        public int StatutDocumentId { get; set; }
-
-        [Required]
-        [StringLength(6)]
-        public string SecurityCode { get; set; }
-
-        [StringLength(255)]
-        public string EncryptionKey { get; set; }
-
-        [ForeignKey(nameof(OwnerId))]
-        public Utilisateur Owner { get; set; }
-
-        [ForeignKey(nameof(StatutDocumentId))]
-        public StatutDocument StatutDocument { get; set; }
-
-        public ICollection<DocumentShare> DocumentShares { get; set; }
+        return StatusCode(
+            500,
+            _translator.Common["Transfert.Document.DeleteError"]);
     }
 }
 
-// DocumentShare.cs
-using BacaratWeb.Entities.Commun;
-using System;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-
-namespace BacaratWeb.Entities.Transfert
+[HttpGet("{culture:required}/transfert/download/{id}")]
+public async Task<IActionResult> Download(
+    int id,
+    CancellationToken token = default)
 {
-    [Table("DocumentShare", Schema = "Transfert")]
-    public sealed class DocumentShare
+    var document = await _documentService
+        .GetDocumentForDownloadAsync(id, token);
+
+    if (document == null)
     {
-        [Key]
-        public int Id { get; set; }
-
-        public int DocumentId { get; set; }
-
-        public int SharedWithUserId { get; set; }
-
-        public int? CreateurId { get; set; }
-
-        [Required]
-        [StringLength(320)]
-        public string Email { get; set; }
-
-        public DateTimeOffset SharedDate { get; set; }
-
-        public DateTimeOffset ExpiryDate { get; set; }
-
-        [ForeignKey(nameof(DocumentId))]
-        public Document Document { get; set; }
-
-        [ForeignKey(nameof(SharedWithUserId))]
-        public Utilisateur SharedWithUser { get; set; }
-
-        [ForeignKey(nameof(CreateurId))]
-        public Utilisateur Createur { get; set; }
+        return BadRequest(
+            _translator.Common["Transfert.Document.Expired"]);
     }
-}
-// TransfertMappingProfile.cs
-using AutoMapper;
-using BacaratWeb.Entities.Transfert;
-using BacaratWeb.ViewModel.Transfert;
 
-namespace BacaratWeb.Mappers
-{
-    public class TransfertMappingProfile : Profile
+    var isOwner = document.OwnerId == CurrentUser.Id;
+
+    if (isOwner)
     {
-        public TransfertMappingProfile()
+        return File(
+            document.FileContent,
+            "application/octet-stream",
+            document.OriginalFileName);
+    }
+
+    var canDownload = await _documentService
+        .CanUserDownloadDocumentAsync(
+            id,
+            CurrentUser.Id,
+            CurrentUser.Email,
+            token);
+
+    if (!canDownload)
+    {
+        return BadRequest(
+            _translator.Common["Transfert.Document.DownloadUnauthorized"]);
+    }
+
+    var vm = new DownloadDocumentViewModel
+    {
+        DocumentId = id
+    };
+
+    return View(vm);
+}
+
+[HttpPost("{culture:required}/transfert/validate-security-code")]
+public async Task<IActionResult> ValidateSecurityCode(
+    DownloadDocumentViewModel model,
+    CancellationToken token = default)
+{
+    try
+    {
+        if (!ModelState.IsValid)
         {
-            // =============================
-            // Référentiel
-            // =============================
-            CreateMap<StatutDocument, StatutDocumentViewModel>()
-                .ReverseMap();
-
-            // =============================
-            // Mes documents
-            // =============================
-            CreateMap<Document, DocumentViewModel>()
-                .ForMember(dest => dest.OwnerName,
-                    opt => opt.MapFrom(src => src.Owner != null ? src.Owner.Nom : string.Empty))
-                .ForMember(dest => dest.StatutDocumentNameFr,
-                    opt => opt.MapFrom(src => src.StatutDocument != null ? src.StatutDocument.FrenchName : string.Empty))
-                .ForMember(dest => dest.StatutDocumentNameEn,
-                    opt => opt.MapFrom(src => src.StatutDocument != null ? src.StatutDocument.EnglishName : string.Empty));
-
-            // =============================
-            // Documents partagés avec moi
-            // =============================
-            CreateMap<DocumentShare, DocumentViewModel>()
-                // Document
-                .ForMember(dest => dest.Id,
-                    opt => opt.MapFrom(src => src.Document.Id))
-                .ForMember(dest => dest.Name,
-                    opt => opt.MapFrom(src => src.Document.Name))
-                .ForMember(dest => dest.Description,
-                    opt => opt.MapFrom(src => src.Document.Description))
-                .ForMember(dest => dest.ContentType,
-                    opt => opt.MapFrom(src => src.Document.ContentType))
-                .ForMember(dest => dest.FileSize,
-                    opt => opt.MapFrom(src => src.Document.FileSize))
-                .ForMember(dest => dest.UploadDate,
-                    opt => opt.MapFrom(src => src.Document.UploadDate))
-                .ForMember(dest => dest.ExpiryDate,
-                    opt => opt.MapFrom(src => src.Document.ExpiryDate))
-
-                // Propriétaire
-                .ForMember(dest => dest.OwnerName,
-                    opt => opt.MapFrom(src =>
-                        src.Document.Owner != null
-                            ? src.Document.Owner.Nom
-                            : string.Empty))
-
-                // Statut multilingue
-                .ForMember(dest => dest.StatutDocumentNameFr,
-                    opt => opt.MapFrom(src =>
-                        src.Document.StatutDocument != null
-                            ? src.Document.StatutDocument.FrenchName
-                            : string.Empty))
-
-                .ForMember(dest => dest.StatutDocumentNameEn,
-                    opt => opt.MapFrom(src =>
-                        src.Document.StatutDocument != null
-                            ? src.Document.StatutDocument.EnglishName
-                            : string.Empty));
-
-            CreateMap<DocumentShare, DocumentShareViewModel>()
-                .ForMember(dest => dest.CreateurName,
-                           opt => opt.MapFrom(src => src.Createur != null ?
-                           ((src.Createur.Prenom ?? string.Empty) + " " + (src.Createur.Nom ?? string.Empty).ToUpper()) :
-                           string.Empty));
-
+            return BadRequest(
+                _translator.Common["Transfert.Document.InvalidSecurityCode"]);
         }
+
+        var document = await _documentService
+            .GetDocumentForDownloadAsync(
+                model.DocumentId,
+                token);
+
+        if (document == null
+            || document.ExpiryDate <= DateTimeOffset.Now)
+        {
+            return BadRequest(
+                _translator.Common["Transfert.Document.Expired"]);
+        }
+
+        if (document.SecurityCode != model.SecurityCode)
+        {
+            return BadRequest(
+                _translator.Common["Transfert.Document.InvalidSecurityCode"]);
+        }
+
+        return Ok(new
+        {
+            success = true,
+            downloadUrl = Url.Action(
+                "DownloadFile",
+                "Document",
+                new
+                {
+                    area = "Transfert",
+                    id = model.DocumentId
+                })
+        });
     }
-}
-
-// DownloadDocumentViewModel.cs
-using System.ComponentModel.DataAnnotations;
-
-namespace BacaratWeb.ViewModel.Transfert
-{
-    public class DownloadDocumentViewModel
+    catch (Exception ex)
     {
-        [Required]
-        public int DocumentId { get; set; }
+        _logger.TraceError(ex);
 
-        [Required(ErrorMessage = "Le code de sécurité est obligatoire.")]
-        [StringLength(10, MinimumLength = 4, ErrorMessage = "Code invalide.")]
-        public string SecurityCode { get; set; }
+        return StatusCode(
+            500,
+            _translator.Common["Error"]);
     }
 }
-// La vue de saisie du code de sécurité n'existe pas
-// IEmailNotificationTemplateService.cs
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Threading;
-using System.Threading.Tasks;
-using BacaratWeb.Entities.Commun;
 
-namespace BacaratWeb.Services.Commun.Interfaces
+[HttpGet("{culture:required}/transfert/download-file/{id}")]
+public async Task<IActionResult> DownloadFile(
+    int id,
+    CancellationToken token = default)
 {
-    public interface IEmailNotificationTemplateService : IBacaratWebService<EmailNotificationTemplate>
+    var document = await _documentService
+        .GetDocumentForDownloadAsync(id, token);
+
+    if (document == null
+        || document.ExpiryDate <= DateTimeOffset.Now)
     {
-        Task<EmailNotificationTemplate> GetEmailNotification(int? codeActivity,
-                                                             int codeNotificationType,
-                                                             int langue,
-                                                             CancellationToken token = default);
-
-        Task<IEnumerable<EmailNotificationTemplate>> GetEmailNotificationTemplates(int? codeActivity, int codeNotificationType, CancellationToken token = default);
-
-        Task<IEnumerable<EmailNotificationTemplate>> GetEmailNotificationByType(int? notificationTypeId,
-                                                                                CancellationToken token = default);
-
-        Task<IEnumerable<EmailNotificationType>> GetEmailNotificationTypes(CancellationToken token = default);
-
-        Task<IEnumerable<EmailNotificationTemplate>> GetMany(
-            Expression<Func<EmailNotificationTemplate, bool>> predicate = null,
-            bool include = false, CancellationToken token = default);
-
-        Task<EmailNotificationTemplate> GetByIdWithOptionsAsync(int entityId, 
-            bool tracking = false, 
-            Func<IQueryable<EmailNotificationTemplate>, IQueryable<EmailNotificationTemplate>> include = null, 
-            CancellationToken token = default);
+        return BadRequest(
+            _translator.Common["Transfert.Document.Expired"]);
     }
+
+    return File(
+        document.FileContent,
+        "application/octet-stream",
+        document.OriginalFileName);
 }
-// EmailNotificationType.cs
-using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
-namespace BacaratWeb.Entities.Commun
-{
-    [Table("EmailNotificationType", Schema = "Commun")]
-    public sealed class EmailNotificationType
-    {
-        public EmailNotificationType() => EmailNotificationTemplates = new HashSet<EmailNotificationTemplate>();
 
-        [Key]
-        public int Id { get; set; }
+// ==========================================================
+// ==================== DOWNLOAD.CSHTML =====================
+// ==========================================================
 
-        [Required]
-        [StringLength(50)]
-        public string Code { get; set; }
+@model BacaratWeb.ViewModel.Transfert.DownloadDocumentViewModel
 
-        [StringLength(200)]
-        public string Libelle { get; set; }
+@inject IViewTranslator translator
 
-        [StringLength(500)]
-        public string Description { get; set; }
+<div class="container mt-5">
 
-        public DateTimeOffset DateCreation { get; set; }
+    <div class="row justify-content-center">
 
-        public DateTimeOffset? DateModification { get; set; }
+        <div class="col-md-6">
 
-        public int? ModificateurId { get; set; }
+            <div class="card">
 
-        public int? CreateurId { get; set; }
+                <div class="card-body">
 
-        [Required]
-        public bool IsActive { get; set; }
+                    <h4 class="mb-4 text-green">
+                        @translator.Common["Transfert.Document.SecurityCode"]
+                    </h4>
 
-        [ForeignKey(nameof(CreateurId))]
-        [InverseProperty("EmailNotificationTypeCreateurs")]
-        public Utilisateur Createur { get; set; }
+                    @using (Html.BeginForm())
+                    {
+                        @Html.HiddenFor(x => x.DocumentId)
 
-        [ForeignKey(nameof(ModificateurId))]
-        [InverseProperty("EmailNotificationTypeModificateurs")]
-        public Utilisateur Modificateur { get; set; }
+                        <div class="mb-4">
 
-        [InverseProperty(nameof(EmailNotificationType))]
-        public ICollection<EmailNotificationTemplate> EmailNotificationTemplates { get; set; }
-    }
+                            @(Html.DevExtreme()
+                                .TextBoxFor(x => x.SecurityCode)
+                                .ID("SecurityCode")
+                                .Mode(TextBoxMode.Password)
+                                .Width("100%"))
+                        </div>
+
+                        <div>
+
+                            @(Html.DevExtreme()
+                                .Button()
+                                .Text(translator.Common["Download"])
+                                .Type(ButtonType.Success)
+                                .OnClick("validateSecurityCode"))
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+function validateSecurityCode() {
+
+    $.ajax({
+        url: "/" + culture + "/transfert/validate-security-code",
+        type: "POST",
+        data: {
+            DocumentId: $("#DocumentId").val(),
+            SecurityCode: $("#SecurityCode").dxTextBox("instance").option("value")
+        },
+        success: function(response) {
+
+            window.location = response.downloadUrl;
+        },
+        error: function(xhr) {
+
+            DevExpress.ui.notify(
+                xhr.responseText,
+                "error",
+                5000);
+        }
+    });
 }
-// OK pour le contenu du mail
+
+</script>
+
+
+// ==========================================================
+// ======================= VIEWSTART ========================
+// ==========================================================
+
+var _transfertTranslatableDocumentDeleteConfirmation =
+"@Html.Raw(translator.Common["Transfert.Document.DeleteConfirmation"])";
+
+var _transfertTranslatableDocumentDeleteSuccess =
+"@Html.Raw(translator.Common["Transfert.Document.DeleteSuccess"])";
+
+var _transfertTranslatableDocumentDeleteError =
+"@Html.Raw(translator.Common["Transfert.Document.DeleteError"])";
+
+
+// ==========================================================
+// ======================= SQL FR ===========================
+// ==========================================================
+
+MERGE [Commun].[Traduction] AS TARGET
+USING
+(
+    SELECT
+        'Transfert.Document.DeleteConfirmation' AS Code,
+        'Voulez-vous vraiment supprimer ce document ?' AS FrenchTranslation,
+        'Do you really want to delete this document ?' AS EnglishTranslation
+
+    UNION ALL
+
+    SELECT
+        'Transfert.Document.DeleteSuccess',
+        'Document supprimé avec succès.',
+        'Document deleted successfully.'
+
+    UNION ALL
+
+    SELECT
+        'Transfert.Document.DeleteError',
+        'Erreur lors de la suppression du document.',
+        'Error while deleting document.'
+
+    UNION ALL
+
+    SELECT
+        'Transfert.Document.InvalidSecurityCode',
+        'Code de sécurité invalide.',
+        'Invalid security code.'
+
+    UNION ALL
+
+    SELECT
+        'Transfert.Document.SecurityCode',
+        'Code de sécurité',
+        'Security code'
+
+    UNION ALL
+
+    SELECT
+        'Transfert.Document.DownloadUnauthorized',
+        'Vous n''êtes pas autorisé à télécharger ce document.',
+        'You are not authorized to download this document.'
+
+    UNION ALL
+
+    SELECT
+        'Transfert.Document.Expired',
+        'Document expiré.',
+        'Expired document.'
+
+) AS SOURCE
+ON TARGET.Code = SOURCE.Code
+
+WHEN MATCHED THEN
+    UPDATE SET
+        FrenchTranslation = SOURCE.FrenchTranslation,
+        EnglishTranslation = SOURCE.EnglishTranslation
+
+WHEN NOT MATCHED THEN
+    INSERT
+    (
+        Code,
+        FrenchTranslation,
+        EnglishTranslation
+    )
+    VALUES
+    (
+        SOURCE.Code,
+        SOURCE.FrenchTranslation,
+        SOURCE.EnglishTranslation
+    );
+
+
+// ==========================================================
+// =================== SQL NOTIFICATION =====================
+// ==========================================================
+
+INSERT INTO [Commun].[EmailNotificationType]
+(
+    [Code],
+    [Libelle],
+    [Description],
+    [DateCreation],
+    [IsActive]
+)
+VALUES
+(
+    'DocumentTelecharge',
+    'DocumentTelecharge',
+    'DocumentTelecharge',
+    SYSDATETIMEOFFSET(),
+    1
+);
+
+INSERT INTO [Commun].[EmailNotificationTemplate]
+(
+    [Subject],
+    [Body],
+    [EmailNotificationTypeId],
+    [ActiviteId],
+    [LangueId],
+    [DateCreation],
+    [IsActive],
+    [ScopeId]
+)
+VALUES
+(
+    'BacaratWeb Transfert : Document téléchargé sur la plateforme BacaratWeb',
+
+    '<html>
+        <body>
+            <p>Bonjour,</p>
+
+            <p>
+                Nous vous informons que votre document a été téléchargé sur la plateforme BacaratWeb.
+            </p>
+
+            <ul>
+                <li>Nom du document : {0}</li>
+                <li>Téléchargé par : {1}</li>
+                <li>Date de téléchargement : {2}</li>
+            </ul>
+
+            <p>Cordialement</p>
+
+            <p>L''équipe BacaratWeb</p>
+        </body>
+    </html>',
+
+    87,
+    5,
+    1,
+    SYSDATETIMEOFFSET(),
+    1,
+    1
+);
+
+INSERT INTO [Commun].[EmailNotificationTemplate]
+(
+    [Subject],
+    [Body],
+    [EmailNotificationTypeId],
+    [ActiviteId],
+    [LangueId],
+    [DateCreation],
+    [IsActive],
+    [ScopeId]
+)
+VALUES
+(
+    'BacaratWeb Transfer: Document downloaded on the BacaratWeb platform',
+
+    '<html>
+        <body>
+            <p>Hello,</p>
+
+            <p>
+                We would like to inform you that your document has been downloaded on the BacaratWeb platform.
+            </p>
+
+            <ul>
+                <li>Document name : {0}</li>
+                <li>Downloaded by : {1}</li>
+                <li>Download date : {2}</li>
+            </ul>
+
+            <p>Sincerely</p>
+
+            <p>The BacaratWeb team</p>
+        </body>
+    </html>',
+
+    87,
+    5,
+    2,
+    SYSDATETIMEOFFSET(),
+    1,
+    1
+);
