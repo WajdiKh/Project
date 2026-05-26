@@ -1,140 +1,506 @@
-- Le menu Tous le documents ne marche pas. Action appelée not found. Faudrait correiger ça sachant que ce menu doit afficher les documents de l'utilisateur
-connecté + les documents qui ont été partagés avec lui
-- Pour les trois datagrid :
-	* la colonne Type doit être plutôt égale à l'extension du fichier (lower case),
-	* la colonne taille doit afficher la taille en méga octets (Mo en français et Mb en anglais)
-	* la colonne destinataire doit être remplacée plutôt par la colonne Propriétaire (contient : Prénom NOM du propriétaire) 
-    * à côté de la colonne statut ajouter deux boutons comme dans la capture d'écran : le bouton télécharger qui doit s'afficher dans les trois datagrids et le bouton
-	supprimer qui s'affiche uniquement dans le datagrid Mes documents
-	* Le bouton supprimer supprime le document associé (afficher bien sûr popup de confirmation de la suppression) + contrôle serveur pour autoriser 
-	  la suppression uniquement pour le propriétaire du document
-	* Le bouton télécharger doit permettre de télécharger le document associé avec différences de comportements : 
-	* ajouter un controle serveur pour autoriser le téléchargement uniqument pour le pripriétaire de document 
-	* ou bien si le document a été partagé avec l'utilisateur (dans le menu tous les documents ou dans documents partagés avec moi) faire ce qui suit :
-		.en cliquant sur le bouton de téléchargement, ouvrir une page vide avec la demande de saisie du code de sécurité
-	     si le code de sécurité saisi correspond, vérifier l'existence du document, si non existant, afficher le message : "document expiré."
-		 si existant, télécharger le fichier
-		 créer la ligne d'audit
-		 notification du propriétaire du document : le type de la notification c'est DocumentTelecharge. 
-		 Regarde le script 4142_02_script_create_email_notification_document_partage.sql et créé la même chose pour la notification DocumentTelecharge 
-	     il faut qu'on valide ensemble le contenu de la notification avant que tu fasses le développement
-	    . pour la ligne d'audit, on la laisse pour plus tard
-	* Comme d'habitude, pour tout nouveau texte statique ajouté, je veux le script sql pour les traductions
-	* Je veux pas de régressions 
-	* Je veux du clean code
-	* n'oublie rien 
-// 4142_02_script_create_email_notification_document_partage.sql
-USE [BacaratWeb]
-GO
+// DocumentService.cs
+using BacaratWeb.Entities.Transfert;
+using BacaratWeb.Services.Commun;
+using BacaratWeb.Services.Transfert.Interfaces;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using BacaratWeb.Model.Entities;
+using System.Linq;
+using Microsoft.EntityFrameworkCore;
 
-INSERT INTO [Commun].[EmailNotificationType]
-           ([Code]
-           ,[Libelle]
-           ,[Description]
-           ,[DateCreation]
-           ,[DateModification]
-           ,[ModificateurId]
-           ,[CreateurId]
-           ,[IsActive])
-     VALUES
-           ('DocumentPartage'
-           ,'DocumentPartage'
-           ,'DocumentPartage'
-           ,SYSDATETIMEOFFSET()
-           ,NULL
-           ,NULL
-           ,NULL
-           ,'TRUE')
-GO
+namespace BacaratWeb.Services.Transfert
+{
+    public class DocumentService : BacaratWebService<Document>, IDocumentService
+    {
+        public DocumentService(BacaratWebContext context)
+            : base(context)
+        {
+        }
 
-INSERT INTO [Commun].[EmailNotificationTemplate]
-           ([Subject]
-           ,[Body]
-           ,[EmailNotificationTypeId]
-           ,[ActiviteId]
-           ,[DirectionId]
-           ,[LangueId]
-           ,[DateCreation]
-           ,[DateModification]
-           ,[ModificateurId]
-           ,[CreateurId]
-           ,[IsActive]
-           ,[ScopeId])
-     VALUES
-           ('BacaratWeb Transfert : Document partagé avec vous sur la plateforme BacaratWeb'
-           ,'<html xmlns:v="urn:schemas-microsoft-com:vml"   xmlns:o ="urn:schemas-microsoft-com:office:office"  xmlns:w ="urn:schemas-microsoft-com:office:word"   xmlns:m ="http://schemas.microsoft.com/office/2004/12/omml"   xmlns="http://www.w3.org/TR/REC-html40">     
-				<body lang=FR style=''tab-interval:35.4pt''>   
-					<div class=WordSection1>   
-						<p>Bonjour,</p>
-						<p>Nous vous informons qu''un document a été partagé avec vous sur la plateforme BacaratWeb.</p>
-						<p><strong>Détails du document :</strong></p>
-						<ul>
-							<li>Nom : {0}</li>
-							<li>Partagé par : {1}</li>
-							<li>Date de partage : de {2} à {3}</li>
-							<li>URL de téléchargement : {4}</li>
-							<li>Code de sécurité pour téléchargement : {5}</li>
-							<li>Clé de chiffrement : {6}</li>
-						</ul>
-						<p>Nous vous souhaitons une bonne réception. </p>
-						<p>Cordialement</p>
-						<p><strong>L''équipe BacaratWeb<strong></p> 			
-					</div>  
-				</body>  
-			</html>'
-           ,86
-           ,5
-           ,NULL
-           ,1
-           ,SYSDATETIMEOFFSET()
-           ,NULL
-           ,NULL
-           ,NULL
-           ,'TRUE'
-           ,1)
-GO
-INSERT INTO [Commun].[EmailNotificationTemplate]
-           ([Subject]
-           ,[Body]
-           ,[EmailNotificationTypeId]
-           ,[ActiviteId]
-           ,[DirectionId]
-           ,[LangueId]
-           ,[DateCreation]
-           ,[DateModification]
-           ,[ModificateurId]
-           ,[CreateurId]
-           ,[IsActive]
-           ,[ScopeId])
-     VALUES
-           ('BacaratWeb Transfert : Document shared with you on the BacaratWeb platform'
-           ,'<html xmlns:v="urn:schemas-microsoft-com:vml"   xmlns:o ="urn:schemas-microsoft-com:office:office"  xmlns:w ="urn:schemas-microsoft-com:office:word"   xmlns:m ="http://schemas.microsoft.com/office/2004/12/omml"   xmlns="http://www.w3.org/TR/REC-html40">     
-				<body lang=FR style=''tab-interval:35.4pt''>   
-					<div class=WordSection1>   
-						<p>Hello,</p>
-						<p>We would like to inform you that a document has been shared with you on the BacaratWeb platform.</p>
-						<p><strong>Document details:</strong></p>
-						<ul>
-							<li>Name: {0}</li>
-							<li>Shared by: {1}</li>
-							<li>Sharing date: from {2} to {3}</li>
-							<li>Download URL: {4}</li>
-							<li>Download security code: {5}</li>
-							<li>Encryption key: {6}</li>
-						</ul>
-						<p>We hope you receive it in good order.</p>
-						<p>Sincerely</p>
-						<p><strong>The BacaratWeb team<strong></p> 			
-					</div>  
-				</body>  
-			</html>'
-           ,86
-           ,5
-           ,NULL
-           ,2
-           ,SYSDATETIMEOFFSET()
-           ,NULL
-           ,NULL
-           ,NULL
-           ,'TRUE'
-           ,1)
+        public async Task<bool> AddAsync(Document entity, CancellationToken token = default)
+        {
+            await Context.Documents.AddAsync(entity, token).ConfigureAwait(false);
+            return await Context.SaveChangesAsync(token).ConfigureAwait(false) > 0;
+        }
+
+        public async Task<bool> UpdateAsync(Document entity, CancellationToken token = default)
+        {
+            Context.Documents.Update(entity);
+            return await Context.SaveChangesAsync(token).ConfigureAwait(false) > 0;
+        }
+
+        public async Task<bool> DeleteAsync(Document entity, CancellationToken token = default)
+        {
+            Context.Documents.Remove(entity);
+            return await Context.SaveChangesAsync(token).ConfigureAwait(false) > 0;
+        }
+
+        public async Task<Document> GetAsync(int id, bool include = false, CancellationToken token = default)
+        {
+            IQueryable<Document> query = Context.Documents;
+
+            if (include)
+            {
+                query = query
+                    .Include(x => x.Owner)
+                    .Include(x => x.StatutDocument)
+                    .Include(x => x.DocumentShares);
+            }
+
+            return await query.FirstOrDefaultAsync(x => x.Id == id, token)
+                .ConfigureAwait(false);
+        }
+
+        public async Task<IEnumerable<Document>> GetManyAsync(bool include = false, CancellationToken token = default)
+        {
+            IQueryable<Document> query = Context.Documents;
+
+            if (include)
+            {
+                query = query
+                    .Include(x => x.Owner)
+                    .Include(x => x.StatutDocument)
+                    .Include(x => x.DocumentShares);
+            }
+
+            return await query.ToListAsync(token).ConfigureAwait(false);
+        }
+
+        public async Task<bool> ExistsAsync(Document entity, CancellationToken token = default)
+        {
+            return await Context.Documents
+                .AnyAsync(x => x.Id == entity.Id, token)
+                .ConfigureAwait(false);
+        }
+
+        public async Task<bool> AddDocumentAsync(Document document, CancellationToken token = default)
+        {
+            await Context.Documents.AddAsync(document, token);
+
+            return await Context.SaveChangesAsync(token) > 0;
+        }
+
+        public async Task<IEnumerable<Document>> GetMyDocumentsAsync(int ownerId, CancellationToken token = default)
+        {
+            return await Context.Documents
+                .Include(x => x.Owner)
+                .Include(x => x.StatutDocument)
+                .Where(x => x.OwnerId == ownerId)
+                .OrderByDescending(x => x.UploadDate)
+                .ToListAsync(token);
+        }
+
+        public async Task<IEnumerable<DocumentShare>> GetSharedWithMeDocumentsAsync(int userId, string email, CancellationToken token = default)
+        {
+            return await Context.DocumentShares
+                .Include(x => x.Document)
+                    .ThenInclude(x => x.Owner)
+                .Include(x => x.Document)
+                    .ThenInclude(x => x.StatutDocument)
+                .Where(x => x.SharedWithUserId == userId || x.Email == email)
+                .OrderByDescending(x => x.SharedDate)
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+        }
+
+        public async Task<StatutDocument> GetStatutDocumentByCodeAsync(string code, CancellationToken token = default)
+        {
+            return await Context.StatutDocuments
+                .FirstOrDefaultAsync(x => x.Code == code && x.IsActive, token)
+                .ConfigureAwait(false);
+        }
+
+        public async Task<Document> GetDocumentByIdAndOwnerAsync(int documentId, int ownerId, CancellationToken token = default)
+        {
+            return await Context.Documents
+                .Include(x => x.DocumentShares)
+                .FirstOrDefaultAsync(x => x.Id == documentId && x.OwnerId == ownerId, token);
+        }
+
+        public async Task<bool> ShareDocumentAsync(int documentId, IEnumerable<DocumentShare> shares, CancellationToken token = default)
+        {
+            var existingShares = Context.DocumentShares.Where(x => x.DocumentId == documentId);
+
+            Context.DocumentShares.RemoveRange(existingShares);
+
+            await Context.DocumentShares.AddRangeAsync(shares, token);
+
+            return await Context.SaveChangesAsync(token) > 0;
+        }
+
+        public async Task<IEnumerable<DocumentShare>> GetDocumentSharesAsync(int documentId, CancellationToken token = default)
+        {
+            return await Context.DocumentShares
+                .Include(x => x.Createur)
+                .Include(x => x.SharedWithUser)
+                .Where(x => x.DocumentId == documentId)
+                .OrderByDescending(x => x.SharedDate)
+                .ToListAsync(token);
+        }
+
+        public async Task<DocumentShare> GetDocumentShareAsync(int documentShareId, CancellationToken token = default)
+        {
+            return await Context.DocumentShares
+                .Include(x => x.Document)
+                    .ThenInclude(x => x.Owner)
+                .Include(x => x.Createur)
+                .Include(x => x.SharedWithUser)
+                .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+        }
+
+        public async Task<bool> AddDocumentSharesAsync(IEnumerable<DocumentShare> shares, CancellationToken token = default)
+        {
+            var sharesToAdd = shares.ToList();
+
+            if (!sharesToAdd.Any())
+                return false;
+
+            await Context.DocumentShares.AddRangeAsync(sharesToAdd, token);
+
+            return await Context.SaveChangesAsync(token) > 0;
+        }
+
+        public async Task<bool> ReplaceDocumentShareAsync(int documentShareId, IEnumerable<DocumentShare> replacementShares, CancellationToken token = default)
+        {
+            var existingShare = await Context.DocumentShares
+                .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+
+            if (existingShare == null)
+                return false;
+
+            Context.DocumentShares.Remove(existingShare);
+
+            var sharesToAdd = replacementShares.ToList();
+
+            if (sharesToAdd.Any())
+                await Context.DocumentShares.AddRangeAsync(sharesToAdd, token);
+
+            return await Context.SaveChangesAsync(token) > 0;
+        }
+
+        public async Task<bool> DeleteDocumentShareAsync(int documentShareId, CancellationToken token = default)
+        {
+            var share = await Context.DocumentShares
+                .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+
+            if (share == null)
+                return false;
+
+            Context.DocumentShares.Remove(share);
+
+            return await Context.SaveChangesAsync(token) > 0;
+        }
+    }
+}
+
+// IDocumentService.cs
+using BacaratWeb.Services.Commun.Interfaces;
+using BacaratWeb.Entities.Transfert;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+
+namespace BacaratWeb.Services.Transfert.Interfaces
+{
+    public interface IDocumentService : IBacaratWebService<Document>
+    {
+        Task<bool> AddDocumentAsync(Document document, CancellationToken token = default);
+        Task<IEnumerable<Document>> GetMyDocumentsAsync(int ownerId, CancellationToken token = default);
+        Task<IEnumerable<DocumentShare>> GetSharedWithMeDocumentsAsync(int userId, string email, CancellationToken token = default);
+        Task<StatutDocument> GetStatutDocumentByCodeAsync(string code, CancellationToken token = default);
+        Task<Document> GetDocumentByIdAndOwnerAsync(int documentId, int ownerId, CancellationToken token = default);
+        Task<bool> ShareDocumentAsync(int documentId, IEnumerable<DocumentShare> shares, CancellationToken token = default);
+        Task<IEnumerable<DocumentShare>> GetDocumentSharesAsync(int documentId, CancellationToken token = default);
+        Task<DocumentShare> GetDocumentShareAsync(int documentShareId, CancellationToken token = default);
+        Task<bool> AddDocumentSharesAsync(IEnumerable<DocumentShare> shares, CancellationToken token = default);
+        Task<bool> ReplaceDocumentShareAsync(int documentShareId, IEnumerable<DocumentShare> replacementShares, CancellationToken token = default);
+        Task<bool> DeleteDocumentShareAsync(int documentShareId, CancellationToken token = default);
+    }
+}
+
+// Document.cs
+using BacaratWeb.Entities.Commun;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace BacaratWeb.Entities.Transfert
+{
+    [Table("Document", Schema = "Transfert")]
+    public sealed class Document
+    {
+        public Document()
+        {
+            DocumentShares = new HashSet<DocumentShare>();
+        }
+
+        [Key]
+        public int Id { get; set; }
+
+        [Required]
+        [StringLength(255)]
+        public string Name { get; set; }
+
+        [StringLength(1000)]
+        public string Description { get; set; }
+
+        [Required]
+        [StringLength(255)]
+        public string OriginalFileName { get; set; }
+
+        [Required]
+        [StringLength(20)]
+        public string FileExtension { get; set; }
+
+        [StringLength(100)]
+        public string ContentType { get; set; }
+
+        [Required]
+        public byte[] FileContent { get; set; }
+
+        public long FileSize { get; set; }
+
+        public DateTimeOffset UploadDate { get; set; }
+
+        public DateTimeOffset ExpiryDate { get; set; }
+
+        public int OwnerId { get; set; }
+
+        public int StatutDocumentId { get; set; }
+
+        [Required]
+        [StringLength(6)]
+        public string SecurityCode { get; set; }
+
+        [StringLength(255)]
+        public string EncryptionKey { get; set; }
+
+        [ForeignKey(nameof(OwnerId))]
+        public Utilisateur Owner { get; set; }
+
+        [ForeignKey(nameof(StatutDocumentId))]
+        public StatutDocument StatutDocument { get; set; }
+
+        public ICollection<DocumentShare> DocumentShares { get; set; }
+    }
+}
+
+// DocumentShare.cs
+using BacaratWeb.Entities.Commun;
+using System;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace BacaratWeb.Entities.Transfert
+{
+    [Table("DocumentShare", Schema = "Transfert")]
+    public sealed class DocumentShare
+    {
+        [Key]
+        public int Id { get; set; }
+
+        public int DocumentId { get; set; }
+
+        public int SharedWithUserId { get; set; }
+
+        public int? CreateurId { get; set; }
+
+        [Required]
+        [StringLength(320)]
+        public string Email { get; set; }
+
+        public DateTimeOffset SharedDate { get; set; }
+
+        public DateTimeOffset ExpiryDate { get; set; }
+
+        [ForeignKey(nameof(DocumentId))]
+        public Document Document { get; set; }
+
+        [ForeignKey(nameof(SharedWithUserId))]
+        public Utilisateur SharedWithUser { get; set; }
+
+        [ForeignKey(nameof(CreateurId))]
+        public Utilisateur Createur { get; set; }
+    }
+}
+// TransfertMappingProfile.cs
+using AutoMapper;
+using BacaratWeb.Entities.Transfert;
+using BacaratWeb.ViewModel.Transfert;
+
+namespace BacaratWeb.Mappers
+{
+    public class TransfertMappingProfile : Profile
+    {
+        public TransfertMappingProfile()
+        {
+            // =============================
+            // Référentiel
+            // =============================
+            CreateMap<StatutDocument, StatutDocumentViewModel>()
+                .ReverseMap();
+
+            // =============================
+            // Mes documents
+            // =============================
+            CreateMap<Document, DocumentViewModel>()
+                .ForMember(dest => dest.OwnerName,
+                    opt => opt.MapFrom(src => src.Owner != null ? src.Owner.Nom : string.Empty))
+                .ForMember(dest => dest.StatutDocumentNameFr,
+                    opt => opt.MapFrom(src => src.StatutDocument != null ? src.StatutDocument.FrenchName : string.Empty))
+                .ForMember(dest => dest.StatutDocumentNameEn,
+                    opt => opt.MapFrom(src => src.StatutDocument != null ? src.StatutDocument.EnglishName : string.Empty));
+
+            // =============================
+            // Documents partagés avec moi
+            // =============================
+            CreateMap<DocumentShare, DocumentViewModel>()
+                // Document
+                .ForMember(dest => dest.Id,
+                    opt => opt.MapFrom(src => src.Document.Id))
+                .ForMember(dest => dest.Name,
+                    opt => opt.MapFrom(src => src.Document.Name))
+                .ForMember(dest => dest.Description,
+                    opt => opt.MapFrom(src => src.Document.Description))
+                .ForMember(dest => dest.ContentType,
+                    opt => opt.MapFrom(src => src.Document.ContentType))
+                .ForMember(dest => dest.FileSize,
+                    opt => opt.MapFrom(src => src.Document.FileSize))
+                .ForMember(dest => dest.UploadDate,
+                    opt => opt.MapFrom(src => src.Document.UploadDate))
+                .ForMember(dest => dest.ExpiryDate,
+                    opt => opt.MapFrom(src => src.Document.ExpiryDate))
+
+                // Propriétaire
+                .ForMember(dest => dest.OwnerName,
+                    opt => opt.MapFrom(src =>
+                        src.Document.Owner != null
+                            ? src.Document.Owner.Nom
+                            : string.Empty))
+
+                // Statut multilingue
+                .ForMember(dest => dest.StatutDocumentNameFr,
+                    opt => opt.MapFrom(src =>
+                        src.Document.StatutDocument != null
+                            ? src.Document.StatutDocument.FrenchName
+                            : string.Empty))
+
+                .ForMember(dest => dest.StatutDocumentNameEn,
+                    opt => opt.MapFrom(src =>
+                        src.Document.StatutDocument != null
+                            ? src.Document.StatutDocument.EnglishName
+                            : string.Empty));
+
+            CreateMap<DocumentShare, DocumentShareViewModel>()
+                .ForMember(dest => dest.CreateurName,
+                           opt => opt.MapFrom(src => src.Createur != null ?
+                           ((src.Createur.Prenom ?? string.Empty) + " " + (src.Createur.Nom ?? string.Empty).ToUpper()) :
+                           string.Empty));
+
+        }
+    }
+}
+
+// DownloadDocumentViewModel.cs
+using System.ComponentModel.DataAnnotations;
+
+namespace BacaratWeb.ViewModel.Transfert
+{
+    public class DownloadDocumentViewModel
+    {
+        [Required]
+        public int DocumentId { get; set; }
+
+        [Required(ErrorMessage = "Le code de sécurité est obligatoire.")]
+        [StringLength(10, MinimumLength = 4, ErrorMessage = "Code invalide.")]
+        public string SecurityCode { get; set; }
+    }
+}
+// La vue de saisie du code de sécurité n'existe pas
+// IEmailNotificationTemplateService.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Threading;
+using System.Threading.Tasks;
+using BacaratWeb.Entities.Commun;
+
+namespace BacaratWeb.Services.Commun.Interfaces
+{
+    public interface IEmailNotificationTemplateService : IBacaratWebService<EmailNotificationTemplate>
+    {
+        Task<EmailNotificationTemplate> GetEmailNotification(int? codeActivity,
+                                                             int codeNotificationType,
+                                                             int langue,
+                                                             CancellationToken token = default);
+
+        Task<IEnumerable<EmailNotificationTemplate>> GetEmailNotificationTemplates(int? codeActivity, int codeNotificationType, CancellationToken token = default);
+
+        Task<IEnumerable<EmailNotificationTemplate>> GetEmailNotificationByType(int? notificationTypeId,
+                                                                                CancellationToken token = default);
+
+        Task<IEnumerable<EmailNotificationType>> GetEmailNotificationTypes(CancellationToken token = default);
+
+        Task<IEnumerable<EmailNotificationTemplate>> GetMany(
+            Expression<Func<EmailNotificationTemplate, bool>> predicate = null,
+            bool include = false, CancellationToken token = default);
+
+        Task<EmailNotificationTemplate> GetByIdWithOptionsAsync(int entityId, 
+            bool tracking = false, 
+            Func<IQueryable<EmailNotificationTemplate>, IQueryable<EmailNotificationTemplate>> include = null, 
+            CancellationToken token = default);
+    }
+}
+// EmailNotificationType.cs
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace BacaratWeb.Entities.Commun
+{
+    [Table("EmailNotificationType", Schema = "Commun")]
+    public sealed class EmailNotificationType
+    {
+        public EmailNotificationType() => EmailNotificationTemplates = new HashSet<EmailNotificationTemplate>();
+
+        [Key]
+        public int Id { get; set; }
+
+        [Required]
+        [StringLength(50)]
+        public string Code { get; set; }
+
+        [StringLength(200)]
+        public string Libelle { get; set; }
+
+        [StringLength(500)]
+        public string Description { get; set; }
+
+        public DateTimeOffset DateCreation { get; set; }
+
+        public DateTimeOffset? DateModification { get; set; }
+
+        public int? ModificateurId { get; set; }
+
+        public int? CreateurId { get; set; }
+
+        [Required]
+        public bool IsActive { get; set; }
+
+        [ForeignKey(nameof(CreateurId))]
+        [InverseProperty("EmailNotificationTypeCreateurs")]
+        public Utilisateur Createur { get; set; }
+
+        [ForeignKey(nameof(ModificateurId))]
+        [InverseProperty("EmailNotificationTypeModificateurs")]
+        public Utilisateur Modificateur { get; set; }
+
+        [InverseProperty(nameof(EmailNotificationType))]
+        public ICollection<EmailNotificationTemplate> EmailNotificationTemplates { get; set; }
+    }
+}
+// OK pour le contenu du mail
