@@ -1,62 +1,31 @@
-// ============================================================================
-// MODIFICATIONS À FAIRE
-// ============================================================================
-// 1) Afficher un progress/load panel lors du premier chargement du menu
-//    "Tous les documents".
-// 2) Enlever le point dans le type du fichier : ".zip" devient "zip".
-// 3) Centrer les boutons Télécharger / Supprimer dans la colonne Actions.
-// ============================================================================
-
-
-
-// ============================================================================
-// FICHIER : TransfertMappingProfile.cs
-// DESCRIPTION : enlever le point dans l'extension du fichier.
-// À faire dans les deux mappings :
-// - Document -> DocumentViewModel
-// - DocumentShare -> DocumentViewModel
-// ============================================================================
-
-
-// ----------------------------------------------------------------------------
-// Dans le mapping Document -> DocumentViewModel
-// REMPLACER le ForMember ContentType par celui-ci :
-// ----------------------------------------------------------------------------
-
-.ForMember(dest => dest.ContentType,
-    opt => opt.MapFrom(src =>
-        string.IsNullOrWhiteSpace(src.FileExtension)
-            ? string.Empty
-            : src.FileExtension.Replace(".", string.Empty).ToLower()))
-
-
-// ----------------------------------------------------------------------------
-// Dans le mapping DocumentShare -> DocumentViewModel
-// REMPLACER le ForMember ContentType par celui-ci :
-// ----------------------------------------------------------------------------
-
-.ForMember(dest => dest.ContentType,
-    opt => opt.MapFrom(src =>
-        string.IsNullOrWhiteSpace(src.Document.FileExtension)
-            ? string.Empty
-            : src.Document.FileExtension.Replace(".", string.Empty).ToLower()))
-
+// Oui, c’est normal : enlever seulement display:none ne suffit pas.
+// Le vrai souci vient du timing : tu fais un refresh trop tôt, avant que le grid soit visible ET avant que DevExtreme ait recalculé ses dimensions.
+// Résultat : loader visible, mais headers pas encore rendus.
+//
+// La correction propre :
+// 1) garder display:none au départ
+// 2) au moment d’afficher un menu : afficher le container
+// 3) appeler updateDimensions()
+// 4) appeler repaint()
+// 5) ensuite seulement lancer refresh()
+//
+// Donc NE PAS utiliser beginCustomLoading ici : laisse DevExtreme gérer son LoadPanel natif.
 
 
 // ============================================================================
 // FICHIER : Index.cshtml
-// DESCRIPTION : afficher le progress/loading sur les DataGrid, notamment au
-// premier chargement de "Tous les documents".
-// À ajouter sur les 3 grids :
-// - allDocumentsGrid
-// - myDocumentsGrid
-// - sharedDocumentsGrid
+// GARDER les containers comme avant.
 // ============================================================================
 
+<div id="gridAllDocumentsContainer" style="display:none;">
+<div id="gridMyDocumentsContainer" style="display:none;">
+<div id="gridSharedDocumentsContainer" style="display:none;">
 
-// ----------------------------------------------------------------------------
-// Ajouter dans chaque DataGrid, après .ShowBorders(true) par exemple :
-// ----------------------------------------------------------------------------
+
+// ============================================================================
+// FICHIER : Index.cshtml
+// AJOUTER LoadPanel dans les 3 DataGrid.
+// ============================================================================
 
 .LoadPanel(loadPanel => loadPanel
     .Enabled(true)
@@ -65,87 +34,50 @@
     .Text(translator.Common["Loading"]))
 
 
-// ----------------------------------------------------------------------------
-// Dans allDocumentsGrid, la colonne Actions doit être centrée.
-// REMPLACER la colonne Actions par ceci :
-// ----------------------------------------------------------------------------
-
-columns.Add()
-    .Caption(translator.Common["Actions"])
-    .Width(100)
-    .Alignment(HorizontalAlignment.Center)
-    .CellTemplate(@<text>
-        <div class="d-flex justify-content-center align-items-center w-100">
-            <a href="javascript:void(0)"
-               title="@translator.Common["Download"]"
-               onclick="Transfert.Document.downloadDocument(<%= data.Id %>)">
-                <i class="fas fa-download color-blue"></i>
-            </a>
-        </div>
-    </text>);
-
-
-// ----------------------------------------------------------------------------
-// Dans myDocumentsGrid, la colonne Actions doit être centrée.
-// REMPLACER la colonne Actions par ceci :
-// ----------------------------------------------------------------------------
-
-columns.Add()
-    .Caption(translator.Common["Actions"])
-    .Width(130)
-    .Alignment(HorizontalAlignment.Center)
-    .CellTemplate(@<text>
-        <div class="d-flex justify-content-center align-items-center w-100">
-            <a href="javascript:void(0)"
-               class="mr-3"
-               title="@translator.Common["Download"]"
-               onclick="Transfert.Document.downloadDocument(<%= data.Id %>)">
-                <i class="fas fa-download color-blue"></i>
-            </a>
-
-            <a href="javascript:void(0)"
-               title="@translator.Common["Delete"]"
-               onclick="Transfert.Document.confirmDeleteDocument(<%= data.Id %>)">
-                <i class="fas fa-trash color-red"></i>
-            </a>
-        </div>
-    </text>);
-
-
-// ----------------------------------------------------------------------------
-// Dans sharedDocumentsGrid, la colonne Actions doit être centrée.
-// REMPLACER la colonne Actions par ceci :
-// ----------------------------------------------------------------------------
-
-columns.Add()
-    .Caption(translator.Common["Actions"])
-    .Width(100)
-    .Alignment(HorizontalAlignment.Center)
-    .CellTemplate(@<text>
-        <div class="d-flex justify-content-center align-items-center w-100">
-            <a href="javascript:void(0)"
-               title="@translator.Common["Download"]"
-               onclick="Transfert.Document.downloadDocument(<%= data.Id %>)">
-                <i class="fas fa-download color-blue"></i>
-            </a>
-        </div>
-    </text>);
-
-
-
 // ============================================================================
 // FICHIER : document.js
-// DESCRIPTION : forcer le progress au premier chargement de "Tous les documents".
-// Pourquoi ?
-// Même avec LoadPanel DevExtreme, comme le container est initialement display:none,
-// le premier refresh peut parfois ne pas afficher le loader.
-// On force donc beginCustomLoading / endCustomLoading.
+// REMPLACER applyMode ET refreshGrid par ce code.
 // ============================================================================
 
+Transfert.Document.applyMode = function (mode) {
+    _transfertCurrentMode = mode;
 
-// ----------------------------------------------------------------------------
-// REMPLACER refreshGrid par cette version :
-// ----------------------------------------------------------------------------
+    $("#gridAllDocumentsContainer").hide();
+    $("#gridMyDocumentsContainer").hide();
+    $("#gridSharedDocumentsContainer").hide();
+
+    var containerId = null;
+    var gridId = null;
+
+    if (mode === "mine") {
+        containerId = "gridMyDocumentsContainer";
+        gridId = "myDocumentsGrid";
+    }
+    else if (mode === "shared") {
+        containerId = "gridSharedDocumentsContainer";
+        gridId = "sharedDocumentsGrid";
+    }
+    else {
+        containerId = "gridAllDocumentsContainer";
+        gridId = "allDocumentsGrid";
+    }
+
+    $("#" + containerId).show();
+
+    var menu = $("#menuSelectMode").dxMenu("instance");
+    if (menu) {
+        menu.option("items", Transfert.Document.getMenuItems(mode));
+    }
+
+    // Important :
+    // On attend que le navigateur ait réellement affiché le container.
+    // Ensuite DevExtreme peut calculer les dimensions, afficher les headers,
+    // puis lancer le chargement avec son LoadPanel natif.
+    setTimeout(function () {
+        Transfert.Document.refreshGrid(gridId);
+    }, 50);
+};
+
 
 Transfert.Document.refreshGrid = function (gridId) {
     var grid = $("#" + gridId).dxDataGrid("instance");
@@ -154,61 +86,43 @@ Transfert.Document.refreshGrid = function (gridId) {
         return;
     }
 
-    grid.beginCustomLoading(_transfertTranslatableLoading);
-
-    var refreshResult = grid.refresh();
-
-    if (refreshResult && refreshResult.done) {
-        refreshResult.done(function () {
-            grid.endCustomLoading();
-        });
-
-        refreshResult.fail(function () {
-            grid.endCustomLoading();
-        });
-    }
-    else {
-        setTimeout(function () {
-            grid.endCustomLoading();
-        }, 500);
-    }
+    // Important :
+    // updateDimensions avant refresh règle le problème des headers absents.
+    grid.updateDimensions();
+    grid.repaint();
+    grid.refresh();
 };
 
 
-
 // ============================================================================
-// FICHIER : _ViewStart.cshtml
-// DESCRIPTION : ajouter la variable JS utilisée par beginCustomLoading.
-// ============================================================================
-
-var _transfertTranslatableLoading =
-    "@Html.Raw(translator.Common["Loading"])";
-
-
-
-// ============================================================================
-// SCRIPT SQL : TRADUCTION LOADING
-// DESCRIPTION : à exécuter uniquement si la clé Loading n'existe pas déjà.
-// Table réelle : [Commun].[Traduction]
-// Colonnes : [Id], [FrenchTranslate], [EnglishTranslate]
+// SI LE PROBLÈME ARRIVE ENCORE SUR LE PREMIER CHARGEMENT UNIQUEMENT,
+// UTILISE CETTE VERSION PLUS ROBUSTE DU setTimeout DANS applyMode.
+// Remplace le setTimeout précédent par celui-ci.
 // ============================================================================
 
-MERGE [Commun].[Traduction] AS target
-USING
-(
-    VALUES
-    (
-        N'Loading',
-        N'Chargement...',
-        N'Loading...'
-    )
-)
-AS source ([Id], [FrenchTranslate], [EnglishTranslate])
-ON target.[Id] = source.[Id]
-WHEN MATCHED THEN
-    UPDATE SET
-        target.[FrenchTranslate] = source.[FrenchTranslate],
-        target.[EnglishTranslate] = source.[EnglishTranslate]
-WHEN NOT MATCHED THEN
-    INSERT ([Id], [FrenchTranslate], [EnglishTranslate])
-    VALUES (source.[Id], source.[FrenchTranslate], source.[EnglishTranslate]);
+setTimeout(function () {
+    var grid = $("#" + gridId).dxDataGrid("instance");
+
+    if (!grid) {
+        return;
+    }
+
+    grid.updateDimensions();
+    grid.repaint();
+
+    setTimeout(function () {
+        grid.refresh();
+    }, 50);
+
+}, 100);
+
+
+// ============================================================================
+// CONCLUSION
+// ============================================================================
+// - display:none peut rester.
+// - il ne faut pas forcer beginCustomLoading.
+// - il faut afficher le container AVANT de refresh.
+// - updateDimensions() + repaint() doivent être appelés avant refresh().
+// - le LoadPanel natif DevExtreme s’affichera correctement avec headers.
+// ============================================================================
