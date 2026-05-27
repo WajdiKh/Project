@@ -1,128 +1,853 @@
-// Oui, c’est normal : enlever seulement display:none ne suffit pas.
-// Le vrai souci vient du timing : tu fais un refresh trop tôt, avant que le grid soit visible ET avant que DevExtreme ait recalculé ses dimensions.
-// Résultat : loader visible, mais headers pas encore rendus.
-//
-// La correction propre :
-// 1) garder display:none au départ
-// 2) au moment d’afficher un menu : afficher le container
-// 3) appeler updateDimensions()
-// 4) appeler repaint()
-// 5) ensuite seulement lancer refresh()
-//
-// Donc NE PAS utiliser beginCustomLoading ici : laisse DevExtreme gérer son LoadPanel natif.
+// Maintenant je veux que tu créés la ligne d'audit  
+- il s'agit d'appeler la méthode IEventDossierLogger.LogDossierEvent avec 
+* eventType = EactionEventTypeDossier.TELECHARGEMENT_DOCUMENT
+* l'id du user qui a téléchargé le document
+* code dossier null
+* ActiviteModule.TRANSFERT
+Je veux insérer la ligne correspondant à l'event TELECHARGEMENT_DOCUMENT dans [Commun].[EventDossierType]
 
 
-// ============================================================================
-// FICHIER : Index.cshtml
-// GARDER les containers comme avant.
-// ============================================================================
+USE [BacaratWeb]
+GO
 
-<div id="gridAllDocumentsContainer" style="display:none;">
-<div id="gridMyDocumentsContainer" style="display:none;">
-<div id="gridSharedDocumentsContainer" style="display:none;">
+/****** Object:  Table [Commun].[EventDossier]    Script Date: 27/05/2026 11:00:52 ******/
+SET ANSI_NULLS ON
+GO
 
+SET QUOTED_IDENTIFIER ON
+GO
 
-// ============================================================================
-// FICHIER : Index.cshtml
-// AJOUTER LoadPanel dans les 3 DataGrid.
-// ============================================================================
+CREATE TABLE [Commun].[EventDossier](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[DossierEscaladeId] [int] NULL,
+	[DossierFraudeId] [int] NULL,
+	[DossierLabId] [int] NULL,
+	[DossierSAvisId] [int] NULL,
+	[DossierAvisSiId] [int] NULL,
+	[DossierAmfId] [int] NULL,
+	[DossierAvisImId] [int] NULL,
+	[DossierGdaId] [int] NULL,
+	[ActiviteId] [int] NOT NULL,
+	[UtilisateurEventId] [int] NULL,
+	[EventDossierTypeId] [int] NOT NULL,
+	[DetailEventFr] [nvarchar](400) NULL,
+	[DetailEventEn] [nvarchar](400) NULL,
+	[DateCreation] [datetimeoffset](7) NOT NULL,
+	[DateModification] [datetimeoffset](7) NULL,
+	[CreateurId] [int] NULL,
+	[ModificateurId] [int] NULL,
+	[CodeDossier] [nvarchar](50) NULL,
+	[Motif] [nvarchar](4000) NULL,
+	[DateCreationDossier] [datetimeoffset](7) NULL,
+ CONSTRAINT [PK_EventDossier] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
 
-.LoadPanel(loadPanel => loadPanel
-    .Enabled(true)
-    .ShowPane(true)
-    .ShowIndicator(true)
-    .Text(translator.Common["Loading"]))
+ALTER TABLE [Commun].[EventDossier]  WITH CHECK ADD  CONSTRAINT [FK_EventDossier_Activite_ActiviteId] FOREIGN KEY([ActiviteId])
+REFERENCES [Commun].[Activite] ([Id])
+GO
 
+ALTER TABLE [Commun].[EventDossier] CHECK CONSTRAINT [FK_EventDossier_Activite_ActiviteId]
+GO
 
-// ============================================================================
-// FICHIER : document.js
-// REMPLACER applyMode ET refreshGrid par ce code.
-// ============================================================================
+ALTER TABLE [Commun].[EventDossier]  WITH CHECK ADD  CONSTRAINT [FK_EventDossier_EventDossierType_EventDossierTypeId] FOREIGN KEY([EventDossierTypeId])
+REFERENCES [Commun].[EventDossierType] ([Id])
+GO
 
-Transfert.Document.applyMode = function (mode) {
-    _transfertCurrentMode = mode;
+ALTER TABLE [Commun].[EventDossier] CHECK CONSTRAINT [FK_EventDossier_EventDossierType_EventDossierTypeId]
+GO
 
-    $("#gridAllDocumentsContainer").hide();
-    $("#gridMyDocumentsContainer").hide();
-    $("#gridSharedDocumentsContainer").hide();
+ALTER TABLE [Commun].[EventDossier]  WITH CHECK ADD  CONSTRAINT [FK_EventDossier_Utilisateur_CreateurId] FOREIGN KEY([CreateurId])
+REFERENCES [Commun].[Utilisateur] ([Id])
+GO
 
-    var containerId = null;
-    var gridId = null;
+ALTER TABLE [Commun].[EventDossier] CHECK CONSTRAINT [FK_EventDossier_Utilisateur_CreateurId]
+GO
 
-    if (mode === "mine") {
-        containerId = "gridMyDocumentsContainer";
-        gridId = "myDocumentsGrid";
+ALTER TABLE [Commun].[EventDossier]  WITH CHECK ADD  CONSTRAINT [FK_EventDossier_Utilisateur_ModificateurId] FOREIGN KEY([ModificateurId])
+REFERENCES [Commun].[Utilisateur] ([Id])
+GO
+
+ALTER TABLE [Commun].[EventDossier] CHECK CONSTRAINT [FK_EventDossier_Utilisateur_ModificateurId]
+GO
+
+ALTER TABLE [Commun].[EventDossier]  WITH CHECK ADD  CONSTRAINT [FK_EventDossier_Utilisateur_UtilisateurEventId] FOREIGN KEY([UtilisateurEventId])
+REFERENCES [Commun].[Utilisateur] ([Id])
+GO
+
+ALTER TABLE [Commun].[EventDossier] CHECK CONSTRAINT [FK_EventDossier_Utilisateur_UtilisateurEventId]
+GO
+
+// IEventDossierLogger
+using BacaratWeb.Entities.Commun;
+using BacaratWeb.Models.Referentials;
+using System.Threading;
+using System;
+using System.Threading.Tasks;
+using BacaratWeb.Shared;
+
+namespace BacaratWeb.Services.Common.Interfaces
+{
+    public interface IEventDossierLogger
+    {
+        Task LogDossierEvent(
+            EactionEventTypeDossier eventType,
+            int userId,
+            string codeDossier,
+            ActiviteModule activiteId,
+            Action<EventDossier> configureSpecificFields,
+            CancellationToken cancellationToken);
     }
-    else if (mode === "shared") {
-        containerId = "gridSharedDocumentsContainer";
-        gridId = "sharedDocumentsGrid";
+}
+// EventDossierType
+USE [BacaratWeb]
+GO
+
+/****** Object:  Table [Commun].[EventDossierType]    Script Date: 27/05/2026 11:03:49 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [Commun].[EventDossierType](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Code] [nvarchar](50) NOT NULL,
+	[FrenchName] [nvarchar](500) NOT NULL,
+	[EnglishName] [nvarchar](500) NULL,
+	[FrenchDescription] [nvarchar](1000) NOT NULL,
+	[EnglishDescription] [nvarchar](1000) NULL,
+	[DateCreation] [datetimeoffset](7) NOT NULL,
+	[DateModification] [datetimeoffset](7) NULL,
+	[ModificateurId] [int] NULL,
+	[CreateurId] [int] NULL,
+	[IsActive] [bit] NOT NULL,
+ CONSTRAINT [PK_EventDossierType] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [Commun].[EventDossierType]  WITH CHECK ADD  CONSTRAINT [FK_EventDossierType_Utilisateur_CreateurId] FOREIGN KEY([CreateurId])
+REFERENCES [Commun].[Utilisateur] ([Id])
+GO
+
+ALTER TABLE [Commun].[EventDossierType] CHECK CONSTRAINT [FK_EventDossierType_Utilisateur_CreateurId]
+GO
+
+ALTER TABLE [Commun].[EventDossierType]  WITH CHECK ADD  CONSTRAINT [FK_EventDossierType_Utilisateur_ModificateurId] FOREIGN KEY([ModificateurId])
+REFERENCES [Commun].[Utilisateur] ([Id])
+GO
+
+ALTER TABLE [Commun].[EventDossierType] CHECK CONSTRAINT [FK_EventDossierType_Utilisateur_ModificateurId]
+GO
+
+// using System.ComponentModel;
+
+namespace BacaratWeb.Models.Referentials
+{
+    public enum EactionEventTypeDossier
+    {
+        [Description("Ajout dossier escalade")]
+        AJOUT_ESCALADE = 1,
+
+        [Description("Remontee une escalade au Responsable local")]
+        REMONTER_AU_RESPONSABLE_LOCAL = 2,
+
+        [Description("Remontee une escalade au collaborateur Flge")]
+        REMONTER_AU_COLLABORATEUR_FLGE = 3,
+
+        [Description("Remontee une escalade au Responsable Flge")]
+        REMONTER_AU_RESPONSABLE_FLGE = 4,
+
+        [Description("Remontee une escalade au DDC")]
+        REMONTER_AU_DDC = 5,
+
+        [Description("Clôturer une escalade par un responsable Flge")]
+        CLOTURER_RESPONSABLE_FLGE = 6,
+
+        [Description("Clôturer une escalade par un responsable Entité")]
+        CLOTURER_RESPONSABLE_ENTITE = 7,
+
+        [Description("Prendre en charge une escalade")]
+        PRENDRE_CHARGE = 8,
+        [Description("Valider une analyse")] VALIDER_ANALYSE = 9,
+
+        [Description("Valider un dossier en intermédiaire")]
+        VALIDER_ESCALADE_INTERMEDIAIRE = 10,
+
+        [Description("Valider un dossier en final")]
+        VALIDER_ESCALADE_FINALE = 11,
+        [Description("Refuser une escalade")] REFUSER_ESCALADE_INTERMEDIAIRE = 12,
+        [Description("Refuser une escalade")] REFUSER_ESCALADE_FINALE = 13,
+
+        [Description("cloture niveau ddc  escalade")]
+        CLOS_DDC_ESCALADE = 14,
+
+        [Description("cloture niveau entite locale  escalade")]
+        CLOS_ENTITE_LOCAL_ESCALADE = 15,
+
+        [Description("cloture niveau flge escalade")]
+        CLOS_ENTITE_FLGE_ESCALADE = 16,
+
+        [Description("cloture niveau sous entite locale")]
+        CLOS_SOUS_ENTITE_LOCAL_ESCALADE = 17,
+
+        [Description("Daft collaboteur entité")]
+        DRAFT_COLLABORATEUR_ENTITE = 18,
+
+        [Description("Daft responsable entité")]
+        DRAFT_RESPONSABLE_ENTITE = 19,
+
+        [Description("Daft collaborateur flge")]
+        DRAFT_COLLABORATEUR_FLGE = 20,
+        [Description("Daft responsable flge")] DRAFT_RESPONSABLE_FLGE = 21,
+
+        [Description("Daft collaborateur sous entité")]
+        DRAFT_COLLABORATEUR_SOUS_ENTITE = 22,
+
+        [Description("Daft responsable sous entité")]
+        DRAFT_RESPONSABLE_SOUS_ENTITE = 23,
+
+        [Description("Remonter responsable sous entité")]
+        REMONTER_AU_RESPONSABLE_LOCAL_SOUS_ENTITE = 24,
+
+        [Description("Clôturer une escalade par un responsable sous Entité")]
+        CLOTURER_RESPONSABLE_SOUS_ENTITE = 25,
+
+        [Description("Requalifier une escalade")]
+        REQUALIFIER_ESCALADE = 26,
+        [Description("Remontee une escalade au superviseur")]
+        REMONTER_AU_SUPERVISEUR_ESCALADE = 27,
+        [Description("Prendre en charge par superviseur une escalade")]
+        PRENDRE_CHARGE_SUPERVISEUR_ESCALADE = 28,
+
+
+        [Description("Ajout dossier fraude")] AJOUT_FRAUDE = 31,
+        [Description("déjoué dossier fraude")] DEJOUE_FRAUDE = 32,
+
+        [Description("transmis dossier fraude")]
+        TRANSMIS_FRAUDE = 33,
+
+        [Description("cloture dossier fraude")]
+        CLOS_FRAUDE = 34,
+
+        [Description("investigation dossier fraude")]
+        EN_INVESTIGATION_FRAUDE = 35,
+
+        [Description("pending dossier fraude")]
+        PENDING_FRAUDE = 36,
+
+        [Description("cloture dossier fraude")]
+        SANS_SUITE_FRAUDE = 37,
+
+        [Description("Ractivation dossier fraude")]
+        REACTIVATION_FRAUDE = 38,
+
+        [Description("AU-54 : Dossier Alerté (1)")]
+        ALERTE_1_FRAUDE = 39,
+
+        [Description("AU-54 : Dossier Alerté (2)")]
+        ALERTE_2_FRAUDE = 40,
+
+        [Description("AU-54 : Dossier Alerté (3)")]
+        ALERTE_3_FRAUDE = 41,
+
+        [Description("AU-54 :  Suppression Tiers")]
+        AU54_SUPPRESSION_FRAUDE = 42,
+
+
+        RESPONSE_PLAN_ACTION_ESCALADE = 52,
+        CLOS_PLAN_ACTION_ESCALADE = 53,
+        DELETE_PLAN_ACTION_ESCALADE = 54,
+        AJOUT_DEMANDE_INFORMATION_ESCALADE = 55,
+        CLOS_DEMANDE_INFORMATION_ESCALADE = 56,
+        RESPONSE_DEMANDE_INFORMATION_ESCALADE = 57,
+        RELANCE_DEMANDE_INFORMATION_ESCALADE = 58,
+        DELETE_DEMANDE_INFORMATION_ESCALADE = 59,
+        UPDATE_DEMANDE_INFORMATION_ESCALADE = 60,
+        UPDATE_PLAN_ACTION_ESCALADE = 61,
+        UPDATE_ESCALADE = 62,
+        VIEW_ESCALADE = 63,
+        VIEW_FRAUD = 64,
+        [Description("Le dossier Fraude a été modifié")]
+        UPDATE_FRAUD = 65,
+        AJOUT_PLAN_ACTION_ESCALADE = 66,
+        AJOUT_DEMANDE_INFORMATION_FRAUDE = 67,
+        CLOS_DEMANDE_INFORMATION_FRAUDE = 68,
+        RESPONSE_DEMANDE_INFORMATION_FRAUDE = 69,
+        RELANCE_DEMANDE_INFORMATION_FRAUDE = 70,
+        DELETE_DEMANDE_INFORMATION_FRAUDE = 71,
+        UPDATE_DEMANDE_INFORMATION_FRAUDE = 72,
+        UPDATE_PLAN_ACTION_FRAUDE = 73,
+        RELANCE_PLAN_ACTION_ESCALADE = 74,
+
+        [Description("Remontee une escalade au validateur intermédiaire Flge")]
+        REMONTER_AU_VALIDATEUR_INTERMEDIAIRE_FLGE = 75,
+
+        [Description("Valider escalade par validateur intermediaire Flge")]
+        VALIDER_ESCALADE_INTERMEDIAIRE_FLGE = 76,
+
+        [Description("Refuser une escalade par validateur intermediare Flge")] REFUSER_ESCALADE_VALIDATEUR_FLGE_INTERMEDIAIRE = 77,
+
+        [Description("Refuser une escalade par validateur final Flge")] REFUSER_ESCALADE_VALIDATEUR_FLGE_FINALE = 78,
+
+        [Description("Remonter une escalade à DDC par validateur final Flge")] REMONTER_VALIDATEUR_FLGE_FINAL_AU_DDC = 79,
+
+        [Description("Clôturer une escalade par validateur final flge")] CLOTURER_VALIDATEUR_FLGE_FINALE = 80,
+
+        [Description("Clôturer une escalade par validateur intermediaire flge")] CLOTURER_VALIDATEUR_FLGE_INTERMEDIAIRE = 81,
+
+        [Description("Clôturer localement une escalade par validateur final flge")] CLOTURER_LOCALE_VALIDATEUR_FLGE_FINALE = 82,
+
+        [Description("Remonter une escalade au validateur finale Flge")] REMONTER_AU_VALIDATEUR_FINALE_FLGE = 83,
+        [Description("Rejet au créateur escalade")] REJETER_AU_CREATEUR_ESCALADE = 84,
+
+
+
+        [Description("Ajout dossier Lab")]
+        AJOUT_LAB = 94,
+
+        [Description("Attente validation dossier lab")]
+        ATTENTE_VALIDATION_LAB = 95,
+
+        [Description("Cloture dossier lab")]
+        CLOTURE_LAB = 96,
+
+        [Description("Dossier Lab en cours")]
+        EN_COURS_LAB = 97,
+
+        [Description("Attente documents dossier lab")]
+        ATTENTE_DOCUMENT_LAB = 98,
+
+        [Description("Sans suite dossier lab")]
+        SANS_SUITE_LAB = 99,
+
+        AJOUT_DEMANDE_INFORMATION_LAB = 100,
+
+
+        CLOS_DEMANDE_INFORMATION_LAB = 101,
+
+
+        RESPONSE_DEMANDE_INFORMATION_LAB = 102,
+
+
+        RELANCE_DEMANDE_INFORMATION_LAB = 103,
+
+
+        DELETE_DEMANDE_INFORMATION_LAB = 104,
+
+
+        UPDATE_DEMANDE_INFORMATION_LAB = 105,
+
+
+        UPDATE_PLAN_ACTION_LAB = 106,
+
+        [Description("Suppression Déclaration soupson")]
+        DELETE_DECLARATION_SOUPCON_LAB = 107,
+
+        [Description("Réactivation dossier lab")]
+        REACTIVATION_LAB = 108,
+
+        [Description("Cloture dossier lab")]
+        CLOTURE_DOSSIER_LAB = 109,
+        [Description("Réactivation dossier lab")]
+        SANS_SUITE_DOSSIER_LAB = 110,
+        [Description("Réactivation dossier lab")]
+        EN_COURS_DOSSIER_LAB = 112,
+
+        [Description("Visualisation détail dossier lab")]
+        VIEW_LAB = 113,
+
+        [Description("Dossier Lab pending en cours")]
+        PENDING_EN_COURS_LAB = 114,
+
+        [Description("Attente prise en charge dossier lab")]
+        ATTENTE_PRISE_EN_CHARGE_LAB = 115,
+
+
+
+        [Description("Suppression dossier lab")]
+        DELETE_DOSSIER_LAB = 116,
+
+        [Description("Envoi tracfin DS lab")]
+        ENVOI_TRACFIN_DS = 316,
+        [Description("Attente d'envoi TRACFIN")]
+        ATTENTE_ENVOI_TRACFIN = 317,
+        [Description("Cloturé TRACFIN")]
+        CLOTURE_TRACFIN = 318,
+
+        /// <summary>
+        /// SAvis
+        /// </summary>
+
+        [Description("Ajout dossier avis simple")]
+        AJOUT_SAVIS = 120,
+
+        [Description("Remontee un avis simple au Responsable local")]
+        REMONTER_AU_RESPONSABLE_LOCAL_SAVIS = 121,
+
+        [Description("Remontee un avis simple au collaborateur Flge")]
+        REMONTER_AU_COLLABORATEUR_FLGE_SAVIS = 122,
+
+        [Description("Remontee un avis simple au Responsable Flge")]
+        REMONTER_AU_RESPONSABLE_FLGE_SAVIS = 123,
+
+        [Description("Remontee un avis simple au DDC")]
+        REMONTER_AU_DDC_SAVIS = 124,
+
+        [Description("Clôturer un avis simple par un responsable Flge")]
+        CLOTURER_RESPONSABLE_FLGE_SAVIS = 125,
+
+        [Description("Clôturer un avis simple par un responsable Entité")]
+        CLOTURER_RESPONSABLE_ENTITE_SAVIS = 126,
+
+        [Description("Prendre en charge par analyste un avis simple")]
+        PRENDRE_CHARGE_SAVIS = 127,
+
+        [Description("Valider un analyse")]
+        VALIDER_ANALYSE_SAVIS = 128,
+
+        [Description("Valider un dossier en intermédiaire")]
+        VALIDER_SAVIS_INTERMEDIAIRE = 129,
+
+        [Description("Valider un dossier en final")]
+        VALIDER_SAVIS_FINALE = 130,
+
+        [Description("Refuser un avis simple")]
+        REFUSER_SAVIS_INTERMEDIAIRE = 131,
+
+        [Description("Refuser un avis simple")]
+        REFUSER_SAVIS_FINALE = 132,
+
+        [Description("cloture niveau ddc avis simple")]
+        CLOS_DDC_SAVIS = 133,
+
+        [Description("cloture niveau entite locale avis simple")]
+        CLOS_ENTITE_LOCAL_SAVIS = 134,
+
+        [Description("cloture niveau flge avis simple")]
+        CLOS_ENTITE_FLGE_SAVIS = 135,
+
+        [Description("cloture niveau sous entite locale")]
+        CLOS_SOUS_ENTITE_LOCAL_SAVIS = 136,
+
+        [Description("Clôturer un avis simple par un responsable sous Entité")]
+        CLOTURER_RESPONSABLE_SOUS_ENTITE_SAVIS = 137,
+
+        [Description("Requalifier un avis simple")]
+        REQUALIFIER_SAVIS = 138,
+
+        RESPONSE_PLAN_ACTION_SAVIS = 139,
+        CLOS_PLAN_ACTION_SAVIS = 140,
+        DELETE_PLAN_ACTION_SAVIS = 141,
+        AJOUT_DEMANDE_INFORMATION_SAVIS = 142,
+        CLOS_DEMANDE_INFORMATION_SAVIS = 143,
+        RESPONSE_DEMANDE_INFORMATION_SAVIS = 144,
+        RELANCE_DEMANDE_INFORMATION_SAVIS = 145,
+        DELETE_DEMANDE_INFORMATION_SAVIS = 146,
+        UPDATE_DEMANDE_INFORMATION_SAVIS = 147,
+        VIEW_SAVIS = 148,
+        UPDATE_SAVIS = 149,
+        AJOUT_PLAN_ACTION_SAVIS = 150,
+        UPDATE_PLAN_ACTION_SAVIS = 151,
+        RELANCE_PLAN_ACTION_SAVIS = 152,
+
+
+
+        [Description("Remontee un avis simple au validateur intermédiaire Flge")]
+        REMONTER_AU_SAVIS_VALIDATEUR_INTERMEDIAIRE_FLGE = 153,
+
+        [Description("Valider avis simple par validateur intermediaire Flge")]
+        VALIDER_SAVIS_INTERMEDIAIRE_FLGE = 154,
+
+        [Description("Refuser un avis simple par validateur intermediare Flge")]
+        REFUSER_SAVIS_VALIDATEUR_FLGE_INTERMEDIAIRE = 155,
+
+        [Description("Refuser un avis simple par validateur final Flge")]
+        REFUSER_SAVIS_VALIDATEUR_FLGE_FINALE = 156,
+
+        [Description("Remonter un avis simple à DDC par validateur final Flge")]
+        REMONTER_SAVIS_VALIDATEUR_FLGE_FINAL_AU_DDC = 157,
+
+        [Description("Clôturer un avis simple par validateur final Flge")]
+        CLOTURER_SAVIS_VALIDATEUR_FLGE_FINALE = 158,
+
+        [Description("Clôturer un avis simple par validateur intermediaire Flge")]
+        CLOTURER_SAVIS_VALIDATEUR_FLGE_INTERMEDIAIRE = 159,
+
+        [Description("Clôturer localement un avis simple par validateur final Flge")]
+        CLOTURER_SAVIS_LOCALE_VALIDATEUR_FLGE_FINALE = 160,
+
+        [Description("Remonter un avis simple au validateur finale Flge")]
+        REMONTER_AU_SAVIS_VALIDATEUR_FINALE_FLGE = 161,
+
+        [Description("Ajout Complement d'information")]
+        AJOUT_COMPLEMENT_INFO = 162,
+
+        
+        [Description("Redescendre un avis Contact-Expert")]
+        REDESCENDRE_SAVIS = 163,
+        /// <summary>
+        /// AVISSI
+        /// </summary>
+
+        [Description("Ajout dossier avis de soupçon si")]
+        AJOUT_AVISSI = 181,
+
+        [Description("Remontee un avis SI au Responsable local")]
+        REMONTER_AU_RESPONSABLE_LOCAL_AVISSI = 182,
+
+        [Description("Remontee un avis SI au collaborateur Flge")]
+        REMONTER_AU_COLLABORATEUR_FLGE_AVISSI = 183,
+
+        [Description("Remontee un avis SI au Responsable Flge")]
+        REMONTER_AU_RESPONSABLE_FLGE_AVISSI = 184,
+
+        [Description("Affecter un dossier avissi à un analyste")]
+        AFFECTER_AU_ANALYSTE = 185,
+
+        [Description("Clôturer un avis SI par un responsable Flge")]
+        CLOTURER_RESPONSABLE_FLGE_AVISSI = 186,
+
+        [Description("Clôturer un avis SI par un responsable Entité")]
+        CLOTURER_RESPONSABLE_ENTITE_AVISSI = 187,
+
+        [Description("Prendre en charge un avis de soupçon si")]
+        PRENDRE_CHARGE_AVISSI = 188,
+        [Description("Valider un analyse")] VALIDER_ANALYSE_AVISSI = 189,
+
+        [Description("Valider un dossier en intermédiaire")]
+        VALIDER_AVISSI_INTERMEDIAIRE = 190,
+
+        [Description("Valider un dossier en final")]
+        VALIDER_AVISSI_FINALE = 191,
+        [Description("Refuser un avis de soupçon si")] REFUSER_AVISSI_INTERMEDIAIRE = 192,
+        [Description("Refuser un avis de soupçon si")] REFUSER_AVISSI_FINALE = 193,
+
+        [Description("cloture niveau ddc avis de soupçon si")]
+        CLOS_DDC_AVISSI = 194,
+
+        [Description("cloture niveau entite locale avis de soupçon si")]
+        CLOS_ENTITE_LOCAL_AVISSI = 195,
+
+        [Description("cloture niveau flge avis de soupçon si")]
+        CLOS_ENTITE_FLGE_AVISSI = 196,
+
+        [Description("cloture niveau sous entite locale")]
+        CLOS_SOUS_ENTITE_LOCAL_AVISSI = 197,
+
+        [Description("Clôturer un avis SI par un responsable sous Entité")]
+        CLOTURER_RESPONSABLE_SOUS_ENTITE_AVISSI = 198,
+
+        [Description("Requalifier un avis de soupçon si")]
+        REQUALIFIER_AVISSI = 199,
+
+        RESPONSE_PLAN_ACTION_AVISSI = 200,
+        CLOS_PLAN_ACTION_AVISSI = 201,
+        DELETE_PLAN_ACTION_AVISSI = 202,
+        AJOUT_DEMANDE_INFORMATION_AVISSI = 203,
+        CLOS_DEMANDE_INFORMATION_AVISSI = 204,
+        RESPONSE_DEMANDE_INFORMATION_AVISSI = 205,
+        RELANCE_DEMANDE_INFORMATION_AVISSI = 206,
+        DELETE_DEMANDE_INFORMATION_AVISSI = 207,
+        UPDATE_DEMANDE_INFORMATION_AVISSI = 208,
+        VIEW_AVISSI = 209,
+        UPDATE_AVISSI = 210,
+        AJOUT_PLAN_ACTION_AVISSI = 211,
+        UPDATE_PLAN_ACTION_AVISSI = 212,
+        RELANCE_PLAN_ACTION_AVISSI = 213,
+
+        [Description("Remontee un avis SI au validateur intermédiaire Flge")]
+        REMONTER_AU_AVISSI_VALIDATEUR_INTERMEDIAIRE_FLGE = 214,
+
+        [Description("Valider avis SI par validateur intermediaire Flge")]
+        VALIDER_AVISSI_INTERMEDIAIRE_FLGE = 215,
+
+        [Description("Refuser un avis SI par validateur intermediare Flge")] REFUSER_AVISSI_VALIDATEUR_FLGE_INTERMEDIAIRE = 216,
+
+        [Description("Refuser un avis SI par validateur final Flge")] REFUSER_AVISSI_VALIDATEUR_FLGE_FINALE = 217,
+
+        [Description("Remonter un avis SI à DDC par validateur final Flge")] REMONTER_AVISSI_VALIDATEUR_FLGE_FINAL_AU_DDC = 218,
+
+        [Description("Clôturer un avis SI par validateur final Flge")] CLOTURER_AVISSI_VALIDATEUR_FLGE_FINALE = 219,
+
+        [Description("Clôturer un avis SI par validateur intermediaire Flge")] CLOTURER_AVISSI_VALIDATEUR_FLGE_INTERMEDIAIRE = 220,
+
+        [Description("Clôturer localement un avis SI par validateur final Flge")] CLOTURER_AVISSI_LOCALE_VALIDATEUR_FLGE_FINALE = 221,
+
+        [Description("Remonter un avis SI au validateur finale Flge")]
+        REMONTER_AU_AVISSI_VALIDATEUR_FINALE_FLGE = 222,
+        [Description("Remontee un avis SI au superviseur")]
+        REMONTER_AU_SUPERVISEUR_AVISSI = 223,
+
+        PARTAGE_DIFFUSION_CRIBLAGE_PERSONNE_PHYSIQUE = 224,
+        NON_PARTAGE_DIFFUSION_CRIBLAGE_PERSONNE_PHYSIQUE = 225,
+
+        PARTAGE_DIFFUSION_CRIBLAGE_PERSONNE_MORALE = 226,
+        NON_PARTAGE_DIFFUSION_CRIBLAGE_PERSONNE_MORALE = 227,
+
+        [Description("suppression dossier fraude")]
+        DELETE_DOSSIER_FRAUDE = 228,
+        [Description("Rejeter une avis SI vers collaborateur Flge")]
+        REJETER_AU_COLLABORATEUR_FLGE_AVISSI = 229,
+        [Description("Rejeter une avis SI vers responsable Flge")]
+        REJETER_AU_RESPONSABLE_FLGE_AVISSI = 230,
+
+        [Description("Clôturer un avis SI lors d'un rejet")]
+        CLOTURER_REJET_ANALYSTE_AVISSI = 231,
+
+        [Description("Export du dossier sans document")]
+        EXPORT_DOSSIER_SANS_DOCUMENT = 232,
+        [Description("Export du dossier avec document")]
+        EXPORT_DOSSIER_AVEC_DOCUMENT = 233,
+        [Description("Envoi URL de téléchargement sans document")]
+        EXPORT_URL_DOSSIER_SANS_DOCUMENT = 234,
+        [Description("Envoi URL de téléchargement avec document")]
+        EXPORT_URL_DOSSIER_AVEC_DOCUMENT = 235,
+
+        [Description("Rejeter une avis SI vers responsable entite")]
+        REJETER_AU_RESPONSABLE_ENTITE_AVISSI = 236,
+        [Description("Rejeter une avis SI vers responsable sous-entite")]
+        REJETER_AU_RESPONSABLE_SOUS_ENTITE_AVISSI = 237,
+        [Description("Rejeter une avis SI vers collaborateur entite")]
+        REJETER_AU_COLLABORATEUR_ENTITE_AVISSI = 238,
+        [Description("Rejeter une avis SI vers collaborateur sous-entite")]
+        REJETER_AU_COLLABORATEUR_SOUS_ENTITE_AVISSI = 239,
+        UPDATE_TRANSMISSION_DOSSIER_LAB = 241,
+
+        [Description("Prendre en charge par superviseur un avis simple")]
+        PRENDRE_CHARGE_SUPERVISEUR_SAVIS = 242,
+
+        [Description("Remontee un avis simple au superviseur")]
+        REMONTER_AU_SUPERVISEUR_SAVIS = 243,
+
+        [Description("Clôturer un avis SI par un collaborateur Flge")]
+        CLOTURER_COLLABORATEUR_FLGE_AVISSI = 244,
+
+        [Description("Redescendre un avis SI au niveau attente de prise en charge")]
+        REDESCENDRE_AVISSI = 245,
+
+        /******Amf*****/
+        [Description("Ajout dossier Amf")]
+        AJOUT_DOSSIER_AMF = 250,
+
+        [Description("Export Amf to PDF")]
+        EXPORTER_DOSSIER_AMF_PDF = 251,
+
+        [Description("Cloture dossier Amf")]
+        CLOTURE_DOSSIER_AMF = 252,
+
+        [Description("Supprimer dossier Amf")]
+        SUPPRIMER_DOSSIER_AMF = 253,
+
+        [Description("Modifier dossier Amf")]
+        UPDATE_DOSSIER_AMF = 254,
+
+        [Description("Visualisation détail dossier Amf")]
+        VISUALISER_DOSSIER_AMF = 255,
+        [Description("Réactivation dossier Amf")]
+        REACTIVATION_DOSSIER_AMF=256,
+        
+        AJOUT_DEMANDE_INFORMATION_Amf = 257,
+
+
+        CLOS_DEMANDE_INFORMATION_Amf = 258,
+
+
+        RESPONSE_DEMANDE_INFORMATION_Amf = 259,
+
+
+        RELANCE_DEMANDE_INFORMATION_Amf = 260,
+
+
+        DELETE_DEMANDE_INFORMATION_Amf = 261,
+
+
+        UPDATE_DEMANDE_INFORMATION_Amf = 262,
+
+
+        UPDATE_PLAN_ACTION_Amf = 263,
+
+        PENDING_ENCOURS_FRAUDE =264,
+
+        EDIT_MONTANT_DOSSIER_FRAUDE = 265,
+
+        TRAITE_FRAUDE = 266,
+
+
+        /// <summary>
+        /// AvisIm
+        /// </summary>
+
+        [Description("Ajout dossier avis TM")]
+        AJOUT_AVISIM = 267,
+
+        [Description("Remontee un avis TM au Responsable local")]
+        REMONTER_AU_RESPONSABLE_LOCAL_AVISIM = 268,
+
+        [Description("Remontee un avis TM au collaborateur Flge")]
+        REMONTER_AU_COLLABORATEUR_FLGE_AVISIM = 269,
+
+        [Description("Remontee un avis TM au Responsable Flge")]
+        REMONTER_AU_RESPONSABLE_FLGE_AVISIM = 270,
+
+        [Description("Remontee un avis TM au DDC")]
+        REMONTER_AU_DDC_AVISIM = 271,
+
+        [Description("Clôturer un avis TM par un responsable Flge")]
+        CLOTURER_RESPONSABLE_FLGE_AVISIM = 272,
+
+        [Description("Clôturer un avis TM par un responsable Entité")]
+        CLOTURER_RESPONSABLE_ENTITE_AVISIM = 273,
+
+        [Description("Prendre en charge par analyste un avis TM")]
+        PRENDRE_CHARGE_AVISIM = 274,
+
+        [Description("Valider un analyse")]
+        VALIDER_ANALYSE_AVISIM = 275,
+
+        [Description("Valider un dossier en intermédiaire")]
+        VALIDER_AVISIM_INTERMEDIAIRE = 276,
+
+        [Description("Valider un dossier en final")]
+        VALIDER_AVISIM_FINALE = 277,
+
+        [Description("Refuser un avis TM")]
+        REFUSER_AVISIM_INTERMEDIAIRE = 278,
+
+        [Description("Refuser un avis TM")]
+        REFUSER_AVISIM_FINALE = 279,
+
+        [Description("cloture niveau ddc avis TM")]
+        CLOS_DDC_AVISIM = 280,
+
+        [Description("cloture niveau entite locale avis TM")]
+        CLOS_ENTITE_LOCAL_AVISIM = 281,
+
+        [Description("cloture niveau flge avis TM")]
+        CLOS_ENTITE_FLGE_AVISIM = 282,
+
+        [Description("cloture niveau sous entite locale")]
+        CLOS_SOUS_ENTITE_LOCAL_AVISIM = 283,
+
+        [Description("Clôturer un avis TM par un responsable sous Entité")]
+        CLOTURER_RESPONSABLE_SOUS_ENTITE_AVISIM = 284,
+
+        [Description("Requalifier un avis TM")]
+        REQUALIFIER_AVISIM = 285,
+
+        RESPONSE_PLAN_ACTION_AVISIM = 286,
+        CLOS_PLAN_ACTION_AVISIM = 287,
+        DELETE_PLAN_ACTION_AVISIM = 288,
+        AJOUT_DEMANDE_INFORMATION_AVISIM = 289,
+        CLOS_DEMANDE_INFORMATION_AVISIM = 290,
+        RESPONSE_DEMANDE_INFORMATION_AVISIM = 291,
+        RELANCE_DEMANDE_INFORMATION_AVISIM = 292,
+        DELETE_DEMANDE_INFORMATION_AVISIM = 293,
+        UPDATE_DEMANDE_INFORMATION_AVISIM = 294,
+        VIEW_AVISIM = 295,
+        UPDATE_AVISIM = 296,
+        AJOUT_PLAN_ACTION_AVISIM = 297,
+        UPDATE_PLAN_ACTION_AVISIM = 298,
+        RELANCE_PLAN_ACTION_AVISIM = 299,
+
+
+
+        [Description("Remontee un avis TM au validateur intermédiaire Flge")]
+        REMONTER_AU_AVISIM_VALIDATEUR_INTERMEDIAIRE_FLGE = 300,
+
+        [Description("Valider avis TM par validateur intermediaire Flge")]
+        VALIDER_AVISIM_INTERMEDIAIRE_FLGE = 301,
+
+        [Description("Refuser un avis TM par validateur intermediare Flge")]
+        REFUSER_AVISIM_VALIDATEUR_FLGE_INTERMEDIAIRE = 302,
+
+        [Description("Refuser un avis TM par validateur final Flge")]
+        REFUSER_AVISIM_VALIDATEUR_FLGE_FINALE = 303,
+
+        [Description("Remonter un avis TM à DDC par validateur final Flge")]
+        REMONTER_AVISIM_VALIDATEUR_FLGE_FINAL_AU_DDC = 304,
+
+        [Description("Clôturer un avis TM par validateur final Flge")]
+        CLOTURER_AVISIM_VALIDATEUR_FLGE_FINALE = 305,
+
+        [Description("Clôturer un avis TM par validateur intermediaire Flge")]
+        CLOTURER_AVISIM_VALIDATEUR_FLGE_INTERMEDIAIRE = 306,
+
+        [Description("Clôturer localement un avis TM par validateur final Flge")]
+        CLOTURER_AVISIM_LOCALE_VALIDATEUR_FLGE_FINALE = 307,
+
+        [Description("Remonter un avis TM au validateur finale Flge")]
+        REMONTER_AU_AVISIM_VALIDATEUR_FINALE_FLGE = 308,
+
+        [Description("Remontee un avis TM au superviseur")]
+        REMONTER_AU_SUPERVISEUR_AVISIM = 309,
+        REJETER_AU_COLLABORATEUR_FLGE_AVISIM = 310,
+        REJETER_AU_RESPONSABLE_FLGE_AVISIM = 311,
+        CLOTURER_REJET_ANALYSTE_AVISIM = 312,
+        CLOTURER_COLLABORATEUR_FLGE_AVISIM= 313,
+        [Description("Prendre en charge par superviseur un avis TM")]
+        PRENDRE_CHARGE_SUPERVISEUR_AVISIM = 314,
+        [Description("Réouverture de dossier")]
+        REOUVERTURE_DOSSIER = 320,
+
+        [Description("Rejeté par TRACFIN")]
+        REJECTED_TRACFIN,
+
+        [Description("Suppression dossier Gda")]
+        DELETE_DOSSIER_GDA,
+
+        [Description("Récativation escalade")]
+        REACTIVATION_ESCALADE = 323,
+
+        [Description("Récativation escalade")]
+        REACTIVATION_AVISSI = 324,
+
+        [Description("Duplication de dossier")]
+        DUPLICATION_DOSSIER = 325,
+
+        [Description("Téléchargement de dossier")]
+        TELECHARGEMENT_DOSSIER = 326,
+
+        [Description("Retour au statut en attente de prise en charge")]
+        REPASSAGE_STATUS_SAVIS = 327,
+
+        [Description("Status Attente AR TRACFIN ")]
+        ATTENTE_AR_TRACFIN = 328,
+
+        [Description("Suppression de dossier")]
+        SUPPRESSION_DOSSIER,
+        
+        [Description("Mettre en attente de priorisation")]
+        METTRE_EN_ATTENTE_DE_PRIORISATION,
+
+        [Description("Mettre à planifier")]
+        METTRE_A_PLANIFIER,
+        
+        [Description("Téléchargement de document")]
+        TELECHARGEMENT_DOCUMENT
     }
-    else {
-        containerId = "gridAllDocumentsContainer";
-        gridId = "allDocumentsGrid";
+}
+// ActiviteModule
+using System.ComponentModel;
+
+namespace BacaratWeb.Shared
+{
+    public enum ActiviteModule
+    {
+        [Description("LCB-FT")] Lab = 1,
+        [Description("Fraude")] Fraude = 2,
+        [Description("Invest Request")] AvisIm = 3,
+        [Description("Escalade")] Escalade = 4,
+        [Description("TRANSFERT")] TRANSFERT = 5,
+        [Description("GDA")] Gda = 6,
+        [Description("Amf")] Amf = 7,
+        [Description("Contact-Expert")] SAvis = 9,
+        [Description("Avis-SI")] AvisSi = 10
     }
-
-    $("#" + containerId).show();
-
-    var menu = $("#menuSelectMode").dxMenu("instance");
-    if (menu) {
-        menu.option("items", Transfert.Document.getMenuItems(mode));
-    }
-
-    // Important :
-    // On attend que le navigateur ait réellement affiché le container.
-    // Ensuite DevExtreme peut calculer les dimensions, afficher les headers,
-    // puis lancer le chargement avec son LoadPanel natif.
-    setTimeout(function () {
-        Transfert.Document.refreshGrid(gridId);
-    }, 50);
-};
-
-
-Transfert.Document.refreshGrid = function (gridId) {
-    var grid = $("#" + gridId).dxDataGrid("instance");
-
-    if (!grid) {
-        return;
-    }
-
-    // Important :
-    // updateDimensions avant refresh règle le problème des headers absents.
-    grid.updateDimensions();
-    grid.repaint();
-    grid.refresh();
-};
-
-
-// ============================================================================
-// SI LE PROBLÈME ARRIVE ENCORE SUR LE PREMIER CHARGEMENT UNIQUEMENT,
-// UTILISE CETTE VERSION PLUS ROBUSTE DU setTimeout DANS applyMode.
-// Remplace le setTimeout précédent par celui-ci.
-// ============================================================================
-
-setTimeout(function () {
-    var grid = $("#" + gridId).dxDataGrid("instance");
-
-    if (!grid) {
-        return;
-    }
-
-    grid.updateDimensions();
-    grid.repaint();
-
-    setTimeout(function () {
-        grid.refresh();
-    }, 50);
-
-}, 100);
-
-
-// ============================================================================
-// CONCLUSION
-// ============================================================================
-// - display:none peut rester.
-// - il ne faut pas forcer beginCustomLoading.
-// - il faut afficher le container AVANT de refresh.
-// - updateDimensions() + repaint() doivent être appelés avant refresh().
-// - le LoadPanel natif DevExtreme s’affichera correctement avec headers.
-// ============================================================================
+}
