@@ -1,211 +1,169 @@
-/* ============================================================================
-   OBJECTIF
-   ============================================================================
-   Ajouter les index utiles pour accélérer les opérations du module Transfert :
-   - chargement "Mes documents"
-   - chargement "Tous les documents"
-   - chargement "Partagés avec moi"
-   - paramètres de partage
-   - téléchargement sécurisé
-   - suppression document / partages
-   - recherche notification DocumentTelecharge
-   - recherche événement TELECHARGEMENT_DOCUMENT
-
-   Tables concernées :
-   - [Transfert].[Document]
-   - [Transfert].[DocumentShare]
-   - [Commun].[EmailNotificationType]
-   - [Commun].[EmailNotificationTemplate]
-   - [Commun].[EventDossierType]
-   - [Commun].[EventDossier]
-   ============================================================================ */
+// ============================================================================
+// OBJECTIF
+// ============================================================================
+// Centraliser la génération de l'URL du module Transfert afin de pouvoir
+// l'utiliser dans :
+// - Notification DocumentPartage
+// - Notification DocumentTelecharge
+// - Futures notifications du module Transfert
+//
+// URL générée :
+// /{culture}/transfert/document/all
+//
+// Exemple :
+// https://monserveur/fr/transfert/document/all
+// ============================================================================
 
 
-USE [BacaratWeb]
-GO
+
+// ============================================================================
+// DocumentController.cs
+// AJOUTER LA MÉTHODE PRIVÉE
+// ============================================================================
+
+/// <summary>
+/// Retourne l'URL d'accès au module Transfert.
+/// </summary>
+private string GetTransfertUrl(string mode = "all")
+{
+    return Url.Action(
+        nameof(Index),
+        "Document",
+        new
+        {
+            area = "Transfert",
+            culture = CurrentCulture.Name,
+            mode
+        },
+        Request.Scheme);
+}
 
 
-/* ============================================================================
-   1) [Transfert].[Document]
-   ============================================================================ */
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Document_OwnerId_UploadDate'
-      AND object_id = OBJECT_ID('[Transfert].[Document]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_Document_OwnerId_UploadDate]
-    ON [Transfert].[Document] ([OwnerId], [UploadDate] DESC)
-    INCLUDE ([Id], [Name], [Description], [FileExtension], [ContentType], [FileSize], [ExpiryDate], [StatutDocumentId]);
-END
-GO
+// ============================================================================
+// UTILISATION DANS SendNotificationDocumentPartage()
+// ============================================================================
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Document_ExpiryDate'
-      AND object_id = OBJECT_ID('[Transfert].[Document]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_Document_ExpiryDate]
-    ON [Transfert].[Document] ([ExpiryDate])
-    INCLUDE ([Id], [OwnerId], [Name], [OriginalFileName]);
-END
-GO
+private async Task<bool> SendNotificationDocumentPartage(
+    Document document,
+    IEnumerable<DocumentShare> shares,
+    CancellationToken token = default)
+{
+    var emailNotifications = new List<EmailNotification>();
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Document_StatutDocumentId'
-      AND object_id = OBJECT_ID('[Transfert].[Document]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_Document_StatutDocumentId]
-    ON [Transfert].[Document] ([StatutDocumentId]);
-END
-GO
+    foreach (var share in shares)
+    {
+        var recipient = share.SharedWithUser;
 
+        if (recipient == null)
+        {
+            recipient = await _utilisateurService
+                .GetUtilisateurByEmailAsync(
+                    share.Email,
+                    token);
+        }
 
-/* ============================================================================
-   2) [Transfert].[DocumentShare]
-   ============================================================================ */
+        if (recipient == null)
+            continue;
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_DocumentShare_DocumentId'
-      AND object_id = OBJECT_ID('[Transfert].[DocumentShare]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_DocumentShare_DocumentId]
-    ON [Transfert].[DocumentShare] ([DocumentId])
-    INCLUDE ([Id], [Email], [SharedWithUserId], [CreateurId], [SharedDate], [ExpiryDate]);
-END
-GO
+        var template =
+            await _emailNotificationTemplateService.GetEmailNotification(
+                (int)ActiviteModule.TRANSFERT,
+                (int)NotificationType.DocumentPartage,
+                recipient.LangueId,
+                token);
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_DocumentShare_SharedWithUserId_ExpiryDate'
-      AND object_id = OBJECT_ID('[Transfert].[DocumentShare]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_DocumentShare_SharedWithUserId_ExpiryDate]
-    ON [Transfert].[DocumentShare] ([SharedWithUserId], [ExpiryDate])
-    INCLUDE ([Id], [DocumentId], [Email], [SharedDate]);
-END
-GO
+        if (template == null)
+            throw new CustomMessageException(
+                "Notification template not found");
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_DocumentShare_Email_ExpiryDate'
-      AND object_id = OBJECT_ID('[Transfert].[DocumentShare]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_DocumentShare_Email_ExpiryDate]
-    ON [Transfert].[DocumentShare] ([Email], [ExpiryDate])
-    INCLUDE ([Id], [DocumentId], [SharedWithUserId], [SharedDate]);
-END
-GO
+        var cultureInfo =
+            Culture.GetCultureByLanguageId(
+                template.LangueId);
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_DocumentShare_DocumentId_SharedWithUserId_Email'
-      AND object_id = OBJECT_ID('[Transfert].[DocumentShare]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_DocumentShare_DocumentId_SharedWithUserId_Email]
-    ON [Transfert].[DocumentShare] ([DocumentId], [SharedWithUserId], [Email])
-    INCLUDE ([Id], [SharedDate], [ExpiryDate]);
-END
-GO
+        // ============================================================
+        // URL DU MODULE TRANSFERT
+        // ============================================================
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_DocumentShare_CreateurId'
-      AND object_id = OBJECT_ID('[Transfert].[DocumentShare]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_DocumentShare_CreateurId]
-    ON [Transfert].[DocumentShare] ([CreateurId]);
-END
-GO
+        var transfertUrl = GetTransfertUrl();
 
+        // ============================================================
+        // PARAMÈTRES DU TEMPLATE
+        // {0} Nom document
+        // {1} Partagé par
+        // {2} Date début
+        // {3} Date fin
+        // {4} URL module transfert
+        // {5} Code sécurité
+        // {6} Clé chiffrement
+        // ============================================================
 
-/* ============================================================================
-   3) [Commun].[EmailNotificationType]
-   Recherche par Code = DocumentPartage / DocumentTelecharge
-   ============================================================================ */
+        var bodyArgs = new object[]
+        {
+            document.Name,
+            UtilisateurHelper.FormatUserName(
+                CurrentUser.Prenom,
+                CurrentUser.Nom),
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'UX_EmailNotificationType_Code'
-      AND object_id = OBJECT_ID('[Commun].[EmailNotificationType]')
-)
-BEGIN
-    CREATE UNIQUE NONCLUSTERED INDEX [UX_EmailNotificationType_Code]
-    ON [Commun].[EmailNotificationType] ([Code]);
-END
-GO
+            share.SharedDate.ToString(
+                "dddd d MMMM yyyy 'à' HH:mm '(UTC'zzz')'",
+                cultureInfo),
+
+            share.ExpiryDate.ToString(
+                "dddd d MMMM yyyy 'à' HH:mm '(UTC'zzz')'",
+                cultureInfo),
+
+            transfertUrl,
+
+            document.SecurityCode,
+
+            document.EncryptionKey
+        };
+
+        emailNotifications.Add(
+            new EmailNotification
+            {
+                EmailTo = recipient.Email,
+                Subject = template.Subject,
+                Body = string.Format(
+                    cultureInfo,
+                    template.Body,
+                    bodyArgs),
+                DateNotification = DateTime.Now
+            });
+    }
+
+    if (!emailNotifications.Any())
+        return false;
+
+    return await _emailNotificationService.PushNotifications(
+        emailNotifications,
+        token);
+}
 
 
-/* ============================================================================
-   4) [Commun].[EmailNotificationTemplate]
-   Recherche template par Type + Activité + Langue + actif
-   ============================================================================ */
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_EmailNotificationTemplate_Type_Activite_Langue_IsActive'
-      AND object_id = OBJECT_ID('[Commun].[EmailNotificationTemplate]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_EmailNotificationTemplate_Type_Activite_Langue_IsActive]
-    ON [Commun].[EmailNotificationTemplate] ([EmailNotificationTypeId], [ActiviteId], [LangueId], [IsActive])
-    INCLUDE ([Id], [Subject], [DirectionId], [ScopeId]);
-END
-GO
-
-
-/* ============================================================================
-   5) [Commun].[EventDossierType]
-   Recherche par Code = TELECHARGEMENT_DOCUMENT
-   ============================================================================ */
-
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'UX_EventDossierType_Code'
-      AND object_id = OBJECT_ID('[Commun].[EventDossierType]')
-)
-BEGIN
-    CREATE UNIQUE NONCLUSTERED INDEX [UX_EventDossierType_Code]
-    ON [Commun].[EventDossierType] ([Code]);
-END
-GO
-
-
-/* ============================================================================
-   6) [Commun].[EventDossier]
-   Recherche des audits par module, type, utilisateur, date
-   ============================================================================ */
-
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_EventDossier_Activite_Type_DateCreation'
-      AND object_id = OBJECT_ID('[Commun].[EventDossier]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_EventDossier_Activite_Type_DateCreation]
-    ON [Commun].[EventDossier] ([ActiviteId], [EventDossierTypeId], [DateCreation] DESC)
-    INCLUDE ([Id], [UtilisateurEventId], [CodeDossier]);
-END
-GO
-
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_EventDossier_UtilisateurEventId_DateCreation'
-      AND object_id = OBJECT_ID('[Commun].[EventDossier]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_EventDossier_UtilisateurEventId_DateCreation]
-    ON [Commun].[EventDossier] ([UtilisateurEventId], [DateCreation] DESC)
-    INCLUDE ([Id], [ActiviteId], [EventDossierTypeId]);
-END
-GO
+// ============================================================================
+// CONSEIL : MODIFIER LE TEMPLATE SQL
+// ============================================================================
+//
+// Ancien :
+//
+// <li>URL de téléchargement : {4}</li>
+//
+// Nouveau :
+//
+// <li>
+//     URL de téléchargement :
+//     <a href="{4}">{4}</a>
+// </li>
+//
+// Version EN :
+//
+// <li>
+//     Download URL :
+//     <a href="{4}">{4}</a>
+// </li>
+//
+// Ainsi le destinataire clique directement sur le lien reçu dans le mail.
+// ============================================================================
