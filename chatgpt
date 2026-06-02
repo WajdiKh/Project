@@ -1,14 +1,1170 @@
+// Index.cshtml
+@using BacaratWeb.ViewModel.Transfert
+@inject IViewTranslator translator
+
 @{
-    bool hasAccess =
-        _roleAccess.HasClaims(ActiviteModule.TRANSFERT, ClaimUser.READ) ||
-        _roleAccess.HasClaims(ActiviteModule.TRANSFERT, ClaimUser.WRITE);
+    var currentMode = ViewBag.Mode ?? "all";
+    var language = Context.Features.Get<IRequestCultureFeature>().RequestCulture.Culture.ToString().ToCamelCase();
 }
 
-<li class="nav-item @(ViewContext.RouteData.Values["controller"]?.ToString()?.ToLower() == "document" ? "active" : string.Empty)">
-    <a class="nav-link @(hasAccess ? "" : "disabled")"
-       href="@(hasAccess ? $"/{currentCulture}/transfert/document" : "#")"
-       tabindex="@(hasAccess ? "0" : "-1")"
-       aria-disabled="@(!hasAccess)">
-        @translator.Common["Transfert"]
-    </a>
-</li>
+
+<div class="smallCaps text-green mt-2 mb-2">
+    <div id="menuSelectMode" class="align-menu-items-center"></div>
+</div>
+
+<script>
+    var _transfertCurrentMode = '@currentMode';
+    var _transfertCanRead = @Json.Serialize(ViewBag.CanReadTransfert);
+    var _transfertCanWrite = @Json.Serialize(ViewBag.CanWriteTransfert);
+    var _transfertIsAdminGlobal = @Json.Serialize(ViewBag.IsAdminGlobal);
+</script>
+
+
+<div id="transfertContent">
+    <div id="gridAllDocumentsContainer">
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+            .ID("allDocumentsGrid")
+            .Width("100%")
+            .ShowBorders(true)
+            .LoadPanel(loadPanel => loadPanel
+                .Enabled(true)
+                .ShowPane(true)
+                .ShowIndicator(true)
+                .Text(translator.Common["Loading"]))
+            .ColumnAutoWidth(true)
+            .AllowColumnResizing(true)
+            .ColumnResizingMode(ColumnResizingMode.Widget)
+            .AllowColumnReordering(true)
+            .HoverStateEnabled(true)
+            .RowAlternationEnabled(false)
+            .RemoteOperations(false)
+            .ColumnChooser(cc => cc
+                .Enabled(true)
+                .AllowSearch(true))
+            .Export(e => e
+                .Enabled(true)
+                .AllowExportSelectedData(true))
+            .SearchPanel(s => s
+                .Visible(true)
+                .Placeholder(translator.Common["Search"] + "...")
+                .HighlightCaseSensitive(true))
+            .FilterRow(filterRow => filterRow
+                .Visible(true)
+                .ApplyFilter(GridApplyFilterMode.Auto))
+            .Paging(p => p.PageSize(10))
+            .Pager(pager =>
+                pager.ShowPageSizeSelector(true)
+                    .ShowNavigationButtons(true)
+                    .AllowedPageSizes(new List<int> { 10, 20, 50 }))
+            .Columns(columns =>
+            {
+                columns.AddFor(m => m.Name)
+                    .Caption(translator.Common["Transfert.Document.Name"]);
+
+                columns.AddFor(m => m.Description)
+                    .Caption(translator.Common["Description"]);
+
+                columns.AddFor(m => m.ContentType)
+                    .Caption(translator.Common["Type"]);
+
+                columns.Add()
+                    .Caption(translator.Common["Size"])
+                    .CalculateCellValue("function(data) { return Transfert.Document.formatFileSize(data.FileSize); }");
+
+                columns.AddFor(m => m.UploadDate)
+                    .Caption(translator.Common["Transfert.Document.UploadDate"])
+                    .DataType(GridColumnDataType.DateTime)
+                    .Format("dd/MM/yyyy HH:mm");
+
+                columns.AddFor(m => m.ExpiryDate)
+                    .Caption(translator.Common["Transfert.Document.ExpiryDate"])
+                    .DataType(GridColumnDataType.DateTime)
+                    .Format("dd/MM/yyyy HH:mm");
+
+                columns.AddFor(m => m.OwnerName)
+                    .Caption(translator.Common["Owner"]);
+
+                columns.Add()
+                    .Caption(translator.Common["Statut"])
+                    .DataField($"StatutDocumentName{language}");
+
+                columns.Add()
+                    .Caption(translator.Common["Actions"])
+                    .Width(100)
+                    .Alignment(HorizontalAlignment.Center)
+                    .CellTemplate(@<text>
+                        <div class="d-flex justify-content-center align-items-center w-100">
+                            <a href="javascript:void(0)"
+                            title="@translator.Common["Download"]"
+                            onclick="Transfert.Document.downloadDocument(<%= data.Id %>)">
+                                <i class="fas fa-download color-blue2"></i>
+                            </a>
+                        </div>
+                    </text>);
+            })
+            .DataSource(ds => ds.Mvc()
+            .RouteName("apiRoute")
+            .Area("Transfert")
+            .Controller("Document")
+            .LoadAction("GetAllDocuments"))
+        )
+    </div>
+
+    @if ((bool)ViewBag.CanWriteTransfert)
+    {
+        <div id="gridMyDocumentsContainer" style="display:none;">
+            <div class="mt-3 mb-5 d-flex align-items-center">
+                <div id="btnAddDocument"></div>
+                <div id="btnShareDocument" class="ml-3"></div>
+                <div id="btnShareSettingsDocument" class="ml-3"></div>
+            </div>
+
+            @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+                .ID("myDocumentsGrid")
+                .Width("100%")
+                .ShowBorders(true)
+                .LoadPanel(loadPanel => loadPanel
+                    .Enabled(true)
+                    .ShowPane(true)
+                    .ShowIndicator(true)
+                    .Text(translator.Common["Loading"]))
+                .ColumnAutoWidth(true)
+                .AllowColumnResizing(true)
+                .ColumnResizingMode(ColumnResizingMode.Widget)
+                .AllowColumnReordering(true)
+                .HoverStateEnabled(true)
+                .RowAlternationEnabled(false)
+                .RemoteOperations(false)
+                .ColumnChooser(cc => cc
+                    .Enabled(true)
+                    .AllowSearch(true))
+                .Export(e => e
+                    .Enabled(true)
+                    .AllowExportSelectedData(true))
+                .SearchPanel(s => s
+                    .Visible(true)
+                    .Placeholder(translator.Common["Search"] + "...")
+                    .HighlightCaseSensitive(true))
+                .FilterRow(filterRow => filterRow
+                    .Visible(true)
+                    .ApplyFilter(GridApplyFilterMode.Auto))
+                .Paging(p => p.PageSize(10))
+                .Pager(pager =>
+                    pager.ShowPageSizeSelector(true)
+                        .ShowNavigationButtons(true)
+                        .AllowedPageSizes(new List<int> { 10, 20, 50 }))
+                .Columns(columns =>
+                {
+                    columns.AddFor(m => m.Name)
+                        .Caption(translator.Common["Transfert.Document.Name"]);
+
+                    columns.AddFor(m => m.Description)
+                        .Caption(translator.Common["Description"]);
+
+                    columns.AddFor(m => m.ContentType)
+                        .Caption(translator.Common["Type"]);
+
+                    columns.Add()
+                        .Caption(translator.Common["Size"])
+                        .CalculateCellValue("function(data) { return Transfert.Document.formatFileSize(data.FileSize); }");
+
+                    columns.AddFor(m => m.UploadDate)
+                        .Caption(translator.Common["Transfert.Document.UploadDate"])
+                        .DataType(GridColumnDataType.DateTime)
+                        .Format("dd/MM/yyyy HH:mm");
+
+                    columns.AddFor(m => m.ExpiryDate)
+                        .Caption(translator.Common["Transfert.Document.ExpiryDate"])
+                        .DataType(GridColumnDataType.DateTime)
+                        .Format("dd/MM/yyyy HH:mm");
+
+                    columns.AddFor(m => m.OwnerName)
+                        .Caption(translator.Common["Owner"]);
+
+                    columns.Add()
+                        .Caption(translator.Common["Statut"])
+                        .DataField($"StatutDocumentName{language}");
+
+                    columns.Add()
+                        .Caption(translator.Common["Actions"])
+                        .Width(130)
+                        .Alignment(HorizontalAlignment.Center)
+                        .CellTemplate(@<text>
+                            <div class="d-flex justify-content-center align-items-center w-100">
+                                <a href="javascript:void(0)"
+                                class="mr-3"
+                                title="@translator.Common["Download"]"
+                                onclick="Transfert.Document.downloadDocument(<%= data.Id %>)">
+                                    <i class="fas fa-download color-blue2"></i>
+                                </a>
+
+                                <a href="javascript:void(0)"
+                                title="@translator.Common["Delete"]"
+                                onclick="Transfert.Document.confirmDeleteDocument(<%= data.Id %>)">
+                                    <i class="fas fa-trash color-red2"></i>
+                                </a>
+                            </div>
+                        </text>);
+                })
+                .DataSource(ds => ds.Mvc()
+                    .RouteName("apiRoute")
+                    .Area("Transfert")
+                    .Controller("Document")
+                    .LoadAction("GetMyDocuments"))
+                .Selection(s => s.Mode(SelectionMode.Single))
+                .OnSelectionChanged("Transfert.Document.onMyDocumentsSelectionChanged")
+            )
+        </div>
+    }
+
+    <div id="gridSharedDocumentsContainer" style="display:none;">
+        @(Html.DevExtreme().DataGrid<DocumentViewModel>()
+            .ID("sharedDocumentsGrid")
+            .Width("100%")
+            .ShowBorders(true)
+            .LoadPanel(loadPanel => loadPanel
+                .Enabled(true)
+                .ShowPane(true)
+                .ShowIndicator(true)
+                .Text(translator.Common["Loading"]))
+            .ColumnAutoWidth(true)
+            .AllowColumnResizing(true)
+            .ColumnResizingMode(ColumnResizingMode.Widget)
+            .AllowColumnReordering(true)
+            .HoverStateEnabled(true)
+            .RowAlternationEnabled(false)
+            .RemoteOperations(false)
+            .ColumnChooser(cc => cc
+                .Enabled(true)
+                .AllowSearch(true))
+            .Export(e => e
+                .Enabled(true)
+                .AllowExportSelectedData(true))
+            .SearchPanel(s => s
+                .Visible(true)
+                .Placeholder(translator.Common["Search"] + "...")
+                .HighlightCaseSensitive(true))
+            .FilterRow(filterRow => filterRow
+                .Visible(true)
+                .ApplyFilter(GridApplyFilterMode.Auto))
+            .Paging(p => p.PageSize(10))
+            .Pager(pager =>
+                pager.ShowPageSizeSelector(true)
+                    .ShowNavigationButtons(true)
+                    .AllowedPageSizes(new List<int> { 10, 20, 50 }))
+            .Columns(columns =>
+            {
+                columns.AddFor(m => m.Name)
+                    .Caption(translator.Common["Transfert.Document.Name"]);
+
+                columns.AddFor(m => m.Description)
+                    .Caption(translator.Common["Description"]);
+
+                columns.AddFor(m => m.ContentType)
+                    .Caption(translator.Common["Type"]);
+
+                columns.Add()
+                    .Caption(translator.Common["Size"])
+                    .CalculateCellValue("function(data) { return Transfert.Document.formatFileSize(data.FileSize); }");
+
+                columns.AddFor(m => m.UploadDate)
+                    .Caption(translator.Common["Transfert.Document.UploadDate"])
+                    .DataType(GridColumnDataType.DateTime)
+                    .Format("dd/MM/yyyy HH:mm");
+
+                columns.AddFor(m => m.ExpiryDate)
+                    .Caption(translator.Common["Transfert.Document.ExpiryDate"])
+                    .DataType(GridColumnDataType.DateTime)
+                    .Format("dd/MM/yyyy HH:mm");
+
+                columns.AddFor(m => m.OwnerName)
+                    .Caption(translator.Common["Owner"]);
+
+                columns.Add()
+                    .Caption(translator.Common["Statut"])
+                    .DataField($"StatutDocumentName{language}");
+
+                columns.Add()
+                    .Caption(translator.Common["Actions"])
+                    .Width(100)
+                    .Alignment(HorizontalAlignment.Center)
+                    .CellTemplate(@<text>
+                        <div class="d-flex justify-content-center align-items-center w-100">
+                            <a href="javascript:void(0)"
+                            title="@translator.Common["Download"]"
+                            onclick="Transfert.Document.downloadDocument(<%= data.Id %>)">
+                                <i class="fas fa-download color-blue2"></i>
+                            </a>
+                        </div>
+                    </text>);
+            })
+            .DataSource(ds => ds.Mvc()
+                .RouteName("apiRoute")
+                .Area("Transfert")
+                .Controller("Document")
+                .LoadAction("GetSharedWithMeDocuments")))
+    </div>
+</div>
+
+@(Html.DevExtreme().Popup()
+    .ID(TransfertConstants.AddNewDocumentPopupId)
+    .ElementAttr(new Dictionary<string, object>
+        { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true)
+    .ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .Width("80%")
+    .Height("auto")
+    .TitleTemplate(@<text>
+<div class="d-flex flex-row align-items-center justify-content-between">
+    <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+        <i class="fas fa-pen mr-2" aria-hidden="true"></i>@translator.Common["Add"]
+    </div>
+    <button type="button" class="popup-close-btn" aria-label="@translator.Common["Close"]"
+            onclick="Transfert.Document.closeAddDocumentPopup();"
+            style="cursor: pointer; font-size: 24px; background: none; border: none; padding: 0; color: inherit;">
+        &times;
+    </button>
+</div>
+</text>))
+
+@(Html.DevExtreme().Popup()
+    .ID(TransfertConstants.ShareDocumentPopupId)
+    .ElementAttr(new Dictionary<string, object>
+    {
+        { "class", "popup" }
+    })
+    .ShowTitle(true)
+    .DragEnabled(true)
+    .ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .Width("80%")
+    .Height("auto")
+    .TitleTemplate(@<text>
+<div class="d-flex flex-row align-items-center justify-content-between">
+    <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+        <i class="fas fa-share-alt mr-2" aria-hidden="true"></i>
+        <span id="shareDocumentPopupTitle"></span>
+    </div>
+    <button type="button" class="popup-close-btn" onclick="Transfert.Document.closeShareDocumentPopup();"
+            style="cursor: pointer; font-size: 24px; background: none; border: none; padding: 0; color: inherit;">
+        &times;
+    </button>
+</div>
+</text>))
+
+    @(Html.DevExtreme().Popup()
+    .ID(TransfertConstants.ShareSettingsDocumentPopupId)
+    .ElementAttr(new Dictionary<string, object>
+    {
+        { "class", "popup" }
+    })
+    .ShowTitle(true)
+    .DragEnabled(true)
+    .ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .Width("80%")
+    .Height("auto")
+    .TitleTemplate(@<text>
+<div class="d-flex flex-row align-items-center justify-content-between">
+    <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+        <i class="fas fa-cogs mr-2" aria-hidden="true"></i>
+        <span id="shareSettingsDocumentPopupTitle"></span>
+    </div>
+    <button type="button" class="popup-close-btn" onclick="Transfert.Document.closeShareSettingsPopup();"
+            style="cursor: pointer; font-size: 24px; background: none; border: none; padding: 0; color: inherit;">
+        &times;
+    </button>
+</div>
+</text>))
+// document.js
+window.Transfert = window.Transfert || {};
+window.Transfert.Document = window.Transfert.Document || {};
+
+// Bootstrap
+
+$(document).ready(function () {
+    Transfert.Document.initState();
+    Transfert.Document.initMenuSelectMode();
+    Transfert.Document.applyMode(Transfert.Document.getInitialMode());
+    Transfert.Document.initAddButton();
+    Transfert.Document.initShareButton();
+    Transfert.Document.initShareSettingsButton();
+});
+
+Transfert.Document.initState = function () {
+    Transfert.Document.selectedDocument = null;
+    Transfert.Document.selectedDocumentShare = null;
+};
+
+Transfert.Document.getInitialMode = function () {
+    if (_transfertCurrentMode === "mine" && !_transfertCanWrite) {
+        return "all";
+    }
+
+    return _transfertCurrentMode || "all";
+};
+
+
+
+// Menu
+
+Transfert.Document.getModeLabel = function (mode) {
+    if (mode === "mine") {
+        return "Mes documents";
+    }
+
+    if (mode === "shared") {
+        return "Partagés avec moi";
+    }
+
+    return "Tous les documents";
+};
+
+Transfert.Document.getModeIcon = function (mode) {
+    if (mode === "mine") {
+        return "fas fa-user color-green2 adjust-icon-menu";
+    }
+
+    if (mode === "shared") {
+        return "fas fa-share-alt color-green2 adjust-icon-menu";
+    }
+
+    return "fas fa-list color-green2 adjust-icon-menu";
+};
+
+Transfert.Document.getMenuItems = function (mode) {
+    var items = [
+        {
+            icon: "fas fa-list adjust-icon-submenu",
+            text: "Tous les documents",
+            onClick: function () {
+                Transfert.Document.applyMode("all");
+            }
+        },
+        {
+            icon: "fas fa-share-alt adjust-icon-submenu",
+            text: "Partagés avec moi",
+            onClick: function () {
+                Transfert.Document.applyMode("shared");
+            }
+        }
+    ];
+
+    if (_transfertCanWrite) {
+        items.splice(1, 0, {
+            icon: "fas fa-user adjust-icon-submenu",
+            text: "Mes documents",
+            onClick: function () {
+                Transfert.Document.applyMode("mine");
+            }
+        });
+    }
+
+    return [
+        {
+            icon: Transfert.Document.getModeIcon(mode),
+            text: Transfert.Document.getModeLabel(mode),
+            items: items
+        }
+    ];
+};
+
+Transfert.Document.initMenuSelectMode = function () {
+    $("#menuSelectMode").dxMenu({
+        items: Transfert.Document.getMenuItems(Transfert.Document.getInitialMode())
+    });
+};
+
+Transfert.Document.applyMode = function (mode) {
+    if (mode === "mine" && !_transfertCanWrite) {
+        mode = "all";
+    }
+
+    _transfertCurrentMode = mode;
+
+    $("#gridAllDocumentsContainer").hide();
+    $("#gridMyDocumentsContainer").hide();
+    $("#gridSharedDocumentsContainer").hide();
+
+    var containerId = null;
+    var gridId = null;
+
+    if (mode === "mine") {
+        containerId = "gridMyDocumentsContainer";
+        gridId = "myDocumentsGrid";
+    }
+    else if (mode === "shared") {
+        containerId = "gridSharedDocumentsContainer";
+        gridId = "sharedDocumentsGrid";
+    }
+    else {
+        containerId = "gridAllDocumentsContainer";
+        gridId = "allDocumentsGrid";
+    }
+
+    $("#" + containerId).show();
+
+    Transfert.Document.refreshGrid(gridId);
+};
+
+
+
+// Grids
+
+Transfert.Document.refreshGrid = function (gridId) {
+    var grid = $("#" + gridId).dxDataGrid("instance");
+
+    if (!grid) {
+        return;
+    }
+
+    grid.refresh();
+};
+
+Transfert.Document.refreshShareSettingsGrid = function () {
+    var grid = $("#shareSettingsGrid").dxDataGrid("instance");
+
+    if (grid) {
+        grid.refresh();
+    }
+};
+
+Transfert.Document.onMyDocumentsSelectionChanged = function (e) {
+    var selectedRows = e.selectedRowsData;
+
+    Transfert.Document.selectedDocument =
+        selectedRows && selectedRows.length > 0
+            ? selectedRows[0]
+            : null;
+
+    var hasSelection = !!Transfert.Document.selectedDocument;
+
+    Transfert.Document.setButtonVisible("btnShareDocument", hasSelection && _transfertCanWrite);
+    Transfert.Document.setButtonVisible("btnShareSettingsDocument", hasSelection && _transfertCanWrite);
+};
+
+
+
+// Add Document
+
+Transfert.Document.initAddButton = function () {
+    if (!_transfertCanWrite) {
+        $("#btnAddDocument").hide();
+        return;
+    }
+
+    $("#btnAddDocument").dxButton({
+        text: _commonTranslatableMessageAdd,
+        icon: "add",
+        elementAttr: {
+            class: "color-blue"
+        },
+        onClick: function () {
+            Transfert.Document.openAddPopup();
+        }
+    });
+};
+
+Transfert.Document.openAddPopup = function () {
+    $.ajax({
+        method: "GET",
+        cache: false,
+        url: "/" + culture + "/transfert/add-document"
+    }).done(function (htmlContent) {
+        showScrollablePopup(_transfertAddNewDocumentPopupId, htmlContent);
+        Transfert.Document.initAddDocumentValidators();
+        Transfert.Document.initFileUploaderChange();
+    }).fail(function (e) {
+        Transfert.Document.handleAjaxError(e);
+    });
+};
+
+Transfert.Document.closeAddDocumentPopup = function () {
+    closePopup(_transfertAddNewDocumentPopupId);
+};
+
+Transfert.Document.saveDocument = function () {
+    if (!validateGroup(_transfertAddNewDocumentFormValidationGroupName)) {
+        return;
+    }
+
+    if (!Transfert.Document.validateSelectedFile()) {
+        return;
+    }
+
+    var form = $("#" + _transfertAddNewDocumentFormId)[0];
+    var formData = new FormData(form);
+
+    $.ajax({
+        url: "/" + culture + "/transfert/save-document",
+        type: "POST",
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function () {
+            DevExpress.ui.notify(_transfertDocumentSuccesAjout, "success", 3000);
+
+            $("#" + _transfertAddNewDocumentPopupId)
+                .dxPopup("instance")
+                .hide();
+
+            Transfert.Document.refreshGrid("myDocumentsGrid");
+            Transfert.Document.refreshGrid("allDocumentsGrid");
+        },
+        error: function (xhr) {
+            DevExpress.ui.notify(xhr.responseText || _transfertDocumentSaveError, "error", 5000);
+        }
+    });
+};
+
+Transfert.Document.initAddDocumentValidators = function () {
+    $("#Name").dxValidator({
+        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
+        validationRules: [
+            { type: "required", message: _transfertTranslatableDocumentNameRequired },
+            { type: "stringLength", max: 255, message: _transfertTranslatableDocumentNameMaxLength }
+        ]
+    });
+
+    $("#Description").dxValidator({
+        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
+        validationRules: [
+            { type: "stringLength", max: 1000, message: _transfertTranslatableDocumentDescriptionMaxLength }
+        ]
+    });
+
+    $("#EncryptionKey").dxValidator({
+        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
+        validationRules: [
+            { type: "stringLength", max: 255, message: _transfertTranslatableDocumentEncryptionKeyMaxLength }
+        ]
+    });
+};
+
+Transfert.Document.validateSelectedFile = function () {
+    var fileInput = $("#FileUploader")[0];
+
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        DevExpress.ui.notify(_transfertTranslatableDocumentFileRequired, "error");
+        return false;
+    }
+
+    return true;
+};
+
+Transfert.Document.initFileUploaderChange = function () {
+    $("#FileUploader").on("change", function () {
+        var fileInput = this;
+        var container = $("#selected-document-name-container");
+
+        container.empty();
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+            return;
+        }
+
+        var file = fileInput.files[0];
+        var allowedExtensions = [".zip", ".rar", ".tar", ".gz", ".7z"];
+        var extension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+
+        if (allowedExtensions.indexOf(extension) === -1) {
+            DevExpress.ui.notify(_transfertTranslatableDocumentFileExtension, "error");
+            fileInput.value = "";
+            container.empty();
+            return;
+        }
+
+        if (file.size > 10485760) {
+            DevExpress.ui.notify(_transfertTranslatableDocumentFileSize, "error");
+            fileInput.value = "";
+            container.empty();
+            return;
+        }
+
+        container.html(
+            '<div class="text-truncate text-green">' +
+            file.name +
+            '</div>'
+        );
+    });
+};
+
+
+
+// Share Document
+
+Transfert.Document.initShareButton = function () {
+    if (!_transfertCanWrite) {
+        $("#btnShareDocument").hide();
+        return;
+    }
+
+    $("#btnShareDocument").dxButton({
+        text: _transfertTranslatableDocumentShareWith,
+        icon: "share",
+        visible: false,
+        elementAttr: {
+            class: "color-blue"
+        },
+        onClick: function () {
+            Transfert.Document.openSharePopup();
+        }
+    });
+};
+
+Transfert.Document.openSharePopup = function () {
+    if (!Transfert.Document.selectedDocument || !_transfertCanWrite) {
+        return;
+    }
+
+    $.ajax({
+        method: "GET",
+        cache: false,
+        url: "/" + culture + "/transfert/share-document",
+        data: {
+            documentId: Transfert.Document.selectedDocument.Id
+        }
+    }).done(function (htmlContent) {
+        showScrollablePopup(_transfertShareDocumentPopupId, htmlContent);
+        Transfert.Document.setSharePopupTitles();
+        Transfert.Document.initShareDocumentValidators();
+    }).fail(function (e) {
+        Transfert.Document.handleAjaxError(e);
+    });
+};
+
+Transfert.Document.closeShareDocumentPopup = function () {
+    closePopup(_transfertShareDocumentPopupId);
+};
+
+Transfert.Document.shareDocument = function () {
+    if (!validateGroup(_transfertShareDocumentFormValidationGroupName)) {
+        return;
+    }
+
+    var form = $("#" + _transfertShareDocumentFormId)[0];
+    var formData = new FormData(form);
+
+    $.ajax({
+        url: "/" + culture + "/transfert/save-share-document",
+        type: "POST",
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function () {
+            var documentShareId = $("#DocumentShareId").val();
+
+            DevExpress.ui.notify(
+                documentShareId
+                    ? _transfertTranslatableDocumentShareUpdateSuccess
+                    : _transfertDocumentShareSuccess,
+                "success",
+                3000);
+
+            $("#" + _transfertShareDocumentPopupId)
+                .dxPopup("instance")
+                .hide();
+
+            Transfert.Document.refreshGrid("myDocumentsGrid");
+            Transfert.Document.refreshGrid("allDocumentsGrid");
+            Transfert.Document.refreshGrid("sharedDocumentsGrid");
+            Transfert.Document.refreshShareSettingsGrid();
+        },
+        error: function (xhr) {
+            var documentShareId = $("#DocumentShareId").val();
+
+            DevExpress.ui.notify(
+                xhr.responseText ||
+                    (documentShareId
+                        ? _transfertTranslatableDocumentShareUpdateError
+                        : _transfertDocumentShareError),
+                "error",
+                5000);
+        }
+    });
+};
+
+Transfert.Document.initShareDocumentValidators = function () {
+    $("#ShareEmails").dxValidator({
+        validationGroup: _transfertShareDocumentFormValidationGroupName,
+        validationRules: [
+            {
+                type: "required",
+                message: _transfertTranslatableDocumentShareEmailRequired
+            },
+            {
+                type: "stringLength",
+                max: 2000,
+                message: _transfertTranslatableDocumentShareEmailMaxLength
+            },
+            {
+                type: "custom",
+                message: _transfertTranslatableDocumentShareEmailInvalid,
+                validationCallback: function (e) {
+                    if (!e.value) {
+                        return false;
+                    }
+
+                    var emails = e.value
+                        .split(";")
+                        .map(x => x.trim())
+                        .filter(x => x !== "");
+
+                    var regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                    return emails.length > 0 && emails.every(x => regex.test(x));
+                }
+            }
+        ]
+    });
+
+    $("#ShareExpiryDate").dxValidator({
+        validationGroup: _transfertShareDocumentFormValidationGroupName,
+        validationRules: [
+            {
+                type: "required",
+                message: _transfertTranslatableDocumentShareExpiryDateRequired
+            },
+            {
+                type: "custom",
+                message: _transfertTranslatableDocumentShareExpiryDateInvalid,
+                validationCallback: function (e) {
+                    var startDate = $("#ShareStartDate").dxDateBox("instance").option("value");
+                    var expiryDate = e.value;
+
+                    var start = Transfert.Document.toDateOnlyTime(startDate);
+                    var expiry = Transfert.Document.toDateOnlyTime(expiryDate);
+
+                    if (start === null || expiry === null) {
+                        return false;
+                    }
+
+                    return expiry > start;
+                }
+            },
+            {
+                type: "custom",
+                message: _transfertTranslatableDocumentShareExpiryDateDocumentInvalid,
+                validationCallback: function (e) {
+                    var expiryDateBox = $("#ShareExpiryDate").dxDateBox("instance");
+
+                    var documentExpiryDate = expiryDateBox.option("max");
+                    var expiryDate = e.value;
+
+                    var documentExpiry = Transfert.Document.toDateOnlyTime(documentExpiryDate);
+                    var expiry = Transfert.Document.toDateOnlyTime(expiryDate);
+
+                    if (documentExpiry === null || expiry === null) {
+                        return false;
+                    }
+
+                    return expiry <= documentExpiry;
+                }
+            }
+        ]
+    });
+};
+
+
+
+// Share Settings
+
+Transfert.Document.initShareSettingsButton = function () {
+    if (!_transfertCanWrite) {
+        $("#btnShareSettingsDocument").hide();
+        return;
+    }
+
+    $("#btnShareSettingsDocument").dxButton({
+        text: _transfertTranslatableDocumentShareSettings,
+        icon: "preferences",
+        visible: false,
+        elementAttr: {
+            class: "color-blue"
+        },
+        onClick: function () {
+            Transfert.Document.openShareSettingsPopup();
+        }
+    });
+};
+
+Transfert.Document.openShareSettingsPopup = function () {
+    if (!Transfert.Document.selectedDocument || !_transfertCanWrite) {
+        return;
+    }
+
+    $.ajax({
+        method: "GET",
+        cache: false,
+        url: "/" + culture + "/transfert/share-settings",
+        data: {
+            documentId: Transfert.Document.selectedDocument.Id
+        }
+    }).done(function (htmlContent) {
+        showScrollablePopup(_transfertShareSettingsDocumentPopupId, htmlContent);
+        Transfert.Document.setSharePopupTitles();
+        Transfert.Document.selectedDocumentShare = null;
+    }).fail(function (e) {
+        Transfert.Document.handleAjaxError(e);
+    });
+};
+
+Transfert.Document.closeShareSettingsPopup = function () {
+    closePopup(_transfertShareSettingsDocumentPopupId);
+};
+
+Transfert.Document.onShareSettingsSelectionChanged = function (e) {
+    var selectedRows = e.selectedRowsData;
+
+    Transfert.Document.selectedDocumentShare =
+        selectedRows && selectedRows.length > 0 ? selectedRows[0] : null;
+
+    Transfert.Document.setButtonDisabled("btnEditDocumentShare", !Transfert.Document.selectedDocumentShare);
+    Transfert.Document.setButtonDisabled("btnDeleteDocumentShare", !Transfert.Document.selectedDocumentShare);
+};
+
+Transfert.Document.openEditSharePopup = function () {
+    if (!Transfert.Document.selectedDocumentShare || !_transfertCanWrite) {
+        return;
+    }
+
+    $.ajax({
+        method: "GET",
+        cache: false,
+        url: "/" + culture + "/transfert/edit-share-document",
+        data: {
+            documentShareId: Transfert.Document.selectedDocumentShare.Id
+        }
+    }).done(function (htmlContent) {
+        showScrollablePopup(_transfertShareDocumentPopupId, htmlContent);
+        Transfert.Document.initShareDocumentValidators();
+    }).fail(function (e) {
+        Transfert.Document.handleAjaxError(e);
+    });
+};
+
+Transfert.Document.confirmDeleteShare = function () {
+    if (!Transfert.Document.selectedDocumentShare || !_transfertCanWrite) {
+        return;
+    }
+
+    var dialog = DevExpress.ui.dialog.custom({
+        title: _transfertTranslatableDocumentShareSettings,
+        messageHtml: _transfertTranslatableDocumentShareDeleteConfirmation,
+        buttons: [
+            {
+                text: _transfertTranslatableDocumentYes,
+                onClick: function () {
+                    return true;
+                }
+            },
+            {
+                text: _transfertTranslatableDocumentNo,
+                onClick: function () {
+                    return false;
+                }
+            }
+        ]
+    });
+
+    dialog.show().done(function (dialogResult) {
+        if (dialogResult) {
+            Transfert.Document.deleteShareDocument();
+        }
+    });
+};
+
+Transfert.Document.deleteShareDocument = function () {
+    if (!Transfert.Document.selectedDocumentShare || !_transfertCanWrite) {
+        return;
+    }
+
+    $.ajax({
+        url: "/" + culture + "/transfert/delete-share-document",
+        type: "POST",
+        data: {
+            documentShareId: Transfert.Document.selectedDocumentShare.Id
+        },
+        success: function () {
+            DevExpress.ui.notify(
+                _transfertTranslatableDocumentShareDeleteSuccess,
+                "success",
+                3000);
+
+            Transfert.Document.selectedDocumentShare = null;
+            Transfert.Document.refreshShareSettingsGrid();
+            Transfert.Document.setButtonDisabled("btnEditDocumentShare", true);
+            Transfert.Document.setButtonDisabled("btnDeleteDocumentShare", true);
+            Transfert.Document.refreshGrid("allDocumentsGrid");
+            Transfert.Document.refreshGrid("sharedDocumentsGrid");
+        },
+        error: function (xhr) {
+            DevExpress.ui.notify(
+                xhr.responseText || _transfertTranslatableDocumentShareDeleteError,
+                "error",
+                5000);
+        }
+    });
+};
+
+
+
+// Download / Delete Document
+
+Transfert.Document.downloadDocument = function (documentId) {
+    window.open(
+        "/" + culture + "/transfert/download-document/" + documentId,
+        "_blank");
+};
+
+Transfert.Document.confirmDeleteDocument = function (documentId) {
+    if (!_transfertCanWrite) {
+        return;
+    }
+
+    var dialog = DevExpress.ui.dialog.custom({
+        title: _transfertTranslatableDocumentDelete,
+        messageHtml: _transfertDocumentDeleteConfirmation,
+        buttons: [
+            {
+                text: _transfertTranslatableDocumentYes,
+                onClick: function () {
+                    return true;
+                }
+            },
+            {
+                text: _transfertTranslatableDocumentNo,
+                onClick: function () {
+                    return false;
+                }
+            }
+        ]
+    });
+
+    dialog.show().done(function (dialogResult) {
+        if (dialogResult) {
+            Transfert.Document.deleteDocument(documentId);
+        }
+    });
+};
+
+Transfert.Document.deleteDocument = function (documentId) {
+    if (!_transfertCanWrite) {
+        return;
+    }
+
+    $.ajax({
+        url: "/" + culture + "/transfert/delete-document",
+        type: "POST",
+        data: {
+            documentId: documentId
+        },
+        success: function () {
+            DevExpress.ui.notify(
+                _transfertDocumentDeleteSuccess,
+                "success",
+                3000);
+
+            Transfert.Document.refreshGrid("allDocumentsGrid");
+            Transfert.Document.refreshGrid("myDocumentsGrid");
+            Transfert.Document.refreshGrid("sharedDocumentsGrid");
+
+            Transfert.Document.selectedDocument = null;
+            Transfert.Document.setButtonVisible("btnShareDocument", false);
+            Transfert.Document.setButtonVisible("btnShareSettingsDocument", false);
+        },
+        error: function (xhr) {
+            DevExpress.ui.notify(
+                xhr.responseText || _transfertDocumentDeleteError,
+                "error",
+                5000);
+        }
+    });
+};
+
+
+
+// UI Helpers
+
+Transfert.Document.buildPopupTitle = function (suffix) {
+    if (!Transfert.Document.selectedDocument) {
+        return suffix;
+    }
+
+    return _transfertTranslatableTransfer +
+        " >> " +
+        Transfert.Document.selectedDocument.Name +
+        " >> " +
+        suffix;
+};
+
+Transfert.Document.setSharePopupTitles = function () {
+    if (!Transfert.Document.selectedDocument) {
+        return;
+    }
+
+    $("#shareDocumentPopupTitle").text(
+        Transfert.Document.buildPopupTitle(_transfertTranslatableDocumentShareWithUsers)
+    );
+
+    $("#shareSettingsDocumentPopupTitle").text(
+        Transfert.Document.buildPopupTitle(_transfertTranslatableDocumentShareSettings)
+    );
+};
+
+Transfert.Document.setButtonVisible = function (buttonId, visible) {
+    var button = $("#" + buttonId).dxButton("instance");
+
+    if (button) {
+        button.option("visible", visible);
+    }
+};
+
+Transfert.Document.setButtonDisabled = function (buttonId, disabled) {
+    var button = $("#" + buttonId).dxButton("instance");
+
+    if (button) {
+        button.option("disabled", disabled);
+    }
+};
+
+Transfert.Document.formatFileSize = function (fileSize) {
+    if (!fileSize || fileSize <= 0) {
+        return "0 " + _transfertDocumentFileSizeUnit;
+    }
+
+    var size = fileSize / 1024 / 1024;
+
+    return size.toFixed(2) + " " + _transfertDocumentFileSizeUnit;
+};
+
+Transfert.Document.toDateOnlyTime = function (value) {
+    if (!value) {
+        return null;
+    }
+
+    var date = new Date(value);
+
+    return new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate()
+    ).getTime();
+};
+
+Transfert.Document.handleAjaxError = function (e) {
+    if (e.status === 401) {
+        $("#modalReconnect").dxPopup("instance").show();
+        return;
+    }
+
+    if (e.status === 403) {
+        DevExpress.ui.notify(_commonTranslatableMessagePasDePermissionAction, "error");
+        return;
+    }
+
+    DevExpress.ui.notify(e.responseText || _commonTranslatableMessageErrorLoadForm, "error");
+};
+
