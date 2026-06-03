@@ -6,7 +6,7 @@ L'objectif maintenant c'est ça
 - s'assurer d'avoir les bonnes traductions en anglais pour les différentes colonnes
 - la date d'ajout et la date d'expiration ne sont pas correctement formaté en version anglaise sachant qu'il y a la variable language dans index.cshtml
 qui contient soit fr soit en
-- voici les fichiers dont tu as besoin pour que je te fournisse les dernières versions
+- voici les fichiers dont tu as besoin 
 
 // index.cshtml
 @using BacaratWeb.ViewModel.Transfert
