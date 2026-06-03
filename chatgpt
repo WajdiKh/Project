@@ -1,3 +1,13 @@
+L'objectif maintenant c'est ça 
+- Colonne "Actions" sans entête
+- traduction colonne "Statut" en anglais pas bonne
+- Colonne "Type" devient "Type de fichier"
+- Colonne "Taille" devient "Taille du fichier"
+- s'assurer d'avoir les bonnes traductions en anglais pour les différentes colonnes
+- la date d'ajout et la date d'expiration ne sont pas correctement formaté en version anglaise sachant qu'il y a la variable language dans index.cshtml
+qui contient soit fr soit en
+- voici les fichiers dont tu as besoin pour que je te fournisse les dernières versions
+
 // index.cshtml
 @using BacaratWeb.ViewModel.Transfert
 @inject IViewTranslator translator
