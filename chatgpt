@@ -1,20 +1,870 @@
-DECLARE @ConstraintName NVARCHAR(128);
-DECLARE @Sql NVARCHAR(MAX);
+// Je veux isérer dans le _PartialPersonnePhysique (ci-dessous, c'est indiqué où exactement)
+un nouveau champ « Victime d’usurpation d’identité » (le libellé du champ a été déjà ajouté. Tu dois ajouter juste le nouveau champ)
+c'est un selectbox qui contient les deux items oui et non sachant qu'il faut pouvoir traduire les texte en anglais 
+ça c'est les traductions dans le fichier _Layout.cshtml
+var _commonTranslatableMessageNo = "@translator.Common["No"]";
+var _commonTranslatableMessageYes = "@translator.Common["Yes"]"; 
+la variable translator c'est la même injectée dans le partial
+La selectbox alimente un champ de type bool? que je vais appeler VictimeUsurpationIdentite dans PersonnePhysiqueFraudeViewModel (comme le champ existant UnsurpationIdentite)
+Tu trouveras les règles d'initialisation dans la capture d'écran ci-joint :
+NB : Pour le premier cas la valeur par défaut est plutôt égale à la valeur du champ existant UnsurpationIdentite (que j'ai caché avec display:none)
+Pour les catégories voici comment elles sont saisies
+@(Html.DevExtreme().SelectBoxFor(x => x.CategorieId)
+                    .ID("CategorieId")
+                    .Height(30)
+                    .Name("CategorieId")
+                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                    .DisplayExpr($"Name{_lang}")
+                    .ValueExpr("Id")
+                    .SearchEnabled(true)
+                    .ShowClearButton(true)
+                    .OnValueChanged(@<text>
+                                         function (e){
+                                         if(e.value!=null)
+                                         {
+                                         'categorie_fraude_OnValueChanged'(true);
+                                         }
+                                         }
+                                     </text>).ReadOnly(_isReadOnly).ElementAttr("class", "mandatory"))
+La liste catégories dépend de la liste produits 
+@(Html.DevExtreme().SelectBoxFor(x => x.ProduitId)
+                    .ID("ProduitId")
+                    .Height(30)
+                    .Name("ProduitId")
+                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                    .DisplayExpr($"Name{_lang}")
+                    .ValueExpr("Id")
+                    .DataSource(_referentiel.Produits)
+                    .SearchEnabled(true)
+                    .ShowClearButton(true)
+                    .OnValueChanged(@<text>
+                                         function (e){
+                                         if(e.value!=null)
+                                         {
+                                         produit_fraude_OnValueChanged(true);
+                                         }
+                                         else
+                                         {
+                                         $("#CategorieId").dxSelectBox("instance").option("dataSource", []);
+                                         }
+                                         }
+                                     </text>).ReadOnly(_isReadOnly).ElementAttr("class", "mandatory"))
 
-SELECT @ConstraintName = dc.name
-FROM sys.default_constraints dc
-INNER JOIN sys.columns c
-    ON dc.parent_object_id = c.object_id
-    AND dc.parent_column_id = c.column_id
-WHERE dc.parent_object_id = OBJECT_ID(N'[Fraude].[PersonnePhysiqueFraude]')
-  AND c.name = N'UsurpationIdentite';
+// ça c'est la méthode js produit_fraude_OnValueChanged 
+function produit_fraude_OnValueChanged(fromBody) {
+    $("#categorieDetailContainer").removeClass("pt-1 pb-1");
+    var produitId = $("#ProduitId").dxSelectBox("instance").option('value');
+    if (produitId !== undefined && produitId > 0) {
 
-IF @ConstraintName IS NOT NULL
-BEGIN
-    SET @Sql = N'ALTER TABLE [Fraude].[PersonnePhysiqueFraude] DROP CONSTRAINT [' + @ConstraintName + N']';
-    EXEC sp_executesql @Sql;
-END;
+        if (fromBody) {
+            $("#CanalBdfId").dxSelectBox("instance").option('value', null);
+            $("#ComplementMotifRejetChequeId").dxSelectBox("instance").option('value', null);
+            $("#EtablissementDeclarantId").dxSelectBox("instance").option('value', null);
+            $("#ModeOperatoireId").dxSelectBox("instance").option('value', null);
+            $("#TypeCollecteChequeId").dxSelectBox("instance").option('value', null);
+            $("#TypePaiementId").dxSelectBox("instance").option('value', null);
+            $("#TypologieBdfId").dxSelectBox("instance").option('value', null);
+            $("#MotifRejetChequeId").dxSelectBox("instance").option('value', null);
+            $("#NombreOperations").dxTextBox("instance").option('value', null);
+        }
 
-ALTER TABLE [Fraude].[PersonnePhysiqueFraude]
-ALTER COLUMN [UsurpationIdentite] BIT NULL;
-GO
+        $("#canal-bdf-container").addClass("dx-hidden");
+        $("#type-paiement-container").addClass("dx-hidden");
+        $("#etablissement-declarant-container").addClass("dx-hidden");
+        $("#mode-operatoire-container").addClass("dx-hidden");
+        $("#gdrFluxOperationContainer").addClass("dx-hidden");
+        $("#typologie-bdf-container").addClass("dx-hidden");
+        $("#type-collecte-cheque-container").addClass("dx-hidden");
+        $("#motif-reject-cheque-container").addClass("dx-hidden");
+        $("#compl-motif-reject-cheque-container").addClass("dx-hidden");
+        $("#nombre-operations-container").addClass("dx-hidden");
+        $.ajax({
+            method: "GET",
+            cache: false,
+            dataType: "json",
+            contentType: "application/json; charset=utf-8",
+            url: '/' + culture + '/Fraude/ServiceFraude/GetCategoryByProduit?produitId=' + produitId,
+        }).done(function (data) {
+            $("#CategorieId").dxSelectBox("instance").option("dataSource", data);
+            categorie_fraude_OnValueChanged(fromBody);
+        }).fail(function (e) {
+            if (e.status == 401) {
+                var popup = $("#modalReconnect").dxPopup('instance');
+                popup.show();
+                return;
+            }
+            DevExpress.ui.notify(_fraudeTranslatableMessageLoadingCategoriesError, "error");
+        }).always(function (e) {
+            hideLoadPanel();
+        });
+    }
+}
+
+// Méthode GetCategoryByProduit dans le ServiceFraude controller
+public IEnumerable<CategorieFraudeViewModel> GetCategoryByProduit(int produitId)
+        {
+            _logger.BeginTrace();
+            IEnumerable<CategorieFraudeViewModel> categories = null;
+            try
+            {
+                if (!IsVerifyUserHabilitation())
+                    return null;
+                categories = _referential.Categories.Where(c => c.ProduitId == produitId);
+            }
+            catch (Exception e)
+            {
+                _logger.TraceError(e);
+            }
+
+            _logger.EndTrace();
+
+            return categories;
+        }
+_referential est de type IReferentielViewModel et contient le champ IEnumerable<CategorieFraudeViewModel> Categories { get; }
+[Serializable]
+    public class CategorieFraudeViewModel : TranslatableViewModel
+    {
+        public int? DelaiIndicatif { get; set; }
+
+        public int? ParentId { get; set; }
+
+        public int? ProduitId { get; set; }
+
+        public DateTimeOffset DateCreation { get; set; }
+        public DateTimeOffset? DateModification { get; set; }
+        public int? ModificateurId { get; set; }
+        public int? CreateurId { get; set; }
+        public bool IsActive { get; set; }
+    }
+// TranslatableViewModel
+using System;
+
+namespace BacaratWeb.Models.Referentials
+{
+    [Serializable]
+    public class TranslatableViewModel
+    {
+        public int Id { get; set; }
+        
+        public string Code { get; set; }
+
+        public string DescriptionEn { get; set; }
+
+        public string DescriptionFr { get; set; }
+
+        public string NameEn { get; set; }
+
+        public string NameFr { get; set; }
+    }
+}
+// Il faudrait utiliser le champ Code pour identifier les catégories. Je veux que tu créés une Enum pour CategorieFraudeEnum pour ne pas utiliser des constantes string
+// Pour StatutFraude
+@(Html.DevExtreme().SelectBoxFor(x => x.Item1.StatutPersonneFraudeId)
+                                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                    .DisplayExpr($"Name{_lang}")
+                                    .ValueExpr("Id")
+                                    .Height(30)
+                                    .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].StatutPersonneFraudeId")
+                                    .ID("PersonnePhysiqueFraudeStatutPersonneFraudeId" + Model.Item2)
+                                    .DataSource(_referentiel.StatutPersonneFraudes)
+                                    .OnValueChanged(@<text>
+                                                        function () {
+                                                        getComputedLists(true);
+                                                        }
+                                                     </text>)
+                                    .SearchEnabled(true)
+                                    .ShowClearButton(true)
+                                    .ReadOnly(_isReadOnly)
+                                    .ElementAttr("class", "mandatory"))
+
+// StatutPersonneFraudeViewModel
+[Serializable]
+    public class StatutPersonneFraudeViewModel : TranslatableViewModel
+    {
+        public DateTimeOffset DateCreation { get; set; }
+        public DateTimeOffset? DateModification { get; set; }
+        public int? ModificateurId { get; set; }
+        public int? CreateurId { get; set; }
+        public bool IsActive { get; set; }
+    }
+}
+Pour statutPersonneFraude les codes sont plutôt des chiffres donc ne créé pas une enum pour ça. Le code statut victime c'est 3
+
+// _PartialPersonnePhysique
+@inject IViewTranslator translator
+@inject IRoleAccessUser _roleAccess
+@model Tuple<DossierFraudePersonnePhysiqueViewModel, int>;
+@inject IReferentielViewModel _referentiel;
+@{
+    //dynamic dateEnvoiCourrier = Model.Item1.DateEnvoiCourrier;
+    //if (Model.Item1.DateEnvoiCourrier == DateTimeOffset.MinValue)
+    //{
+    //    dateEnvoiCourrier = string.Empty;
+    //}
+
+    var _isReadOnly = Model.Item1.IsReadOnly;
+    var _lang = Model.Item1.Culture.ToCamelCase();
+    var typesClient = Model.Item1.DirectionId.GetValueOrDefault() > 0 ? _referentiel.TypesClientFraudes.Where(x => x.DirectionId == Model.Item1.DirectionId && !x.IsCorporate) : null;
+    var canalEntreeRelationSources = _referentiel.CanalsEntreeEnRelation.Where(x => x.ActiviteId == 2 && x.IsActive);
+    var hasTypeRelationAffaireFraude = Model.Item1.PersonnePhysiqueFraude.TypeRelationAffaireFraude != null;
+    var typeRelationAffaireFraude = Model.Item1.Culture == "Fr"
+        ? Model.Item1.PersonnePhysiqueFraude.TypeRelationAffaireFraude?.NameFr
+        : Model.Item1.PersonnePhysiqueFraude.TypeRelationAffaireFraude?.NameEn;
+    var _isRelationTerminee = Model.Item1.PersonnePhysiqueFraude.TypeRelationAffaireFraudeId == 4 || Model.Item1.PersonnePhysiqueFraude.TypeRelationAffaireFraudeId == 3;
+    var isRobot = _roleAccess.HasRoles(ActiviteModule.Fraude, null, RoleUser.Robot);
+    var isIsole = _roleAccess.HasClaimIsole(ActiviteModule.Fraude);
+    var isLcbFt = _roleAccess.HasActivites(ActiviteModule.Lab) || _roleAccess.HasRoles(null, null, RoleUser.AdminGlobal);
+    var isPp = "True";
+    var isPm = "False";
+
+    var Yes = "Oui";
+    var No = "Non";
+    if (_lang.ToLower() == "en")
+    {
+        Yes = "Yes";
+        No = "No";
+    }
+    var ouiNon = new[] { new { Id = 1, Name = Yes}, new { Id = 2, Name = No } };
+}
+
+<div class="card subjectRow physicalPerson" id="rowPhysicalPerson@(Model.Item2)">
+    @Html.TextBox($"DossierFraudePersonnePhysiques[{Model.Item2}].CryptedId", Model.Item1.CryptedId, new { type = "hidden" })
+    @Html.TextBox($"DossierFraudePersonnePhysiques[{Model.Item2}].CryptedPersonnePhysiqueFraudeId", Model.Item1.CryptedPersonnePhysiqueFraudeId, new { id = "CryptedPersonnePhysiqueFraudeId" + Model.Item2, type = "hidden" })
+    @Html.TextBox($"DossierFraudePersonnePhysiques[{Model.Item2}].CryptedDossierFraudeId", Model.Item1.CryptedDossierFraudeId, new { type = "hidden" })
+    @Html.TextBox($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.CryptedId", Model.Item1.PersonnePhysiqueFraude.CryptedId, new { id = "CryptedPersonnePhysiqueFraudeCryptedId" + Model.Item2, type = "hidden" })
+    @Html.TextBox($"DossierFraudePersonnePhysiques[{Model.Item2}].ToDelete", Model.Item1.ToDelete, new { id = "physicalPersonToDelete" + Model.Item2, type = "hidden" })
+    @Html.TextBox($"DossierFraudePersonnePhysiques[{Model.Item2}].physicalPersonIsAlreadyImported", false, new { id = "physicalPersonIsAlreadyImported" + Model.Item2, type = "hidden" })
+    @Html.TextBox($"DossierFraudePersonnePhysiques[{Model.Item2}].IsNew", Model.Item1.IsNew, new { id = "physicalPersonIsNew" + Model.Item2, type = "hidden" })
+
+    <div class="card-header adjust-card-header d-flex justify-content-between">
+        <div style="width: 100%;">
+            <i class="fas fa-user-plus mr-2"></i>@(translator.Common["PhysicalPerson"]) : <span id="identityPhysicalPerson@(Model.Item2)">@($"{Model.Item1.PersonnePhysiqueFraude.NomNaissance} {Model.Item1.PersonnePhysiqueFraude.Prenoms}") @(hasTypeRelationAffaireFraude ? " - " : string.Empty)@(typeRelationAffaireFraude)</span>
+        </div>
+        @if (!isRobot && !isIsole)
+        {
+            <div class="pr-1">
+                @(Html.DevExtreme().Button()
+                .Icon("search")
+                .ElementAttr("class", "color-blue")
+                .ID("CriblagePersonnePhysiqueFraude" + Model.Item2)
+                .Hint(translator.Common["CriblagePersonnePhysiqueParNom"])
+                .Visible(!_isReadOnly)
+                .OnClick(@<text>
+                             function () {
+                             showCriblagePersonnePhysiqueFraude_onClick('@(Model.Item2)')
+                             }
+                          </text>))
+            </div>
+        }
+
+        <div class="pr-1">
+            @(Html.DevExtreme().Button()
+                .Icon("trash")
+                .ElementAttr("class", "color-red")
+                .ID("remRowDossierFraudePersonnePhysiqueFraude" + Model.Item2)
+                .OnClick(@<text>
+                             function () {
+                             var confirmDialog = DevExpress.ui.dialog.custom({
+                             title: "@translator.Common["Warning"]",
+                             message: "@translator.Common["VoulezVousSupprimerSujet"]",
+                             buttons: [{ text: "@translator.Common["Yes"]", onClick: function() { return true; } }, { text: "@translator.Common["No"]", onClick: function() { return false; } }]
+                             });
+
+                             confirmDialog.show().done(function (dialogResult) {
+                             if (dialogResult)
+                             {
+                             removePhysicalPerson(@(Model.Item2));
+                             }
+                             });
+                             }
+                          </text>).Visible(!_isReadOnly)
+                )
+        </div>
+
+        <div>
+            @(Html.DevExtreme().Button()
+                .Icon("card")
+                .ElementAttr("class", "color-blue")
+                .ID("addDossierFraudePersonnePhysiqueFraude" + Model.Item2).OnClick(@<text>
+                             function () {
+
+                             searchPpPm_OnClick('@(Model.Item2)','@isPp','@isPm');
+                             }
+                          </text>).Visible(!_isReadOnly)
+                )
+            @(Html.DevExtreme().Popup()
+                .ID("searchThirdModal")
+                .ElementAttr(new Dictionary<string, object>
+                {{"class", "popup"}})
+                .ShowTitle(true)
+                .DragEnabled(true).ShowCloseButton(true)
+                .ResizeEnabled(false)
+                .Width("100%")
+                .Height("auto")
+                .ElementAttr("style", "min-Height:60%;overflow-y: scroll;")
+                .TitleTemplate(@<text>
+                        <div class="d-flex flex-row align-items-center justify-content-between">
+                            <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green"><i class="fas fa-pen mr-2"></i>@translator.Common["SearchThird"]</div>
+                        </div>
+                </text>))
+        </div>
+    </div>
+    <div class="card-body p-3">
+        <div class="row">
+            <div class="col-12 mb-3">
+                <div class="card bloc-card-personne">
+                    <div class="card-body p-2">
+                        <h6 class="card-title">@translator.Common["BasicInformations"]</h6>
+                        <div class="row text-normal">
+                            <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pr-1">
+                                <div class="text-truncate">
+                                    <span class="smallCaps text-green">@translator.Common["IdentifiantClient"]</span>
+                                </div>
+                                @Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueFraude.IdentifiantClient).Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.IdentifiantClient").ID("PersonnePhysiqueFraudeIdentifiantClient" + Model.Item2).Width("100%").ShowClearButton(true).ReadOnly(_isReadOnly)
+                            </div>
+                            <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-lg-1 pl-xl-1 pr-lg-1 pr-xl-1 pl-md-1 ">
+                                <div class="text-truncate">
+                                    <span class="smallCaps text-green">
+                                        @translator.Common["NomNaissance"] <span class="RequiredField">*</span>
+                                    </span>
+                                </div>
+                                @if (_isReadOnly)
+                                {
+                                    @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueFraude.NomNaissance)
+                                        .Height(30)
+                                        .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.NomNaissance")
+                                        .ID("PersonnePhysiqueFraudeNomNaissance" + Model.Item2)
+                                        .OnValueChanged(@<text>
+                                                            function () { updateHeaderIdentityPhysicalPerson(@Model.Item2); }
+                                                         </text>)
+                                        .ReadOnly(true)
+                                        .ShowClearButton(true)
+                                        .ElementAttr("class", "mandatory"))
+                                }
+                                else
+                                {
+                                    @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueFraude.NomNaissance)
+                                        .Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.NomNaissance")
+                                        .ID("PersonnePhysiqueFraudeNomNaissance" + Model.Item2)
+                                        .OnFocusOut(@<text>
+                                                        function () { findExistPersonnePhysique(@(Model.Item2)); }
+                                                     </text>).OnValueChanged(@<text>
+                                                                                 function () { updateHeaderIdentityPhysicalPerson(@(Model.Item2)); }
+                                                                              </text>)
+                                        .ShowClearButton(true)
+                                        .ElementAttr("class", "mandatory"))
+                                }
+                            </div>
+
+                            <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-lg-1 pr-md-1 pr-lg-1 pr-xl-1">
+                                <div class="text-truncate">
+                                    <span class="smallCaps text-green">@translator.Common["NomUsuel"]</span>
+                                </div>
+                                @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueFraude.NomUsuel)
+                                    .Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.NomUsuel")
+                                    .ID("PersonnePhysiqueFraudeNomUsuel" + Model.Item2)
+                                    .OnValueChanged(@<text>
+                                                        function () {
+                                                        updateHeaderIdentityPhysicalPerson(@(Model.Item2));
+                                                        }
+                                                     </text>)
+                                    .ShowClearButton(true)
+                                    .ReadOnly(_isReadOnly))
+                            </div>
+
+                            <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-1">
+                                <div class="text-truncate">
+                                    <span class="smallCaps text-green">
+                                        @translator.Common["Prenoms"] <span class="RequiredField">*</span>
+                                    </span>
+                                </div>
+                                @if (_isReadOnly)
+                                {
+                                    @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueFraude.Prenoms)
+                                        .Height(30)
+                                        .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.Prenoms")
+                                        .ID("PersonnePhysiqueFraudePrenoms" + Model.Item2)
+                                        .OnValueChanged(@<text>
+                                                            function () { updateHeaderIdentityPhysicalPerson(@Model.Item2); }</text>)
+                                        .ShowClearButton(true)
+                                        .ReadOnly(true)
+                                        .ElementAttr("class", "mandatory"))
+                                }
+                                else
+                                {
+                                    @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueFraude.Prenoms)
+                                        .Height(30)
+                                        .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.Prenoms")
+                                        .ID("PersonnePhysiqueFraudePrenoms" + Model.Item2)
+                                        .OnFocusOut(@<text>
+                                                        function () { findExistPersonnePhysique(@(Model.Item2)); }
+                                                     </text>).OnValueChanged(@<text>
+                                                                                 function () { updateHeaderIdentityPhysicalPerson(@(Model.Item2)); }
+                                                                              </text>)
+                                        .ShowClearButton(true)
+                                        .ElementAttr("class", "mandatory"))
+                                }
+                            </div>
+                        </div>
+                        <div class="row text-normal">
+
+                            <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pr-1">
+                                <div class="text-truncate">
+                                    <span class="smallCaps text-green">@translator.Common["TypeClient"]</span>
+                                </div>
+                                <div id="" class="dx-hidden text-center loader-customer-type-individual"></div>
+                                @Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.TypeClientId).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.TypeClientId").ID("PersonnePhysiqueFraudeTypeClientId" + Model.Item2).DataSource(typesClient).SearchEnabled(true).ShowClearButton(true).ElementAttr("class", "input-customer-type-individual").ReadOnly(_isReadOnly)
+                            </div>
+
+                            <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-1 pr-md-1 pr-lg-1 pr-xl-1">
+                                <div class="text-truncate">
+                                    <span class="smallCaps text-green">
+                                        @translator.Common["Civilite"] <span class="RequiredField">*</span>
+                                    </span>
+                                </div>
+                                @Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.CiviliteId).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.CiviliteId").ID("PersonnePhysiqueFraudeCiviliteId" + Model.Item2).DataSource(_referentiel.Civilites).SearchEnabled(true).ShowClearButton(true).ReadOnly(_isReadOnly).ElementAttr("class", "mandatory")
+                            </div>
+
+                            <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-1 pr-md-1 pr-lg-1 pr-xl-1">
+                                <div class="text-truncate">
+                                    <span class="smallCaps text-green">
+                                        @translator.Common["StatutPersonneFraude"] <span class="RequiredField">*</span>
+                                    </span>
+                                </div>
+                                @(Html.DevExtreme().SelectBoxFor(x => x.Item1.StatutPersonneFraudeId)
+                                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                    .DisplayExpr($"Name{_lang}")
+                                    .ValueExpr("Id")
+                                    .Height(30)
+                                    .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].StatutPersonneFraudeId")
+                                    .ID("PersonnePhysiqueFraudeStatutPersonneFraudeId" + Model.Item2)
+                                    .DataSource(_referentiel.StatutPersonneFraudes)
+                                    .OnValueChanged(@<text>
+                                                        function () {
+                                                        getComputedLists(true);
+                                                        }
+                                                     </text>)
+                                    .SearchEnabled(true)
+                                    .ShowClearButton(true)
+                                    .ReadOnly(_isReadOnly)
+                                    .ElementAttr("class", "mandatory"))
+                            </div>
+
+                            <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-1">
+                                <div class="text-truncate">
+                                    <span class="smallCaps text-green">
+                                        @translator.Common["PresenceContrat"] <span class="RequiredField">*</span>
+                                    </span>
+                                </div>
+                                @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.PresenceContrat)
+			                        .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+	                                .DisplayExpr("Name")
+	                                .ValueExpr("Id")
+			                        .Height(30)
+			                        .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.PresenceContrat")
+			                        .ID("PersonnePhysiqueFraudePresenceContrat" + Model.Item2)
+			                        .DataSource(ouiNon)
+			                        .ReadOnly(_isReadOnly)
+			                        .ElementAttr("class", "mandatory"))
+                            </div>
+                        </div>
+                        <div class="row text-normal">
+
+                            <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pr-1">
+                                <div class="text-truncate">
+                                    <span class="smallCaps text-green">@translator.Common["Nationalite"]</span>
+                                </div>
+                                <div id="" class="dx-hidden text-center loader-customer-type-individual"></div>
+                                @Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.NationaliteId).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.NationaliteId").ID("PersonnePhysiqueFraudeNationaliteId" + Model.Item2).DataSource(_referentiel.Pays).SearchEnabled(true).ShowClearButton(true).ElementAttr("class", "input-customer-type-individual").ReadOnly(_isReadOnly)
+                            </div>
+                            <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-1 pr-md-1 pr-lg-1 pr-xl-1">
+                                <div class="text-truncate">
+                                    <span class="smallCaps text-green">@translator.Common["CapaciteJuridique"]</span>
+                                </div>
+                                <div id="" class="dx-hidden text-center loader-customer-type-individual"></div>
+                                @Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.CapaciteJuridiqueId).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.CapaciteJuridiqueId").ID("PersonnePhysiqueFraudeCapaciteJuridiqueId" + Model.Item2).DataSource(_referentiel.CapaciteJuridiques).SearchEnabled(true).ShowClearButton(true).ElementAttr("class", "input-customer-type-individual").ReadOnly(_isReadOnly)
+                            </div>
+
+                            
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="col-12 mb-3">
+                <div class="row">
+                    <div class="col-sm-12 col-md-6 col-lg-6 col-xl-6 pr-md-1">
+                        <div class="card bloc-card-personne">
+                            <div class="card-body p-2">
+                                <h6 class="card-title">@translator.Common["Birth"]</h6>
+                                <div class="row text-normal">
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-4 pr-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">
+                                                @translator.Common["DateNaissance"] <span class="RequiredField">*</span>
+                                            </span>
+                                        </div>
+                                        @if (_isReadOnly)
+                                        {
+                                            @(Html.DevExtreme().DateBoxFor(x => Model.Item1.PersonnePhysiqueFraude.DateNaissance).Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.DateNaissance").ID("PersonnePhysiqueFraudeDateNaissance" + Model.Item2).DisplayFormat(DateHelper.DateFormat()).UseMaskBehavior(true).Width("100%").ReadOnly(true).ElementAttr("class", "mandatory"))
+                                        }
+                                        else
+                                        {
+                                            @(Html.DevExtreme().DateBoxFor(x => Model.Item1.PersonnePhysiqueFraude.DateNaissance)
+                                                .Height(30)
+                                                .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.DateNaissance")
+                                                .ID("PersonnePhysiqueFraudeDateNaissance" + Model.Item2)
+                                                .DisplayFormat(DateHelper.DateFormat())
+                                                .UseMaskBehavior(true)
+                                                .Width("100%")
+                                                .OnFocusOut(@<text>
+                                                                function () { findExistPersonnePhysique(@(Model.Item2)); }
+                                                             </text>).ShowClearButton(true).ElementAttr("class", "mandatory"))
+                                        }
+                                    </div>
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-4 pr-xl-1 pl-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["PaysNaissance"]</span>
+                                        </div>
+                                        @*@Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.PaysNaissanceId).DataSourceOptions(c => c.Sort("IsoFrenchName", false)).DisplayExpr("IsoFrenchName").ValueExpr("Id").Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.PaysNaissanceId").ID("PersonnePhysiqueFraudePaysNaissanceId" + Model.Item2).SearchEnabled(true).ShowClearButton(true).ReadOnly(_isReadOnly)*@
+
+                                        @Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.PaysNaissanceId).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.PaysNaissanceId").ID("PersonnePhysiqueFraudePaysNaissanceId" + Model.Item2).SearchEnabled(true).ShowClearButton(true).ReadOnly(_isReadOnly)
+
+
+                                    </div>
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-4 pl-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["LieuNaissance"]</span>
+                                        </div>
+                                        @Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueFraude.LieuNaissance).Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.LieuNaissance").ID("PersonnePhysiqueFraudeLieuNaissance" + Model.Item2).ShowClearButton(true).ReadOnly(_isReadOnly)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-12 col-md-6 col-lg-6 col-xl-6">
+                        <div class="card bloc-card-personne">
+                            <div class="card-body p-2">
+                                <h6 class="card-title text-truncate">@translator.Common["AccountContractInformations"]</h6>
+                                <div class="row text-normal">
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-4 pr-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["NumeroCompte"]</span>
+                                        </div>
+                                        @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueFraude.NumeroCompte)
+                                            .Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.NumeroCompte")
+                                            .ID("PersonnePhysiqueFraudeNumeroCompte" + Model.Item2)
+                                            .ShowClearButton(true)
+                                            .ReadOnly(_isReadOnly)
+                                            .OnFocusOut(@<text>
+                                                            function () { findExistPersonnePhysique(@(Model.Item2)); }
+                                                         </text>))
+                                    </div>
+
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-4 pl-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["DroitAuCompte"]</span>
+                                        </div>
+                                        <div class="adjust-padding-top-check-box">
+                                            @Html.DevExtreme().CheckBoxFor(x => Model.Item1.PersonnePhysiqueFraude.DroitAuCompte).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.DroitAuCompte").ID("PersonnePhysiqueFraudeDroitAuCompte" + Model.Item2).ReadOnly(_isReadOnly)
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-4 pl-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["DateOuverture"]</span>
+                                        </div>
+                                        @Html.DevExtreme().DateBoxFor(x => Model.Item1.PersonnePhysiqueFraude.DateOuvertureCompte).Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.DateOuvertureCompte").ID("PersonnePhysiqueFraudeDateOuvertureCompte" + Model.Item2).DisplayFormat(DateHelper.DateFormat()).UseMaskBehavior(true).Width("100%").ShowClearButton(true).ReadOnly(_isReadOnly)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 mb-3">
+                <div class="row">
+
+                    <div class="col-sm-12 col-md-6 col-lg-6 col-xl-6 pr-md-1">
+                        <div class="card bloc-card-personne">
+                            <div class="card-body p-2">
+                                <h6 class="card-title">@translator.Common["Address"]</h6>
+                                <div class="row text-normal">
+
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-6 pr-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["Address"]</span>
+                                        </div>
+                                        @Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueFraude.Adresse).Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.Adresse").ID("PersonnePhysiqueFraudeAdresse" + Model.Item2).ShowClearButton(true).ReadOnly(_isReadOnly)
+                                    </div>
+
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-6 pl-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["ZipCode"]</span>
+                                        </div>
+                                        @Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueFraude.CodePostale).Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.CodePostale").ID("PersonnePhysiqueFraudeCodePostale" + Model.Item2).ShowClearButton(true).ReadOnly(_isReadOnly)
+                                    </div>
+                                </div>
+                                <div class="row text-normal">
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-6 pr-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["Town"]</span>
+                                        </div>
+                                        @Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueFraude.Ville).Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.Ville").ID("PersonnePhysiqueFraudeVille" + Model.Item2).ShowClearButton(true).ReadOnly(_isReadOnly)
+                                    </div>
+
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-6 pl-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["Pays"]</span>
+                                        </div>
+                                        @Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.PaysId).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.PaysId").ID("PersonnePhysiqueFraudePaysId" + Model.Item2).SearchEnabled(true).ShowClearButton(true).DataSource(_referentiel.Pays).ReadOnly(_isReadOnly)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-12 col-md-6 col-lg-6 col-xl-6">
+                        <div class="card bloc-card-personne">
+                            <div class="card-body p-2">
+                                <h6 class="card-title">@translator.Common["Relation"]</h6>
+                                <div class="row text-normal">
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-6 pr-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["DateOfContact"] 
+                                            <span id="targetDateEntreeEnRelation" class="pl-1 align-self-center smallCaps text-truncate button-green" style="width:21%">
+	                                            QLB
+                                            </span>
+                                            <span class="RequiredField">*</span></span>
+                                        </div>
+	                                    @Html.DevExtreme().DateBoxFor(x => x.Item1.PersonnePhysiqueFraude.DateEntreeEnRelation).Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.DateEntreeEnRelation").ID("PersonnePhysiqueFraudeDateEntreeEnRelation" + Model.Item2).DisplayFormat(DateHelper.DateFormat()).UseMaskBehavior(true).Width("100%").ShowClearButton(false).ReadOnly(_isReadOnly).ElementAttr("class", "mandatory").Max(DateTime.Now)
+	                                    @(Html.DevExtreme().Tooltip().Width(500)
+		                                    .ID("ToolTipDateEntreeEnRelation")
+		                                    .Target("#targetDateEntreeEnRelation")
+		                                    .ShowEvent("mouseenter")
+		                                    .HideEvent("mouseleave")
+		                                    .CloseOnOutsideClick(false)
+		                                    .Position(Position.Bottom)
+		                                    .ContentTemplate(@<text>
+			                                                     <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+				                                                     @Html.Raw(translator.TemplateTraduction["ToolTipDateEntreeEnRelation"])
+			                                                     </div>
+		                                                      </text>))
+                                    </div>
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-6 pl-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["CanalEntreeEnRelation"]</span>
+                                        </div>
+                                        @Html.DevExtreme().SelectBoxFor(x => Model.Item1.PersonnePhysiqueFraude.CanalEntreeEnRelationId).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.CanalEntreeEnRelationId").ID("PersonnePhysiqueFraudeCanalEntreeEnRelationId" + Model.Item2).DataSource(canalEntreeRelationSources).SearchEnabled(true).ShowClearButton(true).ReadOnly(_isReadOnly)
+                                    </div>
+                                </div>
+                                <div class="row text-normal">
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-6 pr-xl-1 dx-hidden">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green"> @translator.Common["CessationRelation"]</span>
+                                        </div>
+                                        <div class="adjust-padding-top-check-box">
+                                            @(Html.DevExtreme().CheckBoxFor(x => x.Item1.PersonnePhysiqueFraude.CessationRelation)
+                                                .ID($"PersonnePhysiqueFraudeCessationRelation{Model.Item2}")
+                                                .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.CessationRelation")
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+
+                                    </div>
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-6 pr-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green"> @translator.Common["TypeRelationAffaire"]</span>
+                                        </div>
+                                        <div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.TypeRelationAffaireFraudeId)
+                                                    .DisplayExpr($"Name{_lang}")
+                                                    .ValueExpr("Id")
+                                                    .ID($"PersonnePhysiqueFraudeTypeRelationAffaireFraudeId{Model.Item2}")
+                                                    .Height(30)
+                                                    .SearchEnabled(true)
+                                                    .ShowClearButton(true)
+                                                    .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.TypeRelationAffaireFraudeId")
+                                                    .ReadOnly(_isReadOnly)
+                                                    .DataSource(_referentiel.TypeRelationAffaireFraudes)
+                                                    .OnValueChanged(@<text>
+                                                                        function (e) {
+                                                                        if (e.value == 4)
+                                                                        {
+                                                                        $("#PersonnePhysiqueFraudeCessationRelation@(Model.Item2)").dxCheckBox("instance").option("value", true);
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                        $("#PersonnePhysiqueFraudeCessationRelation@(Model.Item2)").dxCheckBox("instance").option("value", false);
+                                                                        }
+
+                                                                        $("#PersonnePhysiqueFraudeDateCessationRelation@(Model.Item2)").removeClass("required-date");
+                                                                        $("#PersonnePhysiqueFraudeDateCessationRelation@(Model.Item2)").dxDateBox("instance").option("disabled", !(e.value == 4 || e.value == 3));
+                                                                        if(!(e.value == 4 || e.value == 3))
+                                                                        {
+                                                                        $("#PersonnePhysiqueFraudeDateCessationRelation@(Model.Item2)").dxDateBox("instance").option("value", null);
+                                                                        }
+                                                                        updateHeaderIdentityPhysicalPerson(@(Model.Item2));
+                                                                        }
+                                                                     </text>))
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-6 pl-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["DateCessationRelation"] </span>
+                                        </div>
+                                        @(Html.DevExtreme().DateBoxFor(x => Model.Item1.PersonnePhysiqueFraude.DateCessationRelations)
+                                            .Height(30)
+                                            .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.DateCessationRelations")
+                                            .ID("PersonnePhysiqueFraudeDateCessationRelation" + Model.Item2)
+                                            .DisplayFormat(DateHelper.DateFormat())
+                                            .Disabled(!_isRelationTerminee)
+                                            .UseMaskBehavior(true)
+                                            .Width("100%")
+	                                        .Max(DateTime.Now)
+                                            .ShowClearButton(true)
+                                            .ReadOnly(_isReadOnly)
+                                            .OnValueChanged(@<text>
+                                                                function (e) {
+                                                                if(e.value ==null && $("#PersonnePhysiqueFraudeCessationRelation@(Model.Item2)").dxCheckBox("instance").option('value'))
+                                                                {
+                                                                $("#PersonnePhysiqueFraudeDateCessationRelation@(Model.Item2)").addClass("required-date");
+                                                                }
+                                                                else
+                                                                {
+                                                                $("#PersonnePhysiqueFraudeDateCessationRelation@(Model.Item2)").removeClass("required-date");
+                                                                }
+                                                                }
+                                                             </text>))
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            <div class="col-12 mb-3">
+                <div class="row">
+                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-12">
+                        <div class="card bloc-card-personne">
+                            <div class="card-body p-2">
+                                <h6 class="card-title">@translator.Common["OtherInformations"]</h6>
+                                <div class="row text-normal">
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-1 pr-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["Courrier"]</span>
+                                        </div>
+                                        <div class="adjust-padding-top-check-box">
+                                            @(Html.DevExtreme().CheckBoxFor(x => x.Item1.ClientNotifie)
+                                                .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].ClientNotifie")
+                                                .ID("PersonnePhysiqueFraudeClientNotifie" + Model.Item2)
+                                                .ElementAttr("class", "smallCaps text-green")
+                                                .ReadOnly(_isReadOnly)
+                                                .OnValueChanged(@<text>
+                                                                    function (e) {
+                                                                    $("#PersonnePhysiqueFraudeDateEnvoiCourrier@(Model.Item2)").removeClass("required-date");
+                                                                    $("#PersonnePhysiqueFraudeDateEnvoiCourrier@(Model.Item2)").dxDateBox("instance").option("disabled", !e.value);
+                                                                    if(!e.value)
+                                                                    {
+                                                                    $("#PersonnePhysiqueFraudeDateEnvoiCourrier@(Model.Item2)").dxDateBox("instance").option("value", null);
+                                                                    }
+                                                                    }
+                                                                 </text>))
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1 pl-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["DateEnvoiCourrier"]</span>
+                                        </div>
+                                        @(Html.DevExtreme().DateBoxFor(x => x.Item1.DateEnvoiCourrier)
+                                            .Height(30)
+                                            .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].DateEnvoiCourrier")
+                                            .ID("PersonnePhysiqueFraudeDateEnvoiCourrier" + Model.Item2)
+                                            .DisplayFormat(DateHelper.DateFormat())
+                                            .UseMaskBehavior(true)
+                                            .Width("100%")
+                                            .ShowClearButton(true)
+                                            .ReadOnly(_isReadOnly)
+                                            .Disabled(Model.Item1.DateEnvoiCourrier == null)
+                                            .OnValueChanged(@<text>
+                                                                function (e) {
+                                                                if(e.value ==null && $("#PersonnePhysiqueFraudeClientNotifie@(Model.Item2)").dxCheckBox("instance").option('value'))
+                                                                {
+                                                                $("#PersonnePhysiqueFraudeDateEnvoiCourrier@(Model.Item2)").addClass("required-date");
+                                                                }
+                                                                else
+                                                                {
+                                                                $("#PersonnePhysiqueFraudeDateEnvoiCourrier@(Model.Item2)").removeClass("required-date");
+                                                                }
+                                                                }
+                                                             </text>))
+                                    </div>
+
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-4 pr-xl-1 pl-xl-1 smallCaps text-green">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["MotifExemptionNotification"]</span>
+                                        </div>
+                                        @if (isLcbFt)
+                                        {
+                                            @Html.DevExtreme().SelectBoxFor(x => x.Item1.MotifExemptionNotificationId).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].MotifExemptionNotificationId").ID("PersonnePhysiqueFraudeMotifExemptionNotificationId" + Model.Item2).DataSource(_referentiel.MotifExemptionNotifications).SearchEnabled(true).ShowClearButton(true).ReadOnly(_isReadOnly)
+                                        }
+                                        else
+                                        {
+											@Html.DevExtreme().SelectBoxFor(x => x.Item1.MotifExemptionNotificationId).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].MotifExemptionNotificationId").ID("PersonnePhysiqueFraudeMotifExemptionNotificationId" + Model.Item2).DataSource(_referentiel.MotifExemptionNotificationsFraude).SearchEnabled(true).ShowClearButton(true).ReadOnly(_isReadOnly)
+                                        }
+                                    </div>
+
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-3 pr-xl-1 pl-xl-1 smallCaps text-green">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green">@translator.Common["Role"]</span>
+                                        </div>
+                                        @Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.RoleClientId).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.RoleClientId").ID("PersonnePhysiqueFraudeRoleClientId" + Model.Item2).DataSource(_referentiel.RolesClient).SearchEnabled(true).ShowClearButton(true).ReadOnly(_isReadOnly)
+                                    </div>
+
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pl-xl-1" style="display: none;">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green"> @translator.Common["UsurpationIdentite"]</span>
+                                        </div>
+                                        <div class="adjust-padding-top-check-box">
+                                            @Html.DevExtreme().CheckBoxFor(x => x.Item1.PersonnePhysiqueFraude.UnsurpationIdentite).Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.UnsurpationIdentite").ID("PersonnePhysiqueFraudeUnsurpationIdentite" + Model.Item2).ElementAttr("class", "smallCaps text-green").ReadOnly(_isReadOnly)
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pl-xl-1">
+                                        <div class="text-truncate">
+                                            <span class="smallCaps text-green"> @translator.Common["VictimeUsurpationIdentite"]</span>
+                                        </div>
+                                        <div class="adjust-padding-top-check-box">
+                                            // SelectBox victime d'usurpation d'identité ici
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@(Html.DevExtreme().Popup()
+    .ID("CriblagePersonnePhysiqueFraudeModalPreview")
+    .ElementAttr(new Dictionary<string, object>
+    { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .Width("auto")
+    .Height("auto")
+    .OnShowing("criblagePersonnePhysiqueFraudeModalPreview_OnShowing")
+    .ElementAttr("style", "min-Height:95%;overflow-y: scroll;")
+    .TitleTemplate(@<text>
+                       <div class="d-flex flex-row align-items-center justify-content-between">
+                           <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+                               <i class="fas fa-pen mr-2"></i>@translator.Common["CriblagePersonnePhysiqueParNom"]
+                           </div>
+                       </div>
+                    </text>))
