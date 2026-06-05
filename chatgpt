@@ -1,3 +1,14 @@
+/// <summary>
+/// Correspond aux codes de la table StatutPersonneFraude.
+/// </summary>
+public enum StatutPersonneFraudeEnum
+{
+    InvestigationEnCours = 1,
+    Auteur = 2,
+    Victime = 3,
+    NonFraudeur = 4,
+    Mule = 5
+}
 @* ============================================================
    1) Enum C# à créer côté Models / Enums
    Objectif : éviter les constantes string pour les catégories.
