@@ -1,142 +1,20 @@
-https://c8-bacarat-web-rct.ca-sa.group.gca/fr/Account/ResetPassword?userId=17b1d84a-be05-49f3-b021-588b4fded977&code=CfDJ8GUXAeozsulMsAOX2RxKo8IaTlrToEvGq70TysoJ4kBFtMPNK7zZfJer8x7s9PO4MbnUaHB4Q5VUrxSgXGpx7C%2BopjXqOvfqyYQHejau3jQHf%2BWNIlf5E1L8puofJ7dytRSgMfEzMdi7ifjKbWc6uZS%2B9F8cxIQ%2FbYXDAnwvmBRVyn6JCIbuCEbKKETCD%2F0xLg%3D%3D
+DECLARE @ConstraintName NVARCHAR(128);
+DECLARE @Sql NVARCHAR(MAX);
 
-// ============================================================================
-// OBJECTIF
-// ============================================================================
-// Lors du calcul de la date d'expiration du document, le délai 24 / 48 / 72
-// doit être interprété comme un délai en jours ouvrables :
-// - 24h = 1 jour ouvrable
-// - 48h = 2 jours ouvrables
-// - 72h = 3 jours ouvrables
-//
-// Les week-ends sont sautés.
-// Exemple :
-// - vendredi 10h + 24h => lundi 10h
-// - vendredi 10h + 48h => mardi 10h
-// - samedi 10h + 24h => lundi 10h
-//
-// À modifier uniquement dans la région "Ajout document".
-// ============================================================================
+SELECT @ConstraintName = dc.name
+FROM sys.default_constraints dc
+INNER JOIN sys.columns c
+    ON dc.parent_object_id = c.object_id
+    AND dc.parent_column_id = c.column_id
+WHERE dc.parent_object_id = OBJECT_ID(N'[Fraude].[PersonnePhysiqueFraude]')
+  AND c.name = N'UsurpationIdentite';
 
+IF @ConstraintName IS NOT NULL
+BEGIN
+    SET @Sql = N'ALTER TABLE [Fraude].[PersonnePhysiqueFraude] DROP CONSTRAINT [' + @ConstraintName + N']';
+    EXEC sp_executesql @Sql;
+END;
 
-
-// ============================================================================
-// 1) DocumentController.cs
-// Dans SaveDocument(), remplacer ce bloc :
-// ============================================================================
-
-var now = DateTimeOffset.Now;
-
-var document = new Document
-{
-    Name = model.Name,
-    Description = model.Description,
-    OriginalFileName = model.File.FileName,
-    FileExtension = extension,
-    ContentType = model.File.ContentType,
-    FileContent = fileContent,
-    FileSize = model.File.Length,
-    UploadDate = now,
-    ExpiryDate = now.AddHours(model.ExpiryDelayHours),
-    OwnerId = CurrentUser.Id,
-    StatutDocumentId = statutActif.Id,
-    SecurityCode = GenerateSecurityCode(),
-    EncryptionKey = model.EncryptionKey
-};
-
-
-
-// ============================================================================
-// Par celui-ci :
-// ============================================================================
-
-var now = DateTimeOffset.Now;
-
-var document = new Document
-{
-    Name = model.Name,
-    Description = model.Description,
-    OriginalFileName = model.File.FileName,
-    FileExtension = extension,
-    ContentType = model.File.ContentType,
-    FileContent = fileContent,
-    FileSize = model.File.Length,
-    UploadDate = now,
-
-    // Le délai est calculé en jours ouvrables.
-    // Les week-ends sont ignorés.
-    ExpiryDate = CalculateBusinessExpiryDate(now, model.ExpiryDelayHours),
-
-    OwnerId = CurrentUser.Id,
-    StatutDocumentId = statutActif.Id,
-    SecurityCode = GenerateSecurityCode(),
-    EncryptionKey = model.EncryptionKey
-};
-
-
-
-// ============================================================================
-// 2) DocumentController.cs
-// Ajouter ces méthodes privées dans la région "Ajout document",
-// idéalement après ReadFileContentAsync() et avant GenerateSecurityCode().
-// ============================================================================
-
-private static DateTimeOffset CalculateBusinessExpiryDate(
-    DateTimeOffset startDate,
-    int expiryDelayHours)
-{
-    // Les valeurs autorisées sont déjà contrôlées avant :
-    // 24, 48 ou 72.
-    //
-    // On transforme donc :
-    // 24h => 1 jour ouvrable
-    // 48h => 2 jours ouvrables
-    // 72h => 3 jours ouvrables
-
-    var businessDaysToAdd = expiryDelayHours / 24;
-
-    return AddBusinessDays(startDate, businessDaysToAdd);
-}
-
-private static DateTimeOffset AddBusinessDays(
-    DateTimeOffset startDate,
-    int businessDaysToAdd)
-{
-    var result = startDate;
-    var addedBusinessDays = 0;
-
-    while (addedBusinessDays < businessDaysToAdd)
-    {
-        result = result.AddDays(1);
-
-        if (IsWeekend(result))
-            continue;
-
-        addedBusinessDays++;
-    }
-
-    return result;
-}
-
-private static bool IsWeekend(DateTimeOffset date)
-{
-    return date.DayOfWeek == DayOfWeek.Saturday
-        || date.DayOfWeek == DayOfWeek.Sunday;
-}
-
-
-
-// ============================================================================
-// 3) Résultat attendu
-// ============================================================================
-// L'heure est conservée.
-// Seuls les jours samedi/dimanche sont sautés.
-//
-// Exemples :
-// vendredi 15h + 24h => lundi 15h
-// vendredi 15h + 48h => mardi 15h
-// vendredi 15h + 72h => mercredi 15h
-// lundi 09h + 72h => jeudi 09h
-// samedi 11h + 24h => lundi 11h
-// dimanche 11h + 24h => lundi 11h
-// ============================================================================
+ALTER TABLE [Fraude].[PersonnePhysiqueFraude]
+ALTER COLUMN [UsurpationIdentite] BIT NULL;
+GO
