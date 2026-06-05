@@ -1,183 +1,125 @@
-/// <summary>
-/// Correspond aux codes de la table StatutPersonneFraude.
-/// </summary>
-public enum StatutPersonneFraudeEnum
-{
-    InvestigationEnCours = 1,
-    Auteur = 2,
-    Victime = 3,
-    NonFraudeur = 4,
-    Mule = 5
+/* ============================================================
+   PROBLÈME
+
+   Si la catégorie 718/905/906 est déjà sélectionnée puis qu'une
+   nouvelle personne physique est ajoutée, le champ
+   VictimeUsurpationIdentite n'est jamais initialisé.
+
+   Pourquoi ?
+   Parce que updateVictimeUsurpationIdentite() n'est appelé que :
+
+   - lors du changement de catégorie
+   - lors du changement de statut
+
+   Une nouvelle personne est créée avec un statut vide et aucun
+   événement OnValueChanged n'est déclenché.
+
+   Il faut donc recalculer explicitement le champ juste après
+   l'ajout de la personne physique.
+   ============================================================ */
+
+
+/* ============================================================
+   Fonction robuste
+   ============================================================ */
+
+function updateVictimeUsurpationIdentite(index) {
+
+    const categorieCode = getSelectedCategorieFraudeCode();
+    const statutCode = getStatutPersonneFraudeCode(index);
+
+    const select =
+        $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index)
+        .dxSelectBox("instance");
+
+    if (!select) {
+        return;
+    }
+
+    const usurpationCheckBox =
+        $("#PersonnePhysiqueFraudeUnsurpationIdentite" + index)
+        .dxCheckBox("instance");
+
+    const usurpationIdentite =
+        usurpationCheckBox
+            ? usurpationCheckBox.option("value")
+            : false;
+
+    const isCategorie718Or905 =
+        categorieCode === CategorieFraudeEnum.Categorie718 ||
+        categorieCode === CategorieFraudeEnum.Categorie905;
+
+    const isCategorie906 =
+        categorieCode === CategorieFraudeEnum.Categorie906;
+
+    const isVictime =
+        statutCode === StatutPersonneFraudeEnum.Victime;
+
+    /* ========================================================
+       Par défaut :
+       statut vide ou différent de Victime
+       => Non + désactivé
+       ======================================================== */
+
+    select.option("readOnly", true);
+
+    if (isCategorie718Or905 && isVictime) {
+
+        select.option("readOnly", false);
+
+        select.option(
+            "value",
+            usurpationIdentite === true
+        );
+
+        return;
+    }
+
+    if (isCategorie906 && isVictime) {
+
+        select.option("value", true);
+
+        return;
+    }
+
+    select.option("value", false);
 }
-@* ============================================================
-   1) Enum C# à créer côté Models / Enums
-   Objectif : éviter les constantes string pour les catégories.
-   NB : on compare avec le champ Code des catégories.
-   ============================================================ *@
-
-public enum CategorieFraudeEnum
-{
-    Categorie718 = 718,
-    Categorie905 = 905,
-    Categorie906 = 906
-}
 
 
-@* ============================================================
-   2) SelectBox à insérer dans _PartialPersonnePhysique
-   À la place du commentaire :
-   // SelectBox victime d'usurpation d'identité ici
-   ============================================================ *@
+/* ============================================================
+   IMPORTANT
 
-@(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.VictimeUsurpationIdentite)
-    .DisplayExpr("Name")
-    .ValueExpr("Id")
-    .Height(30)
-    .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.VictimeUsurpationIdentite")
-    .ID("PersonnePhysiqueFraudeVictimeUsurpationIdentite" + Model.Item2)
-    .DataSource(new[]
-    {
-        new { Id = true, Name = translator.Common["Yes"].ToString() },
-        new { Id = false, Name = translator.Common["No"].ToString() }
-    })
-    .ShowClearButton(true)
-    .ReadOnly(_isReadOnly))
+   Dans la fonction qui ajoute une nouvelle personne physique,
+   appeler updateVictimeUsurpationIdentite juste après le rendu
+   du partial.
+
+   Exemple :
+   ============================================================ */
+
+// Après append/html/load du partial
+
+updateVictimeUsurpationIdentite(indexNouvellePersonne);
 
 
-@* ============================================================
-   3) Modifier le OnValueChanged du statut personne fraude
-   ============================================================ *@
+/* ============================================================
+   Exemple typique
+   ============================================================ */
 
-.OnValueChanged(@<text>
-    function () {
-        getComputedLists(true);
-        updateVictimeUsurpationIdentite(@Model.Item2);
-    }
-</text>)
+$.ajax({
+    ...
+}).done(function (html) {
 
+    $("#physicalPersonsContainer").append(html);
 
-<script>
-    /* ============================================================
-       4) Constantes JS
-       Les catégories sont comparées avec CategorieFraudeViewModel.Code.
-       Le statut "Victime" a le code 3.
-       ============================================================ */
-
-    const CategorieFraudeEnum = {
-        Categorie718: "718",
-        Categorie905: "905",
-        Categorie906: "906"
-    };
-
-    const StatutPersonneFraudeVictimeCode = "3";
+    // Initialisation de la nouvelle ligne
+    updateVictimeUsurpationIdentite(indexNouvellePersonne);
+});
 
 
-    /* ============================================================
-       5) Récupère le Code de la catégorie sélectionnée
-       Catégorie globale du dossier : #CategorieId
-       ============================================================ */
+/* ============================================================
+   Ainsi le comportement sera correct dans tous les cas :
 
-    function getSelectedCategorieFraudeCode() {
-        const categorie = $("#CategorieId").dxSelectBox("instance");
-        const selected = categorie.option("selectedItem");
-
-        return selected && selected.Code ? selected.Code.toString() : null;
-    }
-
-
-    /* ============================================================
-       6) Récupère le Code du statut personne fraude
-       Statut propre à chaque personne physique.
-       ============================================================ */
-
-    function getStatutPersonneFraudeCode(index) {
-        const statut = $("#PersonnePhysiqueFraudeStatutPersonneFraudeId" + index).dxSelectBox("instance");
-        const selected = statut.option("selectedItem");
-
-        return selected && selected.Code ? selected.Code.toString() : null;
-    }
-
-
-    /* ============================================================
-       7) Applique les règles d'initialisation / activation
-       
-       Règles :
-       - Catégorie 718 ou 905 + Statut Victime :
-           champ actif
-           valeur par défaut = valeur du champ existant UnsurpationIdentite
-
-       - Catégorie 906 + Statut Victime :
-           champ désactivé
-           valeur = Oui
-
-       - Catégorie 718, 905 ou 906 + Statut différent de Victime :
-           champ désactivé
-           valeur = Non
-
-       - Autres catégories :
-           champ désactivé
-           valeur = Non
-       ============================================================ */
-
-    function updateVictimeUsurpationIdentite(index) {
-        const categorieCode = getSelectedCategorieFraudeCode();
-        const statutCode = getStatutPersonneFraudeCode(index);
-
-        const select = $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index).dxSelectBox("instance");
-
-        const usurpationIdentite = $("#PersonnePhysiqueFraudeUnsurpationIdentite" + index)
-            .dxCheckBox("instance")
-            .option("value");
-
-        const isCategorie718Or905 =
-            categorieCode === CategorieFraudeEnum.Categorie718 ||
-            categorieCode === CategorieFraudeEnum.Categorie905;
-
-        const isCategorie906 =
-            categorieCode === CategorieFraudeEnum.Categorie906;
-
-        const isVictime =
-            statutCode === StatutPersonneFraudeVictimeCode;
-
-        if (isCategorie718Or905 && isVictime) {
-            select.option("readOnly", false);
-            select.option("value", usurpationIdentite === true);
-            return;
-        }
-
-        select.option("readOnly", true);
-
-        if (isCategorie906 && isVictime) {
-            select.option("value", true);
-            return;
-        }
-
-        select.option("value", false);
-    }
-
-
-    /* ============================================================
-       8) Met à jour toutes les personnes physiques
-       À appeler quand la catégorie globale change.
-       ============================================================ */
-
-    function updateVictimeUsurpationIdentiteForAll() {
-        $(".physicalPerson").each(function () {
-            const id = $(this).attr("id");
-            const index = id.replace("rowPhysicalPerson", "");
-
-            updateVictimeUsurpationIdentite(index);
-        });
-    }
-
-
-    /* ============================================================
-       9) À ajouter à la fin de categorie_fraude_OnValueChanged(...)
-       Comme produit_fraude_OnValueChanged appelle déjà
-       categorie_fraude_OnValueChanged(fromBody), le changement produit
-       recalculera aussi ce champ.
-       ============================================================ */
-
-    // updateVictimeUsurpationIdentiteForAll();
-
-</script>
+   - changement catégorie
+   - changement statut
+   - ajout d'une nouvelle personne physique
+   ============================================================ */
