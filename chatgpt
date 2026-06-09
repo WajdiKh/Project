@@ -1,10 +1,59 @@
-SELECT df.CategorieId, cf.Code as CategoryCode, dpp.StatutPersonneFraudeId, ppf.VictimeUsurpationIdentite, ppf.UnsurpationIdentite 
+/* ============================================================
+   REPRISE HISTORIQUE - VictimeUsurpationIdentite
+
+   Règles :
+   - Catégorie 718 ou 905 + Statut Victime :
+       VictimeUsurpationIdentite = UnsurpationIdentite
+
+   - Catégorie 906 + Statut Victime :
+       VictimeUsurpationIdentite = 1
+
+   - Tous les autres cas :
+       VictimeUsurpationIdentite = 0
+   ============================================================ */
+
+UPDATE ppf
+SET ppf.VictimeUsurpationIdentite =
+    CASE
+        WHEN cf.Code IN ('718', '905')
+             AND spf.Code = '3'
+            THEN ppf.UnsurpationIdentite
+
+        WHEN cf.Code = '906'
+             AND spf.Code = '3'
+            THEN 1
+
+        ELSE 0
+    END
 FROM [Fraude].[PersonnePhysiqueFraude] ppf
-INNER JOIN [Fraude].[DossierFraudePersonnePhysique] dpp ON ppf.Id = dpp.PersonnePhysiqueFraudeId 
-INNER JOIN [Fraude].DossierFraude df ON df.Id = dpp.DossierFraudeId
-INNER JOIN [Fraude].[CategorieFraude] cf ON cf.Id = df.CategorieId
-INNER JOIN [Fraude].StatutPersonneFraude spf ON spf.Id = dpp.StatutPersonneFraudeId
-WHERE UnsurpationIdentite IS NOT NULL
+INNER JOIN [Fraude].[DossierFraudePersonnePhysique] dpp
+    ON ppf.Id = dpp.PersonnePhysiqueFraudeId
+INNER JOIN [Fraude].[DossierFraude] df
+    ON df.Id = dpp.DossierFraudeId
+INNER JOIN [Fraude].[CategorieFraude] cf
+    ON cf.Id = df.CategorieId
+INNER JOIN [Fraude].[StatutPersonneFraude] spf
+    ON spf.Id = dpp.StatutPersonneFraudeId
+WHERE ppf.UnsurpationIdentite IS NOT NULL;
+/* ============================================================
+   updateVictimeUsurpationIdentite
+
+   Ne tient plus compte de UnsurpationIdentite.
+   UnsurpationIdentite est utilisé uniquement pour la reprise SQL.
+
+   Règles écran :
+   - Catégorie 718 ou 905 + Statut Victime :
+       champ actif
+       valeur conservée si déjà saisie
+
+   - Catégorie 906 + Statut Victime :
+       champ désactivé
+       valeur Oui
+
+   - Tous les autres cas :
+       champ désactivé
+       valeur Non
+   ============================================================ */
 
 function updateVictimeUsurpationIdentite(index) {
 
@@ -13,17 +62,11 @@ function updateVictimeUsurpationIdentite(index) {
 
     const select =
         $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index)
-        .dxSelectBox("instance");
+            .dxSelectBox("instance");
 
     if (!select) {
         return;
     }
-
-    const usurpationCheckBox =
-        $("#PersonnePhysiqueFraudeUnsurpationIdentite" + index)
-        .dxCheckBox("instance");
-
-    const usurpationIdentite = usurpationCheckBox.option("value");
 
     const isCategorie718Or905 =
         categorieCode === CategorieFraudeEnum.Categorie718 ||
@@ -35,40 +78,23 @@ function updateVictimeUsurpationIdentite(index) {
     const isVictime =
         statutCode === StatutPersonneFraudeEnum.Victime;
 
-    /* ========================================================
-       Par défaut :
-       statut vide ou différent de Victime
-       => Non + désactivé
-       ======================================================== */
-
     select.option("readOnly", true);
 
     if (isCategorie718Or905 && isVictime) {
-
         select.option("readOnly", false);
-
-        if(isNullOrUndefined(usurpationIdentite))
-        {
-            return;
-        }
-        
-        select.option("value", usurpationIdentite);
-
         return;
     }
 
     if (isCategorie906 && isVictime) {
-
         select.option("value", true);
-
         return;
     }
 
     select.option("value", false);
 }
 
-function updateVictimeUsurpationIdentiteForAll() 
-{
+function updateVictimeUsurpationIdentiteForAll() {
+
     $(".physicalPerson").each(function () {
         const id = $(this).attr("id");
         const index = id.replace("rowPhysicalPerson", "");
