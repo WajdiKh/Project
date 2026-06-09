@@ -1,69 +1,131 @@
-Dans ce cas, ne lance pas l’app en debug depuis VS Code.
-
-Fais plutôt :
-
-1. Lance l’application normalement :
-
-   dotnet run
-
-2. Dans le code JS ou Razor, mets :
-
-   debugger;
-
-   Exemple :
-
-   function updateVictimeUsurpationIdentite(index) {
-       debugger;
-       ...
-   }
-
-3. Ouvre l’application dans Chrome ou Edge.
-
-4. Appuie sur F12.
-
-5. Reproduis l’action.
-
-Le navigateur va s’arrêter automatiquement sur debugger;.
+Le plus simple est d'identifier le port utilisé par Bacarat.
 
 ============================================================
-
-Pour le C#, sans installer .NET 8, utilise le mode attach :
-
-1. Garde l’application lancée avec :
-
-   dotnet run
-
-2. Dans VS Code, désactive C# Dev Kit.
-
-3. Garde seulement l’extension C# classique si elle fonctionne.
-
-4. Utilise ce launch.json :
-
-{
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": ".NET Attach",
-            "type": "coreclr",
-            "request": "attach",
-            "processId": "${command:pickProcess}"
-        }
-    ]
-}
-
-5. Lance ".NET Attach".
-
-6. Choisis le processus dotnet.exe qui correspond à BacaratWeb.
-
+MÉTHODE 1 — AVEC dotnet run
 ============================================================
 
-Si l’attach VS Code échoue aussi, alors la solution réaliste est :
+Quand tu lances :
 
-- dotnet run pour lancer l’app
-- F12 navigateur pour debugger le JavaScript
-- logs côté C# si besoin :
+    dotnet run
 
-_logger.TraceDebug("message");
-Console.WriteLine("message");
+tu dois voir quelque chose comme :
 
-Vu ton problème actuel, le debug navigateur suffit largement.
+    Now listening on: https://localhost:5001
+    Now listening on: http://localhost:5000
+
+ou :
+
+    Now listening on: http://localhost:7248
+
+Garde cette fenêtre ouverte.
+
+Ensuite dans un autre terminal :
+
+    netstat -ano | findstr 7248
+
+(remplace 7248 par ton port)
+
+Exemple :
+
+    TCP    127.0.0.1:7248    0.0.0.0:0    LISTENING    26036
+
+Le PID est :
+
+    26036
+
+Puis :
+
+    tasklist /FI "PID eq 26036"
+
+Tu obtiens :
+
+    dotnet.exe    26036
+
+C'est le processus à attacher.
+
+============================================================
+MÉTHODE 2 — DEPUIS LE GESTIONNAIRE DES TÂCHES
+============================================================
+
+1. Ctrl + Shift + Esc
+2. Onglet Détails
+3. Cherche :
+
+    dotnet.exe
+
+4. Trie par heure de démarrage.
+
+Le plus récent est souvent Bacarat.
+
+============================================================
+MÉTHODE 3 — AVEC POWERSHELL
+============================================================
+
+Liste tous les processus dotnet :
+
+    Get-Process dotnet
+
+Puis regarde le PID.
+
+Exemple :
+
+    Handles NPM(K) PM(M) WS(M) CPU(s) Id
+    ------- ------ ----- ----- ------ -----
+       612    102  350   410   32.11 26036
+
+Ensuite :
+
+    Get-CimInstance Win32_Process |
+    Where-Object {$_.ProcessId -eq 26036} |
+    Select-Object CommandLine
+
+Tu verras souvent :
+
+    dotnet.exe C:\Users\...\BacaratWeb.dll
+
+et là tu es sûr à 100% que c'est Bacarat.
+
+============================================================
+MÉTHODE 4 — LA PLUS RAPIDE
+============================================================
+
+Ajoute temporairement dans Program.cs :
+
+    Console.WriteLine($"PID = {Environment.ProcessId}");
+
+ou pour .NET Framework :
+
+    Console.WriteLine($"PID = {Process.GetCurrentProcess().Id}");
+
+Au démarrage tu verras :
+
+    PID = 26036
+
+Ensuite dans VS Code :
+
+    Attach to Process
+    -> PID 26036
+
+============================================================
+DANS TON LOG
+============================================================
+
+Je vois déjà :
+
+    Server started with process ID 26036
+
+Donc il est très probable que Bacarat soit justement le processus :
+
+    26036
+
+Tu peux vérifier avec :
+
+    tasklist /FI "PID eq 26036"
+
+ou :
+
+    Get-CimInstance Win32_Process |
+    Where-Object {$_.ProcessId -eq 26036} |
+    Select CommandLine
+
+pour confirmer que c'est bien BacaratWeb.
