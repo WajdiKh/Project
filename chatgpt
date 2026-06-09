@@ -1,131 +1,137 @@
-Le plus simple est d'identifier le port utilisé par Bacarat.
+Si les points d’arrêt sont désactivés, c’est presque toujours parce que VS Code n’a pas chargé les symboles de debug de ton application.
+
+Dans ton cas, comme dotnet run marche mais le debug VS Code pose problème, vérifie surtout ces points.
 
 ============================================================
-MÉTHODE 1 — AVEC dotnet run
+1) Vérifie que tu attaches le bon processus
 ============================================================
 
-Quand tu lances :
+Dans le terminal où tu as lancé dotnet run, récupère le PID :
 
-    dotnet run
+netstat -ano | findstr TON_PORT
 
-tu dois voir quelque chose comme :
+Puis vérifie :
 
-    Now listening on: https://localhost:5001
-    Now listening on: http://localhost:5000
+tasklist /FI "PID eq TON_PID"
+
+Ensuite dans VS Code, attache exactement ce PID.
+
+Si tu attaches un autre dotnet.exe, les breakpoints restent grisés.
+
+============================================================
+2) Lance en Debug, pas en Release
+============================================================
+
+Lance l’app comme ça :
+
+dotnet run --configuration Debug
 
 ou :
 
-    Now listening on: http://localhost:7248
+dotnet run -c Debug
 
-Garde cette fenêtre ouverte.
+Puis attache-toi au processus.
 
-Ensuite dans un autre terminal :
+Si l’app tourne en Release, certains breakpoints peuvent ne pas être pris.
 
-    netstat -ano | findstr 7248
+============================================================
+3) Vérifie que les fichiers .pdb existent
+============================================================
 
-(remplace 7248 par ton port)
+Après le lancement, regarde dans :
 
-Exemple :
+BacaratWeb\bin\Debug\...
 
-    TCP    127.0.0.1:7248    0.0.0.0:0    LISTENING    26036
+Tu dois avoir :
 
-Le PID est :
+BacaratWeb.dll
+BacaratWeb.pdb
 
-    26036
+Si le .pdb n’existe pas :
+
+dotnet clean
+dotnet build -c Debug
+dotnet run -c Debug
+
+============================================================
+4) Vérifie que tu ouvres le bon dossier dans VS Code
+============================================================
+
+Il faut ouvrir le dossier racine qui contient la solution ou le projet :
+
+C:\Users\khemirw\source\repos\BacaratWeb
+
+Pas un sous-dossier différent, ni une copie.
+
+Si le chemin du fichier ouvert dans VS Code ne correspond pas au chemin compilé, les breakpoints restent désactivés.
+
+============================================================
+5) Mets le breakpoint dans du code réellement chargé
+============================================================
+
+Pour C#, mets un breakpoint dans une action appelée, par exemple :
+
+ServiceFraudeController.GetCategoryByProduit(...)
+
+Puis appelle l’URL correspondante.
+
+Pour JS, les breakpoints C# ne servent pas. Il faut debugger dans le navigateur avec F12.
+
+============================================================
+6) Pour JavaScript, utilise le navigateur
+============================================================
+
+Dans ton cas actuel, le plus fiable est :
+
+function updateVictimeUsurpationIdentite(index) {
+    debugger;
+    ...
+}
 
 Puis :
 
-    tasklist /FI "PID eq 26036"
+1. dotnet run
+2. Ouvre Chrome / Edge
+3. F12
+4. Reproduis l’action
 
-Tu obtiens :
-
-    dotnet.exe    26036
-
-C'est le processus à attacher.
-
-============================================================
-MÉTHODE 2 — DEPUIS LE GESTIONNAIRE DES TÂCHES
-============================================================
-
-1. Ctrl + Shift + Esc
-2. Onglet Détails
-3. Cherche :
-
-    dotnet.exe
-
-4. Trie par heure de démarrage.
-
-Le plus récent est souvent Bacarat.
+Le navigateur s’arrêtera sur debugger; même si VS Code ne sait pas debugger le C#.
 
 ============================================================
-MÉTHODE 3 — AVEC POWERSHELL
+7) Si VS Code affiche “unbound breakpoint”
 ============================================================
 
-Liste tous les processus dotnet :
+Ça veut dire :
 
-    Get-Process dotnet
+- mauvais process attaché
+- pas de PDB
+- app lancée en Release
+- fichier ouvert différent de celui compilé
+- code pas encore exécuté/chargé
 
-Puis regarde le PID.
+La correction la plus probable chez toi :
+
+dotnet clean
+dotnet build -c Debug
+dotnet run -c Debug
+
+puis attacher au PID exact du dotnet.exe BacaratWeb.
+
+============================================================
+8) Test rapide
+============================================================
+
+Ajoute temporairement dans une méthode appelée :
+
+System.Diagnostics.Debugger.Break();
 
 Exemple :
 
-    Handles NPM(K) PM(M) WS(M) CPU(s) Id
-    ------- ------ ----- ----- ------ -----
-       612    102  350   410   32.11 26036
+public IActionResult Index()
+{
+    System.Diagnostics.Debugger.Break();
+    return View();
+}
 
-Ensuite :
-
-    Get-CimInstance Win32_Process |
-    Where-Object {$_.ProcessId -eq 26036} |
-    Select-Object CommandLine
-
-Tu verras souvent :
-
-    dotnet.exe C:\Users\...\BacaratWeb.dll
-
-et là tu es sûr à 100% que c'est Bacarat.
-
-============================================================
-MÉTHODE 4 — LA PLUS RAPIDE
-============================================================
-
-Ajoute temporairement dans Program.cs :
-
-    Console.WriteLine($"PID = {Environment.ProcessId}");
-
-ou pour .NET Framework :
-
-    Console.WriteLine($"PID = {Process.GetCurrentProcess().Id}");
-
-Au démarrage tu verras :
-
-    PID = 26036
-
-Ensuite dans VS Code :
-
-    Attach to Process
-    -> PID 26036
-
-============================================================
-DANS TON LOG
-============================================================
-
-Je vois déjà :
-
-    Server started with process ID 26036
-
-Donc il est très probable que Bacarat soit justement le processus :
-
-    26036
-
-Tu peux vérifier avec :
-
-    tasklist /FI "PID eq 26036"
-
-ou :
-
-    Get-CimInstance Win32_Process |
-    Where-Object {$_.ProcessId -eq 26036} |
-    Select CommandLine
-
-pour confirmer que c'est bien BacaratWeb.
+Si un debugger est bien attaché, il s’arrêtera.
+Si rien ne se passe, tu n’es pas attaché au bon process ou les symboles ne sont pas chargés.
