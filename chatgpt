@@ -1,3 +1,11 @@
+SELECT df.CategorieId, cf.Code as CategoryCode, dpp.StatutPersonneFraudeId, ppf.VictimeUsurpationIdentite, ppf.UnsurpationIdentite 
+FROM [Fraude].[PersonnePhysiqueFraude] ppf
+INNER JOIN [Fraude].[DossierFraudePersonnePhysique] dpp ON ppf.Id = dpp.PersonnePhysiqueFraudeId 
+INNER JOIN [Fraude].DossierFraude df ON df.Id = dpp.DossierFraudeId
+INNER JOIN [Fraude].[CategorieFraude] cf ON cf.Id = df.CategorieId
+INNER JOIN [Fraude].StatutPersonneFraude spf ON spf.Id = dpp.StatutPersonneFraudeId
+WHERE UnsurpationIdentite IS NOT NULL
+
 function updateVictimeUsurpationIdentite(index) {
 
     const categorieCode = getSelectedCategorieFraudeCode();
