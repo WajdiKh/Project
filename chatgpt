@@ -1,60 +1,44 @@
 /* ============================================================
-   CAUSE DU PROBLÈME
+   CAUSE
 
-   L’erreur vient de cette ligne logique :
+   Le message contient une apostrophe HTML encodée :
 
-       element.dxValidator("instance")
+       d&#x27;usurpation d&#x27;identité
 
-   Quand aucun dxValidator n’a encore été initialisé sur l’élément,
-   DevExtreme peut lever l’erreur :
+   Cela arrive quand on injecte une traduction Razor directement
+   dans une variable JavaScript sans décodage HTML.
 
-       E0009 - Component 'dxValidator' has not been initialized
+   Il ne faut pas faire :
+       var message = "@translator.Common["VictimeUsurpationIdentiteRequired"]";
 
-   Donc il ne faut pas appeler directement :
-
-       element.dxValidator("instance")
-
-   avant d’être sûr que le validateur existe.
-
-   Solution :
-   - Tester d’abord si l’élément contient déjà un validator via data()
-   - Sinon créer le validator
-   - Ensuite seulement récupérer l’instance
+   Il faut utiliser Html.Raw + JavaScriptStringEncode.
    ============================================================ */
 
 
 /* ============================================================
-   1) Création / récupération sécurisée du dxValidator
+   1) Dans _Layout.cshtml ou dans la vue Razor
    ============================================================ */
 
-function getOrCreateVictimeUsurpationIdentiteValidator(index) {
-
-    const element =
-        $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index);
-
-    if (!element.length) {
-        return null;
-    }
-
-    let validator =
-        element.data("dxValidator");
-
-    if (!validator) {
-
-        element.dxValidator({
-            validationRules: []
-        });
-
-        validator =
-            element.data("dxValidator");
-    }
-
-    return validator;
-}
+var _commonTranslatableMessageVictimeUsurpationIdentiteRequired =
+    "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(
+        translator.Common["VictimeUsurpationIdentiteRequired"].ToString()
+    ))";
 
 
 /* ============================================================
-   2) Activation de la validation obligatoire
+   Variante si tu n’as pas une clé dédiée
+   ============================================================ */
+
+var _commonTranslatableMessageVictimeUsurpationIdentiteRequired =
+    "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(
+        translator.Common["VeuillezRenseignerLeChamp"].ToString()
+        + " "
+        + translator.Common["VictimeUsurpationIdentite"].ToString()
+    ))";
+
+
+/* ============================================================
+   2) Utilisation dans le dxValidator côté JS
    ============================================================ */
 
 function enableVictimeUsurpationIdentiteRequiredValidation(index) {
@@ -69,7 +53,7 @@ function enableVictimeUsurpationIdentiteRequiredValidation(index) {
     validator.option("validationRules", [
         {
             type: "required",
-            message: _commonTranslatableMessageRequiredField
+            message: _commonTranslatableMessageVictimeUsurpationIdentiteRequired
         }
     ]);
 
@@ -78,165 +62,25 @@ function enableVictimeUsurpationIdentiteRequiredValidation(index) {
 
 
 /* ============================================================
-   3) Désactivation de la validation obligatoire
+   Alternative rapide, moins propre
+
+   Si la variable existe déjà mais arrive encodée en HTML,
+   tu peux décoder côté JS.
    ============================================================ */
 
-function disableVictimeUsurpationIdentiteRequiredValidation(index) {
+function htmlDecode(value) {
 
-    const validator =
-        getOrCreateVictimeUsurpationIdentiteValidator(index);
+    const textarea =
+        document.createElement("textarea");
 
-    if (!validator) {
-        return;
-    }
+    textarea.innerHTML = value;
 
-    validator.option("validationRules", []);
-
-    validator.reset();
+    return textarea.value;
 }
 
-
-/* ============================================================
-   4) Règles métier + validation
-
-   - 718 ou 905 + Victime :
-       champ actif
-       validation obligatoire
-
-   - 906 + Victime :
-       champ désactivé
-       valeur Oui
-       pas de validation obligatoire
-
-   - autres cas :
-       champ désactivé
-       valeur Non
-       pas de validation obligatoire
-   ============================================================ */
-
-function updateVictimeUsurpationIdentite(index) {
-
-    const categorieCode =
-        getSelectedCategorieFraudeCode();
-
-    const statutCode =
-        getStatutPersonneFraudeCode(index);
-
-    const selectElement =
-        $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index);
-
-    if (!selectElement.length) {
-        return;
+validator.option("validationRules", [
+    {
+        type: "required",
+        message: htmlDecode(_commonTranslatableMessageVictimeUsurpationIdentiteRequired)
     }
-
-    const select =
-        selectElement.dxSelectBox("instance");
-
-    if (!select) {
-        return;
-    }
-
-    const isCategorie718Or905 =
-        categorieCode === CategorieFraudeEnum.Categorie718 ||
-        categorieCode === CategorieFraudeEnum.Categorie905;
-
-    const isCategorie906 =
-        categorieCode === CategorieFraudeEnum.Categorie906;
-
-    const isVictime =
-        statutCode === StatutPersonneFraudeVictimeCode;
-
-
-    /* ========================================================
-       État par défaut
-       ======================================================== */
-
-    select.option("readOnly", true);
-
-    disableVictimeUsurpationIdentiteRequiredValidation(index);
-
-
-    /* ========================================================
-       Cas 1 : 718 / 905 + Victime
-       ======================================================== */
-
-    if (isCategorie718Or905 && isVictime) {
-
-        select.option("readOnly", false);
-
-        enableVictimeUsurpationIdentiteRequiredValidation(index);
-
-        return;
-    }
-
-
-    /* ========================================================
-       Cas 2 : 906 + Victime
-       ======================================================== */
-
-    if (isCategorie906 && isVictime) {
-
-        select.option("value", true);
-
-        return;
-    }
-
-
-    /* ========================================================
-       Cas 3 + Cas 4
-       ======================================================== */
-
-    select.option("value", false);
-}
-
-
-/* ============================================================
-   5) Après ajout d’une nouvelle personne physique
-
-   Ton appel est au bon endroit :
-   juste après append(data).
-
-   Important :
-   countPhysicalPerson correspond bien à l’index de la nouvelle
-   personne si le partial utilise Model.Item2 = countPhysicalPerson.
-   ============================================================ */
-
-function addPhysicalPerson() {
-
-    showLoadPanel(_fraudeTranslatableMessageAddingNewPP);
-
-    var countPhysicalPerson =
-        $(".physicalPerson").length;
-
-    var directionId =
-        $("#DirectionId").dxSelectBox("instance").option("value");
-
-    $.ajax({
-        method: "GET",
-        cache: false,
-        dataType: "html",
-        contentType: "application/json; charset=utf-8",
-        url: "/" + culture + "/Fraude/ServiceFraude/AddPersonnePhysiqueFraude"
-            + "?index=" + countPhysicalPerson
-            + "&directionId=" + directionId
-    }).done(function (data) {
-
-        $("#subjectList").append(data);
-
-        updateVictimeUsurpationIdentite(countPhysicalPerson);
-
-        paysnaissanceaddperonnephysique_load();
-
-    }).fail(function (e) {
-
-        if (e.status === 401) {
-            var popup = $("#modalReconnect").dxPopup("instance");
-            popup.show();
-            return;
-        }
-
-    }).always(function () {
-
-        hideLoadPanel();
-    });
-}
+]);
