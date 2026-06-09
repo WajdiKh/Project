@@ -1,28 +1,3 @@
-/* ============================================================
-   PROBLÈME
-
-   Si la catégorie 718/905/906 est déjà sélectionnée puis qu'une
-   nouvelle personne physique est ajoutée, le champ
-   VictimeUsurpationIdentite n'est jamais initialisé.
-
-   Pourquoi ?
-   Parce que updateVictimeUsurpationIdentite() n'est appelé que :
-
-   - lors du changement de catégorie
-   - lors du changement de statut
-
-   Une nouvelle personne est créée avec un statut vide et aucun
-   événement OnValueChanged n'est déclenché.
-
-   Il faut donc recalculer explicitement le champ juste après
-   l'ajout de la personne physique.
-   ============================================================ */
-
-
-/* ============================================================
-   Fonction robuste
-   ============================================================ */
-
 function updateVictimeUsurpationIdentite(index) {
 
     const categorieCode = getSelectedCategorieFraudeCode();
@@ -40,10 +15,7 @@ function updateVictimeUsurpationIdentite(index) {
         $("#PersonnePhysiqueFraudeUnsurpationIdentite" + index)
         .dxCheckBox("instance");
 
-    const usurpationIdentite =
-        usurpationCheckBox
-            ? usurpationCheckBox.option("value")
-            : false;
+    const usurpationIdentite = usurpationCheckBox.option("value");
 
     const isCategorie718Or905 =
         categorieCode === CategorieFraudeEnum.Categorie718 ||
@@ -67,10 +39,12 @@ function updateVictimeUsurpationIdentite(index) {
 
         select.option("readOnly", false);
 
-        select.option(
-            "value",
-            usurpationIdentite === true
-        );
+        if(isNullOrUndefined(usurpationIdentite))
+        {
+            return;
+        }
+        
+        select.option("value", usurpationIdentite);
 
         return;
     }
@@ -85,41 +59,12 @@ function updateVictimeUsurpationIdentite(index) {
     select.option("value", false);
 }
 
+function updateVictimeUsurpationIdentiteForAll() 
+{
+    $(".physicalPerson").each(function () {
+        const id = $(this).attr("id");
+        const index = id.replace("rowPhysicalPerson", "");
 
-/* ============================================================
-   IMPORTANT
-
-   Dans la fonction qui ajoute une nouvelle personne physique,
-   appeler updateVictimeUsurpationIdentite juste après le rendu
-   du partial.
-
-   Exemple :
-   ============================================================ */
-
-// Après append/html/load du partial
-
-updateVictimeUsurpationIdentite(indexNouvellePersonne);
-
-
-/* ============================================================
-   Exemple typique
-   ============================================================ */
-
-$.ajax({
-    ...
-}).done(function (html) {
-
-    $("#physicalPersonsContainer").append(html);
-
-    // Initialisation de la nouvelle ligne
-    updateVictimeUsurpationIdentite(indexNouvellePersonne);
-});
-
-
-/* ============================================================
-   Ainsi le comportement sera correct dans tous les cas :
-
-   - changement catégorie
-   - changement statut
-   - ajout d'une nouvelle personne physique
-   ============================================================ */
+        updateVictimeUsurpationIdentite(index);
+    });
+}
