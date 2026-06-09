@@ -1,34 +1,55 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": ".NET Core Launch (web)",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build",
-            "program": "${workspaceFolder}/BacaratWeb/bin/Debug/net5.0/BacaratWeb.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}/BacaratWeb",
-            "stopAtEntry": false,
-            "serverReadyAction": {
-                "action": "openExternally",
-                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
-            },
-            "env": {
-                "ASPNETCORE_ENVIRONMENT": "Production"
-            },
-            "sourceFileMap": {
-                "/Views": "${workspaceFolder}/BacaratWeb/Views"
-            }
-        },
-        {
-            "name": ".NET Core Attach",
-            "type": "coreclr",
-            "request": "attach",
-            "processId": "${command:pickProcess}"
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // À utiliser uniquement si le lancement en debug VS Code fonctionne.
+      // Dans ton cas, il peut échouer à cause de C# Dev Kit / .NET 8 manquant.
+      "name": ".NET Core Launch (web)",
+      "type": "coreclr",
+      "request": "launch",
+
+      // Le preLaunchTask "build" peut être problématique si VS Code n'arrive pas à builder.
+      // Si les breakpoints restent désactivés, commente cette ligne temporairement.
+      "preLaunchTask": "build",
+
+      // Chemin correct si ton app cible bien net5.0.
+      "program": "${workspaceFolder}/BacaratWeb/bin/Debug/net5.0/BacaratWeb.dll",
+
+      "args": [],
+      "cwd": "${workspaceFolder}/BacaratWeb",
+      "stopAtEntry": false,
+
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+      },
+
+      // Attention : tu lances en Debug mais avec l'environnement Production.
+      // Pour debugger, je te conseille plutôt Development.
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+
+      "sourceFileMap": {
+        "/Views": "${workspaceFolder}/BacaratWeb/Views"
+      }
+    },
+
+    {
+      // C'est cette configuration que tu dois utiliser si tu lances avec :
+      // dotnet run -c Debug
+      //
+      // Puis tu attaches VS Code au processus dotnet.exe correspondant à BacaratWeb.
+      "name": ".NET Core Attach",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickProcess}",
+
+      // Aide VS Code à faire correspondre les fichiers source locaux.
+      "sourceFileMap": {
+        "/app": "${workspaceFolder}/BacaratWeb",
+        "/Views": "${workspaceFolder}/BacaratWeb/Views"
+      }
+    }
+  ]
 }
