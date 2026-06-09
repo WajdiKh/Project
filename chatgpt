@@ -1,137 +1,34 @@
-Si les points d’arrêt sont désactivés, c’est presque toujours parce que VS Code n’a pas chargé les symboles de debug de ton application.
-
-Dans ton cas, comme dotnet run marche mais le debug VS Code pose problème, vérifie surtout ces points.
-
-============================================================
-1) Vérifie que tu attaches le bon processus
-============================================================
-
-Dans le terminal où tu as lancé dotnet run, récupère le PID :
-
-netstat -ano | findstr TON_PORT
-
-Puis vérifie :
-
-tasklist /FI "PID eq TON_PID"
-
-Ensuite dans VS Code, attache exactement ce PID.
-
-Si tu attaches un autre dotnet.exe, les breakpoints restent grisés.
-
-============================================================
-2) Lance en Debug, pas en Release
-============================================================
-
-Lance l’app comme ça :
-
-dotnet run --configuration Debug
-
-ou :
-
-dotnet run -c Debug
-
-Puis attache-toi au processus.
-
-Si l’app tourne en Release, certains breakpoints peuvent ne pas être pris.
-
-============================================================
-3) Vérifie que les fichiers .pdb existent
-============================================================
-
-Après le lancement, regarde dans :
-
-BacaratWeb\bin\Debug\...
-
-Tu dois avoir :
-
-BacaratWeb.dll
-BacaratWeb.pdb
-
-Si le .pdb n’existe pas :
-
-dotnet clean
-dotnet build -c Debug
-dotnet run -c Debug
-
-============================================================
-4) Vérifie que tu ouvres le bon dossier dans VS Code
-============================================================
-
-Il faut ouvrir le dossier racine qui contient la solution ou le projet :
-
-C:\Users\khemirw\source\repos\BacaratWeb
-
-Pas un sous-dossier différent, ni une copie.
-
-Si le chemin du fichier ouvert dans VS Code ne correspond pas au chemin compilé, les breakpoints restent désactivés.
-
-============================================================
-5) Mets le breakpoint dans du code réellement chargé
-============================================================
-
-Pour C#, mets un breakpoint dans une action appelée, par exemple :
-
-ServiceFraudeController.GetCategoryByProduit(...)
-
-Puis appelle l’URL correspondante.
-
-Pour JS, les breakpoints C# ne servent pas. Il faut debugger dans le navigateur avec F12.
-
-============================================================
-6) Pour JavaScript, utilise le navigateur
-============================================================
-
-Dans ton cas actuel, le plus fiable est :
-
-function updateVictimeUsurpationIdentite(index) {
-    debugger;
-    ...
-}
-
-Puis :
-
-1. dotnet run
-2. Ouvre Chrome / Edge
-3. F12
-4. Reproduis l’action
-
-Le navigateur s’arrêtera sur debugger; même si VS Code ne sait pas debugger le C#.
-
-============================================================
-7) Si VS Code affiche “unbound breakpoint”
-============================================================
-
-Ça veut dire :
-
-- mauvais process attaché
-- pas de PDB
-- app lancée en Release
-- fichier ouvert différent de celui compilé
-- code pas encore exécuté/chargé
-
-La correction la plus probable chez toi :
-
-dotnet clean
-dotnet build -c Debug
-dotnet run -c Debug
-
-puis attacher au PID exact du dotnet.exe BacaratWeb.
-
-============================================================
-8) Test rapide
-============================================================
-
-Ajoute temporairement dans une méthode appelée :
-
-System.Diagnostics.Debugger.Break();
-
-Exemple :
-
-public IActionResult Index()
 {
-    System.Diagnostics.Debugger.Break();
-    return View();
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": ".NET Core Launch (web)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/BacaratWeb/bin/Debug/net5.0/BacaratWeb.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/BacaratWeb",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Production"
+            },
+            "sourceFileMap": {
+                "/Views": "${workspaceFolder}/BacaratWeb/Views"
+            }
+        },
+        {
+            "name": ".NET Core Attach",
+            "type": "coreclr",
+            "request": "attach",
+            "processId": "${command:pickProcess}"
+        }
+    ]
 }
-
-Si un debugger est bien attaché, il s’arrêtera.
-Si rien ne se passe, tu n’es pas attaché au bon process ou les symboles ne sont pas chargés.
