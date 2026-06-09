@@ -1,68 +1,125 @@
 /* ============================================================
-   REPRISE HISTORIQUE - VictimeUsurpationIdentite
+   Oui, c’est possible de gérer le dxValidator côté JavaScript.
 
-   Règles :
-   - Catégorie 718 ou 905 + Statut Victime :
-       VictimeUsurpationIdentite = UnsurpationIdentite
-
-   - Catégorie 906 + Statut Victime :
-       VictimeUsurpationIdentite = 1
-
-   - Tous les autres cas :
-       VictimeUsurpationIdentite = 0
+   Principe :
+   - La SelectBox est créée normalement côté Razor, sans Validator.
+   - Le dxValidator est ajouté dynamiquement côté JS.
+   - Les règles sont activées uniquement quand le champ est éditable
+     et obligatoire.
    ============================================================ */
 
-UPDATE ppf
-SET ppf.VictimeUsurpationIdentite =
-    CASE
-        WHEN cf.Code IN ('718', '905')
-             AND spf.Code = '3'
-            THEN ppf.UnsurpationIdentite
 
-        WHEN cf.Code = '906'
-             AND spf.Code = '3'
-            THEN 1
-
-        ELSE 0
-    END
-FROM [Fraude].[PersonnePhysiqueFraude] ppf
-INNER JOIN [Fraude].[DossierFraudePersonnePhysique] dpp
-    ON ppf.Id = dpp.PersonnePhysiqueFraudeId
-INNER JOIN [Fraude].[DossierFraude] df
-    ON df.Id = dpp.DossierFraudeId
-INNER JOIN [Fraude].[CategorieFraude] cf
-    ON cf.Id = df.CategorieId
-INNER JOIN [Fraude].[StatutPersonneFraude] spf
-    ON spf.Id = dpp.StatutPersonneFraudeId
-WHERE ppf.UnsurpationIdentite IS NOT NULL;
 /* ============================================================
-   updateVictimeUsurpationIdentite
+   1) SelectBox Razor sans Validator
+   ============================================================ */
 
-   Ne tient plus compte de UnsurpationIdentite.
-   UnsurpationIdentite est utilisé uniquement pour la reprise SQL.
+@(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.VictimeUsurpationIdentite)
+    .DisplayExpr("Name")
+    .ValueExpr("Id")
+    .Height(30)
+    .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.VictimeUsurpationIdentite")
+    .ID("PersonnePhysiqueFraudeVictimeUsurpationIdentite" + Model.Item2)
+    .DataSource(new[]
+    {
+        new { Id = true, Name = translator.Common["Yes"].ToString() },
+        new { Id = false, Name = translator.Common["No"].ToString() }
+    })
+    .ShowClearButton(true)
+    .ReadOnly(_isReadOnly))
 
-   Règles écran :
+
+/* ============================================================
+   2) Fonction utilitaire : crée ou récupère le dxValidator
+   ============================================================ */
+
+function getOrCreateVictimeUsurpationIdentiteValidator(index) {
+
+    const element =
+        $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index);
+
+    let validator =
+        element.dxValidator("instance");
+
+    if (!validator) {
+        element.dxValidator({
+            validationGroup: "fraudeValidationGroup",
+            validationRules: []
+        });
+
+        validator =
+            element.dxValidator("instance");
+    }
+
+    return validator;
+}
+
+
+/* ============================================================
+   3) Active la validation obligatoire
+   ============================================================ */
+
+function enableVictimeUsurpationIdentiteRequiredValidation(index) {
+
+    const validator =
+        getOrCreateVictimeUsurpationIdentiteValidator(index);
+
+    validator.option("validationRules", [
+        {
+            type: "required",
+            message: _commonTranslatableMessageRequiredField
+        }
+    ]);
+
+    validator.reset();
+}
+
+
+/* ============================================================
+   4) Désactive la validation obligatoire
+   ============================================================ */
+
+function disableVictimeUsurpationIdentiteRequiredValidation(index) {
+
+    const validator =
+        getOrCreateVictimeUsurpationIdentiteValidator(index);
+
+    validator.option("validationRules", []);
+
+    validator.reset();
+}
+
+
+/* ============================================================
+   5) Règles métier + validation JS
+
    - Catégorie 718 ou 905 + Statut Victime :
        champ actif
-       valeur conservée si déjà saisie
+       champ obligatoire
 
    - Catégorie 906 + Statut Victime :
        champ désactivé
        valeur Oui
+       pas de validation obligatoire
 
    - Tous les autres cas :
        champ désactivé
        valeur Non
+       pas de validation obligatoire
    ============================================================ */
 
 function updateVictimeUsurpationIdentite(index) {
 
-    const categorieCode = getSelectedCategorieFraudeCode();
-    const statutCode = getStatutPersonneFraudeCode(index);
+    const categorieCode =
+        getSelectedCategorieFraudeCode();
+
+    const statutCode =
+        getStatutPersonneFraudeCode(index);
+
+    const selectElement =
+        $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index);
 
     const select =
-        $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index)
-            .dxSelectBox("instance");
+        selectElement.dxSelectBox("instance");
 
     if (!select) {
         return;
@@ -76,29 +133,76 @@ function updateVictimeUsurpationIdentite(index) {
         categorieCode === CategorieFraudeEnum.Categorie906;
 
     const isVictime =
-        statutCode === StatutPersonneFraudeEnum.Victime;
+        statutCode === StatutPersonneFraudeVictimeCode;
+
+    /* ========================================================
+       État par défaut
+       ======================================================== */
 
     select.option("readOnly", true);
 
+    disableVictimeUsurpationIdentiteRequiredValidation(index);
+
+
+    /* ========================================================
+       Cas 1 : 718 / 905 + Victime
+       => saisie obligatoire
+       ======================================================== */
+
     if (isCategorie718Or905 && isVictime) {
+
         select.option("readOnly", false);
+
+        enableVictimeUsurpationIdentiteRequiredValidation(index);
+
         return;
     }
 
+
+    /* ========================================================
+       Cas 2 : 906 + Victime
+       => Oui forcé
+       ======================================================== */
+
     if (isCategorie906 && isVictime) {
+
         select.option("value", true);
+
         return;
     }
+
+
+    /* ========================================================
+       Cas 3 + Cas 4
+       => Non forcé
+       ======================================================== */
 
     select.option("value", false);
 }
 
+
+/* ============================================================
+   6) Recalcul pour toutes les personnes physiques
+   ============================================================ */
+
 function updateVictimeUsurpationIdentiteForAll() {
 
     $(".physicalPerson").each(function () {
-        const id = $(this).attr("id");
-        const index = id.replace("rowPhysicalPerson", "");
+
+        const id =
+            $(this).attr("id");
+
+        const index =
+            id.replace("rowPhysicalPerson", "");
 
         updateVictimeUsurpationIdentite(index);
     });
 }
+
+
+/* ============================================================
+   7) Message obligatoire à prévoir dans _Layout.cshtml
+   ============================================================ */
+
+var _commonTranslatableMessageRequiredField =
+    "@translator.Common["RequiredField"]";
