@@ -1,78 +1,43 @@
-Oui : tu peux debugger sans installer .NET 8.
+Dans ce cas, ne lance pas l’app en debug depuis VS Code.
 
-Le plus simple dans ton cas est de ne plus utiliser C# Dev Kit, car c’est lui qui lance le BuildHost qui réclame .NET 8.
+Fais plutôt :
 
-============================================================
-SOLUTION 1 — DEBUG JS CÔTÉ NAVIGATEUR
-============================================================
+1. Lance l’application normalement :
 
-Pour ton problème actuel dans dossierfraude.js, tu n’as pas besoin de VS Code.
+   dotnet run
 
-Dans Chrome / Edge :
+2. Dans le code JS ou Razor, mets :
 
-1. F12
-2. Onglet Sources
-3. Ctrl + P
-4. Cherche :
-   dossierfraude.js
-5. Mets un breakpoint dans :
-   updateVictimeUsurpationIdentite
-   getOrCreateVictimeUsurpationIdentiteValidator
-   addPhysicalPerson
-6. Recharge la page
-7. Reproduis l’ajout de personne physique
+   debugger;
 
-Tu peux aussi mettre directement dans le code :
+   Exemple :
 
-debugger;
+   function updateVictimeUsurpationIdentite(index) {
+       debugger;
+       ...
+   }
 
-Exemple :
+3. Ouvre l’application dans Chrome ou Edge.
 
-function updateVictimeUsurpationIdentite(index) {
-    debugger;
+4. Appuie sur F12.
 
-    ...
-}
+5. Reproduis l’action.
 
-Le navigateur s’arrêtera dessus automatiquement.
+Le navigateur va s’arrêter automatiquement sur debugger;.
 
 ============================================================
-SOLUTION 2 — DEBUG C# AVEC VISUAL STUDIO SI DÉJÀ INSTALLÉ
-============================================================
 
-Si Visual Studio est déjà installé sur ton poste, utilise-le pour le C#.
+Pour le C#, sans installer .NET 8, utilise le mode attach :
 
-VS Code peut rester ouvert pour éditer les fichiers JS / Razor.
+1. Garde l’application lancée avec :
 
-Dans Visual Studio :
+   dotnet run
 
-Debug
-→ Attach to Process
-→ choisir iisexpress.exe ou dotnet.exe
+2. Dans VS Code, désactive C# Dev Kit.
 
-ou lance directement l’application avec F5 depuis Visual Studio.
+3. Garde seulement l’extension C# classique si elle fonctionne.
 
-============================================================
-SOLUTION 3 — UTILISER VS CODE SANS C# DEV KIT
-============================================================
-
-Dans VS Code :
-
-1. Extensions
-2. Désactive :
-   C# Dev Kit
-3. Désactive éventuellement :
-   IntelliCode for C# Dev Kit
-4. Garde seulement :
-   C#
-
-Puis redémarre VS Code.
-
-Ensuite crée ce fichier :
-
-.vscode/launch.json
-
-avec :
+4. Utilise ce launch.json :
 
 {
     "version": "0.2.0",
@@ -86,43 +51,19 @@ avec :
     ]
 }
 
-Puis :
+5. Lance ".NET Attach".
 
-1. Lance BacaratWeb comme d’habitude
-2. Dans VS Code : Ctrl + Shift + D
-3. Choisis ".NET Attach"
-4. F5
-5. Sélectionne :
-   iisexpress.exe
-   ou dotnet.exe
-
-Important : si l’extension C# classique te demande aussi .NET 8, alors cette solution ne marchera pas non plus. Dans ce cas, reste sur le debug navigateur pour JS et Visual Studio pour C#.
+6. Choisis le processus dotnet.exe qui correspond à BacaratWeb.
 
 ============================================================
-SOLUTION 4 — DEBUG TEMPORAIRE PAR LOGS
-============================================================
 
-Pour ton cas actuel, ajoute temporairement :
+Si l’attach VS Code échoue aussi, alors la solution réaliste est :
 
-console.log("index", index);
-console.log("categorieCode", categorieCode);
-console.log("statutCode", statutCode);
-console.log("select exists", !!select);
+- dotnet run pour lancer l’app
+- F12 navigateur pour debugger le JavaScript
+- logs côté C# si besoin :
 
-et :
+_logger.TraceDebug("message");
+Console.WriteLine("message");
 
-console.log("validator data", element.data("dxValidator"));
-
-C’est souvent suffisant pour corriger la partie JS sans debugger C#.
-
-============================================================
-CE QUE JE TE CONSEILLE
-============================================================
-
-Pour ton besoin immédiat :
-
-- JS / Razor : debug dans Chrome ou Edge avec F12
-- C# : Visual Studio si déjà installé
-- VS Code : seulement édition de code, pas debug C# tant que .NET 8 n’est pas dispo
-
-Ton erreur actuelle vient de l’outillage VS Code, pas de BacaratWeb.
+Vu ton problème actuel, le debug navigateur suffit largement.
