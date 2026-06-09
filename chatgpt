@@ -1,35 +1,30 @@
 /* ============================================================
-   Oui, c’est possible de gérer le dxValidator côté JavaScript.
+   CAUSE DU PROBLÈME
 
-   Principe :
-   - La SelectBox est créée normalement côté Razor, sans Validator.
-   - Le dxValidator est ajouté dynamiquement côté JS.
-   - Les règles sont activées uniquement quand le champ est éditable
-     et obligatoire.
+   L’erreur vient de cette ligne logique :
+
+       element.dxValidator("instance")
+
+   Quand aucun dxValidator n’a encore été initialisé sur l’élément,
+   DevExtreme peut lever l’erreur :
+
+       E0009 - Component 'dxValidator' has not been initialized
+
+   Donc il ne faut pas appeler directement :
+
+       element.dxValidator("instance")
+
+   avant d’être sûr que le validateur existe.
+
+   Solution :
+   - Tester d’abord si l’élément contient déjà un validator via data()
+   - Sinon créer le validator
+   - Ensuite seulement récupérer l’instance
    ============================================================ */
 
 
 /* ============================================================
-   1) SelectBox Razor sans Validator
-   ============================================================ */
-
-@(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueFraude.VictimeUsurpationIdentite)
-    .DisplayExpr("Name")
-    .ValueExpr("Id")
-    .Height(30)
-    .Name($"DossierFraudePersonnePhysiques[{Model.Item2}].PersonnePhysiqueFraude.VictimeUsurpationIdentite")
-    .ID("PersonnePhysiqueFraudeVictimeUsurpationIdentite" + Model.Item2)
-    .DataSource(new[]
-    {
-        new { Id = true, Name = translator.Common["Yes"].ToString() },
-        new { Id = false, Name = translator.Common["No"].ToString() }
-    })
-    .ShowClearButton(true)
-    .ReadOnly(_isReadOnly))
-
-
-/* ============================================================
-   2) Fonction utilitaire : crée ou récupère le dxValidator
+   1) Création / récupération sécurisée du dxValidator
    ============================================================ */
 
 function getOrCreateVictimeUsurpationIdentiteValidator(index) {
@@ -37,17 +32,21 @@ function getOrCreateVictimeUsurpationIdentiteValidator(index) {
     const element =
         $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index);
 
+    if (!element.length) {
+        return null;
+    }
+
     let validator =
-        element.dxValidator("instance");
+        element.data("dxValidator");
 
     if (!validator) {
+
         element.dxValidator({
-            validationGroup: "fraudeValidationGroup",
             validationRules: []
         });
 
         validator =
-            element.dxValidator("instance");
+            element.data("dxValidator");
     }
 
     return validator;
@@ -55,13 +54,17 @@ function getOrCreateVictimeUsurpationIdentiteValidator(index) {
 
 
 /* ============================================================
-   3) Active la validation obligatoire
+   2) Activation de la validation obligatoire
    ============================================================ */
 
 function enableVictimeUsurpationIdentiteRequiredValidation(index) {
 
     const validator =
         getOrCreateVictimeUsurpationIdentiteValidator(index);
+
+    if (!validator) {
+        return;
+    }
 
     validator.option("validationRules", [
         {
@@ -75,13 +78,17 @@ function enableVictimeUsurpationIdentiteRequiredValidation(index) {
 
 
 /* ============================================================
-   4) Désactive la validation obligatoire
+   3) Désactivation de la validation obligatoire
    ============================================================ */
 
 function disableVictimeUsurpationIdentiteRequiredValidation(index) {
 
     const validator =
         getOrCreateVictimeUsurpationIdentiteValidator(index);
+
+    if (!validator) {
+        return;
+    }
 
     validator.option("validationRules", []);
 
@@ -90,18 +97,18 @@ function disableVictimeUsurpationIdentiteRequiredValidation(index) {
 
 
 /* ============================================================
-   5) Règles métier + validation JS
+   4) Règles métier + validation
 
-   - Catégorie 718 ou 905 + Statut Victime :
+   - 718 ou 905 + Victime :
        champ actif
-       champ obligatoire
+       validation obligatoire
 
-   - Catégorie 906 + Statut Victime :
+   - 906 + Victime :
        champ désactivé
        valeur Oui
        pas de validation obligatoire
 
-   - Tous les autres cas :
+   - autres cas :
        champ désactivé
        valeur Non
        pas de validation obligatoire
@@ -117,6 +124,10 @@ function updateVictimeUsurpationIdentite(index) {
 
     const selectElement =
         $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index);
+
+    if (!selectElement.length) {
+        return;
+    }
 
     const select =
         selectElement.dxSelectBox("instance");
@@ -135,6 +146,7 @@ function updateVictimeUsurpationIdentite(index) {
     const isVictime =
         statutCode === StatutPersonneFraudeVictimeCode;
 
+
     /* ========================================================
        État par défaut
        ======================================================== */
@@ -146,7 +158,6 @@ function updateVictimeUsurpationIdentite(index) {
 
     /* ========================================================
        Cas 1 : 718 / 905 + Victime
-       => saisie obligatoire
        ======================================================== */
 
     if (isCategorie718Or905 && isVictime) {
@@ -161,7 +172,6 @@ function updateVictimeUsurpationIdentite(index) {
 
     /* ========================================================
        Cas 2 : 906 + Victime
-       => Oui forcé
        ======================================================== */
 
     if (isCategorie906 && isVictime) {
@@ -174,7 +184,6 @@ function updateVictimeUsurpationIdentite(index) {
 
     /* ========================================================
        Cas 3 + Cas 4
-       => Non forcé
        ======================================================== */
 
     select.option("value", false);
@@ -182,27 +191,52 @@ function updateVictimeUsurpationIdentite(index) {
 
 
 /* ============================================================
-   6) Recalcul pour toutes les personnes physiques
+   5) Après ajout d’une nouvelle personne physique
+
+   Ton appel est au bon endroit :
+   juste après append(data).
+
+   Important :
+   countPhysicalPerson correspond bien à l’index de la nouvelle
+   personne si le partial utilise Model.Item2 = countPhysicalPerson.
    ============================================================ */
 
-function updateVictimeUsurpationIdentiteForAll() {
+function addPhysicalPerson() {
 
-    $(".physicalPerson").each(function () {
+    showLoadPanel(_fraudeTranslatableMessageAddingNewPP);
 
-        const id =
-            $(this).attr("id");
+    var countPhysicalPerson =
+        $(".physicalPerson").length;
 
-        const index =
-            id.replace("rowPhysicalPerson", "");
+    var directionId =
+        $("#DirectionId").dxSelectBox("instance").option("value");
 
-        updateVictimeUsurpationIdentite(index);
+    $.ajax({
+        method: "GET",
+        cache: false,
+        dataType: "html",
+        contentType: "application/json; charset=utf-8",
+        url: "/" + culture + "/Fraude/ServiceFraude/AddPersonnePhysiqueFraude"
+            + "?index=" + countPhysicalPerson
+            + "&directionId=" + directionId
+    }).done(function (data) {
+
+        $("#subjectList").append(data);
+
+        updateVictimeUsurpationIdentite(countPhysicalPerson);
+
+        paysnaissanceaddperonnephysique_load();
+
+    }).fail(function (e) {
+
+        if (e.status === 401) {
+            var popup = $("#modalReconnect").dxPopup("instance");
+            popup.show();
+            return;
+        }
+
+    }).always(function () {
+
+        hideLoadPanel();
     });
 }
-
-
-/* ============================================================
-   7) Message obligatoire à prévoir dans _Layout.cshtml
-   ============================================================ */
-
-var _commonTranslatableMessageRequiredField =
-    "@translator.Common["RequiredField"]";
