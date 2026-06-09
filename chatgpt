@@ -1,86 +1,177 @@
-/* ============================================================
-   CAUSE
+2026-06-09 16:44:18.265 [info] Locating .NET runtime version 10.0.5
+2026-06-09 16:44:28.667 [info] Dotnet path: c:\Users\khemirw\AppData\Roaming\Code\User\globalStorage\ms-dotnettools.vscode-dotnet-runtime\.dotnet\10.0.5~x64~aspnetcore\dotnet.exe
+2026-06-09 16:44:28.667 [info] Activating C# + C# Dev Kit...
+2026-06-09 16:44:29.533 [info] info: Program[0]
+2026-06-09 16:44:29.533 [info]       Server started with process ID 26036
+2026-06-09 16:44:31.736 [info] [Program] Language server initialized
+2026-06-09 16:44:31.738 [info] [Program] Monitoring client process 20356 for exit
+2026-06-09 16:44:32.350 [info] [initialized] [Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.FileBasedProgramsEntryPointDiscovery] Finished discovery in 'c:\Users\khemirw\source\repos\BacaratWeb' in 61 milliseconds
+2026-06-09 16:45:32.881 [error] [textDocument/diagnostic] [BuildHost PID 26892] The BuildHost process exited with -2147450730. Process output:
+You must install or update .NET to run this application.
 
-   Le message contient une apostrophe HTML encodée :
+App: c:\Users\khemirw\.vscode\extensions\ms-dotnettools.csharp-2.140.8-win32-x64\.roslyn\BuildHost-netcore\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll
+Architecture: x64
+Framework: 'Microsoft.NETCore.App', version '8.0.0' (x64)
+.NET location: C:\Program Files\dotnet\
 
-       d&#x27;usurpation d&#x27;identité
+The following frameworks were found:
+  5.0.17 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  6.0.21 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  7.0.10 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
 
-   Cela arrive quand on injecte une traduction Razor directement
-   dans une variable JavaScript sans décodage HTML.
+Learn about framework resolution:
+https://aka.ms/dotnet/app-launch-failed
 
-   Il ne faut pas faire :
-       var message = "@translator.Common["VictimeUsurpationIdentiteRequired"]";
+To install missing framework, download:
+https://aka.ms/dotnet-core-applaunch?framework=Microsoft.NETCore.App&framework_version=8.0.0&arch=x64&rid=win10-x64
 
-   Il faut utiliser Html.Raw + JavaScriptStringEncode.
-   ============================================================ */
+2026-06-09 16:45:32.942 [error] [textDocument/diagnostic] [LanguageServerProjectLoader] Error while loading c:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Program.cs: Exception levée : « System.Exception: The build host was started but we were unable to connect to it's pipe. The process exited with -2147450730. Process output:
+You must install or update .NET to run this application.
 
+App: c:\Users\khemirw\.vscode\extensions\ms-dotnettools.csharp-2.140.8-win32-x64\.roslyn\BuildHost-netcore\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll
+Architecture: x64
+Framework: 'Microsoft.NETCore.App', version '8.0.0' (x64)
+.NET location: C:\Program Files\dotnet\
 
-/* ============================================================
-   1) Dans _Layout.cshtml ou dans la vue Razor
-   ============================================================ */
+The following frameworks were found:
+  5.0.17 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  6.0.21 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  7.0.10 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
 
-var _commonTranslatableMessageVictimeUsurpationIdentiteRequired =
-    "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(
-        translator.Common["VictimeUsurpationIdentiteRequired"].ToString()
-    ))";
+Learn about framework resolution:
+https://aka.ms/dotnet/app-launch-failed
 
+To install missing framework, download:
+https://aka.ms/dotnet-core-applaunch?framework=Microsoft.NETCore.App&framework_version=8.0.0&arch=x64&rid=win10-x64
 
-/* ============================================================
-   Variante si tu n’as pas une clé dédiée
-   ============================================================ */
+ ---> System.TimeoutException: The operation has timed out.
+   at System.IO.Pipes.NamedPipeClientStream.ConnectInternal(Int32 timeout, CancellationToken cancellationToken, Int32 startTime)
+   at System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop(Thread threadPoolThread, ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop(Thread threadPoolThread, ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)
+--- End of stack trace from previous location ---
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.BuildHostProcess.ConnectAsync(String pipeName) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 458
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.<GetBuildHostAsync>g__NoLock_GetBuildHostAsync|16_0(BuildHostProcessKind buildHostKind, String projectOrSolutionFilePath, String dotnetPath, CancellationToken cancellationToken) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 125
+   --- End of inner exception stack trace ---
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.<GetBuildHostAsync>g__NoLock_GetBuildHostAsync|16_0(BuildHostProcessKind buildHostKind, String projectOrSolutionFilePath, String dotnetPath, CancellationToken cancellationToken) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 134
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.GetBuildHostAsync(BuildHostProcessKind buildHostKind, String projectOrSolutionFilePath, String dotnetPath, CancellationToken cancellationToken) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 104
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.CanonicalMiscellaneousFilesProjectProvider.LoadCanonicalProjectAsync(CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/CanonicalMiscellaneousFilesProjectProvider.cs:line 76
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.CanonicalMiscellaneousFilesProjectProvider.LoadCanonicalProjectAsync(CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/CanonicalMiscellaneousFilesProjectProvider.cs:line 78
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.CanonicalMiscellaneousFilesProjectProvider.GetProjectInfoAsync(String miscDocumentPath, CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/CanonicalMiscellaneousFilesProjectProvider.cs:line 30
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.FileBasedProgramsProjectSystem.TryLoadProjectInMSBuildHostAsync(BuildHostProcessManager buildHostProcessManager, String documentPath, CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/FileBasedProgramsProjectSystem.cs:line 318
+   at Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.LanguageServerProjectLoader.ReloadProjectAsync(ProjectToLoad projectToLoad, ToastErrorReporter toastErrorReporter, BuildHostProcessManager buildHostProcessManager, CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/HostWorkspace/LanguageServerProjectLoader.cs:line 234 »
+2026-06-09 16:45:32.948 [info] [textDocument/diagnostic] [LanguageServerProjectLoader] Chargement ou rechargement terminé de tous les projets dans 00:01:00.1935386
+2026-06-09 16:45:33.041 [info] [textDocument/diagnostic] [LanguageServerProjectLoader] Chargement ou rechargement terminé de tous les projets dans 00:00:00.0018176
+2026-06-09 16:46:34.414 [error] [textDocument/diagnostic] [BuildHost PID 31524] The BuildHost process exited with -2147450730. Process output:
+You must install or update .NET to run this application.
 
-var _commonTranslatableMessageVictimeUsurpationIdentiteRequired =
-    "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(
-        translator.Common["VeuillezRenseignerLeChamp"].ToString()
-        + " "
-        + translator.Common["VictimeUsurpationIdentite"].ToString()
-    ))";
+App: c:\Users\khemirw\.vscode\extensions\ms-dotnettools.csharp-2.140.8-win32-x64\.roslyn\BuildHost-netcore\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll
+Architecture: x64
+Framework: 'Microsoft.NETCore.App', version '8.0.0' (x64)
+.NET location: C:\Program Files\dotnet\
 
+The following frameworks were found:
+  5.0.17 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  6.0.21 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  7.0.10 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
 
-/* ============================================================
-   2) Utilisation dans le dxValidator côté JS
-   ============================================================ */
+Learn about framework resolution:
+https://aka.ms/dotnet/app-launch-failed
 
-function enableVictimeUsurpationIdentiteRequiredValidation(index) {
+To install missing framework, download:
+https://aka.ms/dotnet-core-applaunch?framework=Microsoft.NETCore.App&framework_version=8.0.0&arch=x64&rid=win10-x64
 
-    const validator =
-        getOrCreateVictimeUsurpationIdentiteValidator(index);
+2026-06-09 16:46:34.414 [error] [textDocument/diagnostic] [LanguageServerProjectLoader] Error while loading c:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Fraude\Controllers\ServiceFraudeController.cs: Exception levée : « System.Exception: The build host was started but we were unable to connect to it's pipe. The process exited with -2147450730. Process output:
+You must install or update .NET to run this application.
 
-    if (!validator) {
-        return;
-    }
+App: c:\Users\khemirw\.vscode\extensions\ms-dotnettools.csharp-2.140.8-win32-x64\.roslyn\BuildHost-netcore\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll
+Architecture: x64
+Framework: 'Microsoft.NETCore.App', version '8.0.0' (x64)
+.NET location: C:\Program Files\dotnet\
 
-    validator.option("validationRules", [
-        {
-            type: "required",
-            message: _commonTranslatableMessageVictimeUsurpationIdentiteRequired
-        }
-    ]);
+The following frameworks were found:
+  5.0.17 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  6.0.21 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  7.0.10 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
 
-    validator.reset();
-}
+Learn about framework resolution:
+https://aka.ms/dotnet/app-launch-failed
 
+To install missing framework, download:
+https://aka.ms/dotnet-core-applaunch?framework=Microsoft.NETCore.App&framework_version=8.0.0&arch=x64&rid=win10-x64
 
-/* ============================================================
-   Alternative rapide, moins propre
+ ---> System.TimeoutException: The operation has timed out.
+   at System.IO.Pipes.NamedPipeClientStream.ConnectInternal(Int32 timeout, CancellationToken cancellationToken, Int32 startTime)
+   at System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop(Thread threadPoolThread, ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop(Thread threadPoolThread, ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)
+--- End of stack trace from previous location ---
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.BuildHostProcess.ConnectAsync(String pipeName) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 458
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.<GetBuildHostAsync>g__NoLock_GetBuildHostAsync|16_0(BuildHostProcessKind buildHostKind, String projectOrSolutionFilePath, String dotnetPath, CancellationToken cancellationToken) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 125
+   --- End of inner exception stack trace ---
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.<GetBuildHostAsync>g__NoLock_GetBuildHostAsync|16_0(BuildHostProcessKind buildHostKind, String projectOrSolutionFilePath, String dotnetPath, CancellationToken cancellationToken) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 134
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.GetBuildHostAsync(BuildHostProcessKind buildHostKind, String projectOrSolutionFilePath, String dotnetPath, CancellationToken cancellationToken) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 104
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.CanonicalMiscellaneousFilesProjectProvider.LoadCanonicalProjectAsync(CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/CanonicalMiscellaneousFilesProjectProvider.cs:line 76
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.CanonicalMiscellaneousFilesProjectProvider.LoadCanonicalProjectAsync(CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/CanonicalMiscellaneousFilesProjectProvider.cs:line 78
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.CanonicalMiscellaneousFilesProjectProvider.GetProjectInfoAsync(String miscDocumentPath, CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/CanonicalMiscellaneousFilesProjectProvider.cs:line 30
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.FileBasedProgramsProjectSystem.TryLoadProjectInMSBuildHostAsync(BuildHostProcessManager buildHostProcessManager, String documentPath, CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/FileBasedProgramsProjectSystem.cs:line 318
+   at Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.LanguageServerProjectLoader.ReloadProjectAsync(ProjectToLoad projectToLoad, ToastErrorReporter toastErrorReporter, BuildHostProcessManager buildHostProcessManager, CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/HostWorkspace/LanguageServerProjectLoader.cs:line 234 »
+2026-06-09 16:46:34.415 [info] [textDocument/diagnostic] [LanguageServerProjectLoader] Chargement ou rechargement terminé de tous les projets dans 00:01:00.2942296
+2026-06-09 16:47:34.545 [error] [textDocument/diagnostic] [BuildHost PID 32728] The BuildHost process exited with -2147450730. Process output:
+You must install or update .NET to run this application.
 
-   Si la variable existe déjà mais arrive encodée en HTML,
-   tu peux décoder côté JS.
-   ============================================================ */
+App: c:\Users\khemirw\.vscode\extensions\ms-dotnettools.csharp-2.140.8-win32-x64\.roslyn\BuildHost-netcore\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll
+Architecture: x64
+Framework: 'Microsoft.NETCore.App', version '8.0.0' (x64)
+.NET location: C:\Program Files\dotnet\
 
-function htmlDecode(value) {
+The following frameworks were found:
+  5.0.17 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  6.0.21 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  7.0.10 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
 
-    const textarea =
-        document.createElement("textarea");
+Learn about framework resolution:
+https://aka.ms/dotnet/app-launch-failed
 
-    textarea.innerHTML = value;
+To install missing framework, download:
+https://aka.ms/dotnet-core-applaunch?framework=Microsoft.NETCore.App&framework_version=8.0.0&arch=x64&rid=win10-x64
 
-    return textarea.value;
-}
+2026-06-09 16:47:34.545 [error] [textDocument/diagnostic] [LanguageServerProjectLoader] Error while loading c:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Fraude\Controllers\DossierController.cs: Exception levée : « System.Exception: The build host was started but we were unable to connect to it's pipe. The process exited with -2147450730. Process output:
+You must install or update .NET to run this application.
 
-validator.option("validationRules", [
-    {
-        type: "required",
-        message: htmlDecode(_commonTranslatableMessageVictimeUsurpationIdentiteRequired)
-    }
-]);
+App: c:\Users\khemirw\.vscode\extensions\ms-dotnettools.csharp-2.140.8-win32-x64\.roslyn\BuildHost-netcore\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll
+Architecture: x64
+Framework: 'Microsoft.NETCore.App', version '8.0.0' (x64)
+.NET location: C:\Program Files\dotnet\
+
+The following frameworks were found:
+  5.0.17 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  6.0.21 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  7.0.10 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+
+Learn about framework resolution:
+https://aka.ms/dotnet/app-launch-failed
+
+To install missing framework, download:
+https://aka.ms/dotnet-core-applaunch?framework=Microsoft.NETCore.App&framework_version=8.0.0&arch=x64&rid=win10-x64
+
+ ---> System.TimeoutException: The operation has timed out.
+   at System.IO.Pipes.NamedPipeClientStream.ConnectInternal(Int32 timeout, CancellationToken cancellationToken, Int32 startTime)
+   at System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop(Thread threadPoolThread, ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop(Thread threadPoolThread, ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)
+--- End of stack trace from previous location ---
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.BuildHostProcess.ConnectAsync(String pipeName) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 458
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.<GetBuildHostAsync>g__NoLock_GetBuildHostAsync|16_0(BuildHostProcessKind buildHostKind, String projectOrSolutionFilePath, String dotnetPath, CancellationToken cancellationToken) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 125
+   --- End of inner exception stack trace ---
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.<GetBuildHostAsync>g__NoLock_GetBuildHostAsync|16_0(BuildHostProcessKind buildHostKind, String projectOrSolutionFilePath, String dotnetPath, CancellationToken cancellationToken) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 134
+   at Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager.GetBuildHostAsync(BuildHostProcessKind buildHostKind, String projectOrSolutionFilePath, String dotnetPath, CancellationToken cancellationToken) in /_/src/Workspaces/MSBuild/Core/MSBuild/BuildHostProcessManager.cs:line 104
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.CanonicalMiscellaneousFilesProjectProvider.LoadCanonicalProjectAsync(CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/CanonicalMiscellaneousFilesProjectProvider.cs:line 76
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.CanonicalMiscellaneousFilesProjectProvider.LoadCanonicalProjectAsync(CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/CanonicalMiscellaneousFilesProjectProvider.cs:line 78
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.CanonicalMiscellaneousFilesProjectProvider.GetProjectInfoAsync(String miscDocumentPath, CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/CanonicalMiscellaneousFilesProjectProvider.cs:line 30
+   at Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms.FileBasedProgramsProjectSystem.TryLoadProjectInMSBuildHostAsync(BuildHostProcessManager buildHostProcessManager, String documentPath, CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/FileBasedPrograms/FileBasedProgramsProjectSystem.cs:line 318
+   at Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.LanguageServerProjectLoader.ReloadProjectAsync(ProjectToLoad projectToLoad, ToastErrorReporter toastErrorReporter, BuildHostProcessManager buildHostProcessManager, CancellationToken cancellationToken) in /_/src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/HostWorkspace/LanguageServerProjectLoader.cs:line 234 »
+2026-06-09 16:47:34.546 [info] [textDocument/diagnostic] [LanguageServerProjectLoader] Chargement ou rechargement terminé de tous les projets dans 00:01:00.0211537
