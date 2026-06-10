@@ -1,1 +1,48 @@
-@Html.Raw($"VictimeUsurpationIdentite = {Model.Item1.PersonnePhysiqueFraude.VictimeUsurpationIdentite}")
+function updateVictimeUsurpationIdentite(index, fromUserChange) {
+
+    const categorieCode = getSelectedCategorieFraudeCode();
+    const statutCode = getStatutPersonneFraudeCode(index);
+
+    const selectElement =
+        $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index);
+
+    const select =
+        selectElement.dxSelectBox("instance");
+
+    if (!select) {
+        return;
+    }
+
+    const isCategorie718Or905 =
+        categorieCode === CategorieFraudeEnum.Categorie718 ||
+        categorieCode === CategorieFraudeEnum.Categorie905;
+
+    const isCategorie906 =
+        categorieCode === CategorieFraudeEnum.Categorie906;
+
+    const isVictime =
+        statutCode === StatutPersonneFraudeVictimeCode;
+
+    disableVictimeUsurpationIdentiteRequiredValidation(index);
+
+    if (isCategorie718Or905 && isVictime) {
+        select.option("readOnly", false);
+        enableVictimeUsurpationIdentiteRequiredValidation(index);
+
+        // Changement utilisateur vers Victime : on force une nouvelle saisie
+        if (fromUserChange === true) {
+            select.option("value", null);
+        }
+
+        return;
+    }
+
+    select.option("readOnly", true);
+
+    if (isCategorie906 && isVictime) {
+        select.option("value", true);
+        return;
+    }
+
+    select.option("value", false);
+}
