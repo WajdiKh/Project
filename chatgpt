@@ -1,48 +1,81 @@
-function updateVictimeUsurpationIdentite(index, fromUserChange) {
+Pour la partie reprise historique ça doit être un script sql qui met à jour le champ VictimeUsurpationIdentite de la table [Fraude].[PersonnePhysiqueFraude] (à partir du champ UnsurpationIdentite de la même table pour catégorie 718, 905 + statut fraude victime et dans les autres cas appliquer la valeur par défaut dans le premier tableau). Ci-dessous le script sql de récupération des différents champs nécessaires. Pour la méthode updateVictimeUsurpationIdentite elle doit plus tenir compte de la valeur du champ unsurpationIdentite.
+SELECT df.CategorieId, cf.Code as CategoryCode, dpp.StatutPersonneFraudeId, ppf.VictimeUsurpationIdentite, ppf.UnsurpationIdentite
+FROM [Fraude].[PersonnePhysiqueFraude] ppf
+INNER JOIN [Fraude].[DossierFraudePersonnePhysique] dpp ON ppf.Id = dpp.PersonnePhysiqueFraudeId
+INNER JOIN [Fraude].DossierFraude df ON df.Id = dpp.DossierFraudeId
+INNER JOIN [Fraude].[CategorieFraude] cf ON cf.Id = df.CategorieId
+INNER JOIN [Fraude].StatutPersonneFraude spf ON spf.Id = dpp.StatutPersonneFraudeId
+WHERE UnsurpationIdentite IS NOT NULL
 
-    const categorieCode = getSelectedCategorieFraudeCode();
-    const statutCode = getStatutPersonneFraudeCode(index);
+function updateVictimeUsurpationIdentite(index) {
 
-    const selectElement =
-        $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index);
+const categorieCode = getSelectedCategorieFraudeCode();  
+const statutCode = getStatutPersonneFraudeCode(index);  
 
-    const select =
-        selectElement.dxSelectBox("instance");
+const select =  
+    $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index)  
+    .dxSelectBox("instance");  
 
-    if (!select) {
-        return;
-    }
+if (!select) {  
+    return;  
+}  
 
-    const isCategorie718Or905 =
-        categorieCode === CategorieFraudeEnum.Categorie718 ||
-        categorieCode === CategorieFraudeEnum.Categorie905;
+const usurpationCheckBox =  
+    $("#PersonnePhysiqueFraudeUnsurpationIdentite" + index)  
+    .dxCheckBox("instance");  
 
-    const isCategorie906 =
-        categorieCode === CategorieFraudeEnum.Categorie906;
+const usurpationIdentite = usurpationCheckBox.option("value");  
 
-    const isVictime =
-        statutCode === StatutPersonneFraudeVictimeCode;
+const isCategorie718Or905 =  
+    categorieCode === CategorieFraudeEnum.Categorie718 ||  
+    categorieCode === CategorieFraudeEnum.Categorie905;  
 
-    disableVictimeUsurpationIdentiteRequiredValidation(index);
+const isCategorie906 =  
+    categorieCode === CategorieFraudeEnum.Categorie906;  
 
-    if (isCategorie718Or905 && isVictime) {
-        select.option("readOnly", false);
-        enableVictimeUsurpationIdentiteRequiredValidation(index);
+const isVictime =  
+    statutCode === StatutPersonneFraudeEnum.Victime;  
 
-        // Changement utilisateur vers Victime : on force une nouvelle saisie
-        if (fromUserChange === true) {
-            select.option("value", null);
-        }
+/* ========================================================  
+   Par défaut :  
+   statut vide ou différent de Victime  
+   => Non + désactivé  
+   ======================================================== */  
 
-        return;
-    }
+select.option("readOnly", true);  
 
-    select.option("readOnly", true);
+if (isCategorie718Or905 && isVictime) {  
 
-    if (isCategorie906 && isVictime) {
-        select.option("value", true);
-        return;
-    }
+    select.option("readOnly", false);  
 
-    select.option("value", false);
+    if(isNullOrUndefined(usurpationIdentite))  
+    {  
+        return;  
+    }  
+      
+    select.option("value", usurpationIdentite);  
+
+    return;  
+}  
+
+if (isCategorie906 && isVictime) {  
+
+    select.option("value", true);  
+
+    return;  
+}  
+
+select.option("value", false);
+
+}
+
+function updateVictimeUsurpationIdentiteForAll()
+{
+$(".physicalPerson").each(function () {
+const id = $(this).attr("id");
+const index = id.replace("rowPhysicalPerson", "");
+
+updateVictimeUsurpationIdentite(index);  
+});
+
 }
