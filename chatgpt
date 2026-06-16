@@ -1,81 +1,38 @@
-Pour la partie reprise historique ça doit être un script sql qui met à jour le champ VictimeUsurpationIdentite de la table [Fraude].[PersonnePhysiqueFraude] (à partir du champ UnsurpationIdentite de la même table pour catégorie 718, 905 + statut fraude victime et dans les autres cas appliquer la valeur par défaut dans le premier tableau). Ci-dessous le script sql de récupération des différents champs nécessaires. Pour la méthode updateVictimeUsurpationIdentite elle doit plus tenir compte de la valeur du champ unsurpationIdentite.
-SELECT df.CategorieId, cf.Code as CategoryCode, dpp.StatutPersonneFraudeId, ppf.VictimeUsurpationIdentite, ppf.UnsurpationIdentite
-FROM [Fraude].[PersonnePhysiqueFraude] ppf
-INNER JOIN [Fraude].[DossierFraudePersonnePhysique] dpp ON ppf.Id = dpp.PersonnePhysiqueFraudeId
-INNER JOIN [Fraude].DossierFraude df ON df.Id = dpp.DossierFraudeId
-INNER JOIN [Fraude].[CategorieFraude] cf ON cf.Id = df.CategorieId
-INNER JOIN [Fraude].StatutPersonneFraude spf ON spf.Id = dpp.StatutPersonneFraudeId
-WHERE UnsurpationIdentite IS NOT NULL
+Contact : CHEN Lingjie / COLBEAU Farid
 
-function updateVictimeUsurpationIdentite(index) {
+Page : 
 
-const categorieCode = getSelectedCategorieFraudeCode();  
-const statutCode = getStatutPersonneFraudeCode(index);  
+Utilisateur :  
 
-const select =  
-    $("#PersonnePhysiqueFraudeVictimeUsurpationIdentite" + index)  
-    .dxSelectBox("instance");  
+Résultats détaillé : 
 
-if (!select) {  
-    return;  
-}  
 
-const usurpationCheckBox =  
-    $("#PersonnePhysiqueFraudeUnsurpationIdentite" + index)  
-    .dxCheckBox("instance");  
+Besoin métier : PREDICA doit avoir la possibilité de récupérer les pièces d’identité des clients faisant l'objet des DS des CRCAM et LCL
+ 
 
-const usurpationIdentite = usurpationCheckBox.option("value");  
+cas d'usage : 
 
-const isCategorie718Or905 =  
-    categorieCode === CategorieFraudeEnum.Categorie718 ||  
-    categorieCode === CategorieFraudeEnum.Categorie905;  
+L’utilisateur de PREDICA
 
-const isCategorie906 =  
-    categorieCode === CategorieFraudeEnum.Categorie906;  
+Créé une DS
 
-const isVictime =  
-    statutCode === StatutPersonneFraudeEnum.Victime;  
+Un nouvel icone apparait pour PP et PM
 
-/* ========================================================  
-   Par défaut :  
-   statut vide ou différent de Victime  
-   => Non + désactivé  
-   ======================================================== */  
+A close-up of a logo  AI-generated content may be incorrect.
 
-select.option("readOnly", true);  
+En cliquant sur ce nouvel icone, rechercher automatiquement par le nom/prénom/date naissance (PP) ou raison sociale/numéro d’immatriculation (PM) au sein des CR et LCL (ayant au moins une PJ de type suivants: 
 
-if (isCategorie718Or905 && isVictime) {  
+A screenshot of a computer  AI-generated content may be incorrect.
 
-    select.option("readOnly", false);  
+Un pop up apparait qui contient nom/prénom/date naissance (PP) ou raison sociale/numéro d’immatriculation (PM) retrouvés, ainsi que leur n° dossier + Direction + colonne « Pièce d’identité »  (fonctionnement cf suivant)
 
-    if(isNullOrUndefined(usurpationIdentite))  
-    {  
-        return;  
-    }  
-      
-    select.option("value", usurpationIdentite);  
+A screenshot of a computer  AI-generated content may be incorrect.
 
-    return;  
-}  
+Colonne « Pièce d’identité » : afficher le bouton « Télécharger» ; 
 
-if (isCategorie906 && isVictime) {  
+Après le clic sur le bouton « Télécharger», télécharger les documents de ces types associés à la personne dans le ZIP.
 
-    select.option("value", true);  
 
-    return;  
-}  
+L'accessibilité des pièces d'identité entre les directions (ex: PREDICA accède aux CRCAM et LCL) doit être paramétrable dans Administration/Direction - Case à cocher "Téléchargement des PJ Identification" et "Recherche des PJ Identification"
 
-select.option("value", false);
 
-}
-
-function updateVictimeUsurpationIdentiteForAll()
-{
-$(".physicalPerson").each(function () {
-const id = $(this).attr("id");
-const index = id.replace("rowPhysicalPerson", "");
-
-updateVictimeUsurpationIdentite(index);  
-});
-
-}
