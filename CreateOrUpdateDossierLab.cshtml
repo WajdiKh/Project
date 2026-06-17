@@ -1,0 +1,1659 @@
+@using BacaratWeb.Areas.Lab.Services.Interfaces;
+@using Microsoft.AspNetCore.Html;
+@using Newtonsoft.Json;
+
+@inject IReferentielViewModel _referentiel
+@inject IViewTranslator translator
+@inject ILabAttachmentService _attachmentService;
+
+@model DossierLabViewModel
+
+
+@if (Model.Error)
+{
+    <div class="alert alert-danger" role="alert">
+        @Model.ErrorMessage
+    </div>
+    return;
+}
+@{
+    var _isReadOnly = Model.EVisibleDossier != EVisibleDossier.Editable;
+    var _lang = Model.Lang.ToCamelCase();
+    var isNew = Model.IsNew;
+    var isTracfin = Model.Direction?.IsTracfin ?? Model.IsTracfin;
+    var viewParameters = new Dictionary<string, bool>
+    {
+        { "IsDeclarationTracfin", Model.DeclarationTracfins.Any() },
+        { "IsReadOnly", _isReadOnly },
+        { "HasRightLabFraude", Model.HasRightLabFraude },
+        { "IsCreatorDossierLab", Model.IsCreatorDossierLab },
+        { "IsDuplicatedFolder", Model.IsDuplicated },
+        { "IsCreatedFromFraude", Model.IsCreatedFromFraude },
+        { "IsNew", isNew },
+        {
+            "IsClotureTracfin", Model.DeclarationTracfins.Any() && isTracfin &&
+                                Model.DeclarationTracfins.All(x => !string.IsNullOrEmpty(x.NumeroAccuseReception)) &&
+                                Model.DeclarationTracfins.All(x => x.DateDeclaration != null) && Model.DeclarationTracfins.All(x => x.EstNouvelleDeclarationTracfin)
+        },
+        { "IsDetailsView", Model.IsDetailView },
+        { "IsTracfin", isTracfin }
+    };
+
+    var categorieGroupeLabs = _referentiel.CategorieGroupeLabs;
+    var origineGroupeLabs = _referentiel.OrigineGroupeLabs;
+    var avisLabs = _referentiel.AvisLabs;
+    var visaLabs = _referentiel.VisaLabs;
+    var currentUser = Model.UserPrivilege.GetUserId();
+    var requiredAsteriskSuffix = Constants.AsteriskIdSuffix;
+}
+
+<script>
+    $(document).ready(function () {
+    @Html.SetJavaScriptVariable("directionId", Model.DirectionId, Json);
+    dateDebutFinAnalyseDeclarationTracfinRequired(0);
+    });
+    var bRefreshDataGridAttachments = true;
+</script>
+@if (Model != null)
+{
+    <form id="dossierLabForm" class="container-fluid-form" method="post" enctype="multipart/form-data">
+
+    @await Html.PartialAsync("_PartialLeftNavLab", viewParameters)
+    @await Html.PartialAsync("_PartialRightCommandsLab", viewParameters)
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(x => x.CryptedId)
+    @Html.HiddenFor(x => x.CodeUnique)
+    @Html.HiddenFor(x => x.CryptedUtilisateurId)
+    @Html.HiddenFor(x => x.CryptedCreateurId)
+    @Html.HiddenFor(x => x.IsNew)
+    @Html.HiddenFor(x => x.DuplicateDossierId)
+
+    @Html.Hidden("BlocSubmit", "false")
+    @Html.Hidden("IsReadOnly", _isReadOnly.ToString().ToLower())
+    <div id="content-wrapper">
+    <div asp-validation-summary="ModelOnly"></div>
+    <div class="card shadow mb-4 bloc" id="bloc1">
+        <div class="card-header card-header-bloc">
+            <h6 class="m-0 text-green text-font-weight-600">
+                <i class="fas fa-warehouse mr-2"></i>@translator.Common["CaseIdentification"]
+            </h6>
+        </div>
+
+        <div class="card-body pb-3">
+
+            <div class="row">
+                @if (!string.IsNullOrEmpty(Model.CodeUnique))
+                {
+                    <div class="col-2 pr-1">
+                        <div class="smallCaps text-green">
+                            @translator.Common["NumberDossier"]
+                        </div>
+                        <div class="pt-1" style="color: #db1e27; font-weight:bold;">@Model.CodeUnique.ToUpper(CultureInfo.CurrentCulture)</div>
+                    </div>
+                }
+
+
+                <div class="pr-1 @(!string.IsNullOrEmpty(Model.CodeUnique) ? "col-2 pl-0" : "col-3")">
+                    <span class="smallCaps text-green">
+                        @translator.Common["Direction"] <span style="color: red">*</span>
+                    </span>
+                    @(
+                    Html.DevExtreme().SelectBoxFor(x => x.DirectionId)
+                        .ID("DirectionId")
+                        .Height(30)
+                        .Name("DirectionId")
+                        .DataSourceOptions(c => c.Sort("Nom"))
+                        .DisplayExpr("Nom")
+                        .ValueExpr("Id")
+                        .Width("100%")
+                        .DataSource(Model.DirectionItemDatasources)
+                        .SearchEnabled(true)
+                        .OnValueChanged(@<text>
+                                             function ()
+                                             {
+                                             directionOnValueChangedCreateUpdateDossierLab('@Model.CryptedId','@_isReadOnly.ToString().ToLower()');
+                                             categorieGroupeLab_OnValueChanged(@(Model.DeclarationTracfins.Any().ToString().ToLower()));
+                                             }
+                                         </text>)
+                        .SearchEnabled(true)
+                        .ShowClearButton(true)
+                        .ElementAttr("class", "mandatory")
+                        .ReadOnly(_isReadOnly || !Model.IsNew))
+                    <input type="hidden" id="createOrUpdateDossierLab_CodeProfession"/>
+                </div>
+                <div class="pl-0 pr-1 @(!string.IsNullOrEmpty(Model.CodeUnique) ? "col-2" : "col-3")">
+                    <span class="smallCaps text-green">
+                        @translator.Common["EntiteAgence"] <span style="color: red">*</span>
+                    </span>
+                    <div id="loader-entite-container" class="dx-hidden text-center"></div>
+                    @Html.DevExtreme().SelectBoxFor(x => x.EntiteId).ID("EntiteId").Height(30).Name("EntiteId").DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Width("100%").SearchEnabled(true).ShowClearButton(true).ReadOnly(_isReadOnly).DataSource(Model.EntitesItemDatasources).ElementAttr("class", "mandatory")
+                </div>
+                <div class="col-2 pl-0 pr-1">
+                    <div>
+                        <span class="smallCaps text-green">
+                            @translator.Common["DateReception"]
+                            <span id="targetDateReception" class="pl-1 align-self-center smallCaps text-truncate button-green" style="width:21%">
+                                QLB
+                            </span>
+                            <span class="RequiredField">*</span>
+                        </span>
+                    </div>
+                    @Html.DevExtreme().DateBoxFor(x => x.DateReception).ID("DateReception").Height(30).Name("DateReception").OnValueChanged("dateReception_OnValueChanged").Max(Model.DateCreation ?? DateTime.Now.AddYears(1)).Min(new DateTime(1990, 1, 1)).DisplayFormat(DateHelper.DateFormat()).UseMaskBehavior(true).Width("100%").ReadOnly(_isReadOnly).ElementAttr("class", "mandatory")
+                    @(Html.DevExtreme().Tooltip().Width(500)
+                        .ID("ToolTipDateReception")
+                        .Target("#targetDateReception")
+                        .ShowEvent("mouseenter")
+                        .HideEvent("mouseleave")
+                        .CloseOnOutsideClick(false)
+                        .Position(Position.Bottom)
+                        .ContentTemplate(@<text>
+                                              <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                  @Html.Raw(translator.TemplateTraduction["ToolTipDateReception"])
+                                              </div>
+                                          </text>))
+                </div>
+                <div class="col-2 pl-0 pr-1">
+                    <div>
+                        <span class="smallCaps text-green">@translator.Common["DateSaisie"]</span>
+                    </div>
+                    @Html.DevExtreme().DateBoxFor(x => x.DateCreation).ID("DateCreation").Height(30).Name("DateCreation").DisplayFormat(DateHelper.DateTimeFormat()).Type(DateBoxType.DateTime).UseMaskBehavior(true).Width("100%").ShowClearButton(true).ReadOnly(true)
+                </div>
+
+                <div class="col-2 pl-0">
+                    <div class="smallCaps text-green">
+                        @translator.Common["Createur"]
+                    </div>
+                    @Html.DevExtreme().TextBox().Value(Model.Createur_FullName).Height(30).ReadOnly(true)
+                </div>
+            </div>
+            <div class="row mt-2">
+
+                @if (Model.DuplicateDossierCode != null)
+                {
+                    <div class="col-xl-2 pr-0 pl-2">
+                        <div class="smallCaps text-green">
+                            @translator.Common["NumberDossierOrigine"]
+                        </div>
+                        <div class="pt-1" style="color: #db1e27; font-weight: bold;">
+                            @Html.DevExtreme().TextBoxFor(x => x.DuplicateDossierCode).Height(30).ReadOnly(true).Width("100%").Name("DuplicateDossierCode").ID("DuplicateDossierCode")
+                        </div>
+                    </div>
+                }
+
+                <div class="col-2 pr-1">
+                    <div id="IsDeclarationSoupconDiv" class="@(Model.IsDeclarationSoupcon ? string.Empty : " dx-hidden")">
+                        <div class="text-truncate">
+                            <span class="smallCaps text-green"> @translator.Common["DeclarationSoupcon"]</span>
+                        </div>
+                        <div class="adjust-padding-top-check-box">
+                            @Html.DevExtreme().CheckBoxFor(x => x.IsDeclarationSoupcon).ID("IsDeclarationSoupcon").Height(30).Name("IsDeclarationSoupcon").ReadOnly(true)
+                        </div>
+                    </div>
+                </div>
+
+                <div id="dateDeclarationId" class="col-2 pl-0 pr-1 @(Model.ShowDateDeclaration ? string.Empty : "dx-hidden")">
+                    <span class="smallCaps text-green">
+                        @translator.Common["Datedeladeclaration"]
+                    </span>
+
+                    @for (var i = 0; i < Model.DeclarationTracfins?.Count; i++)
+                    {
+                        @(Html.DevExtreme().DateBoxFor(x => x.DeclarationTracfins[i].DateDeclarationNewDS).ID("DateDeclaration")
+                            .Name("DeclarationTracfins[0].DateDeclarationNewDS")
+                            .Max(DateTime.Now)
+                            .Min(new DateTime(1990, 1, 1))
+                            .DisplayFormat(DateHelper.DateFormat())
+                            .UseMaskBehavior(true)
+                            .Width("100%").Height(30)
+                            .ReadOnly(true)
+                            .Width("100%"))
+                    }
+
+                </div>
+
+
+                @if (!string.IsNullOrEmpty(Model.DossierFraudeCryptedId) && (Model.IsAdminGlobal || (Model.IsCreatorDossierLab && Model.HasRightLabFraude) ||
+                                                                             (Model.HasRightLabFraude && Model.IsNew)))
+                {
+                    <div class="col-2 pl-0 pr-1">
+                        <div class="smallCaps text-green"> @translator.Common["NumDossierFraude"]</div>
+                        @(Html.DevExtreme().Button().Width("100%")
+                            .ID("btnFraudeDossier")
+                            .Text(Model.DossierFraudeCodeUnique)
+                            .Type(ButtonType.Normal)
+                            .Width("100%")
+                            .Height(30)
+                            .ElementAttr("class", "mb-2 color-blue")
+                            .OnClick(@<text>
+                                          function (){
+                                          GetDossierFraude(@Model.StatutDossierFraudeId, '@Model.IsEditDossierlab');
+                                          }
+                                      </text>))
+
+                        <script>_dossierFraudeCryptedId = '@Model.DossierFraudeCryptedId';</script>
+
+                        @Html.HiddenFor(x => x.DossierFraudeId)
+                        @Html.HiddenFor(x => x.DossierFraudeCryptedId)
+
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(Model.CodeUniqueDossierFraudeSource) && (Model.IsAdminGlobal || (Model.IsCreatorDossierLab && Model.HasRightLabFraude) ||
+                                                                                    (Model.HasRightLabFraude && Model.IsNew)))
+                {
+                    <div class="col-2 pl-0 pr-1">
+                        <div class="smallCaps text-green">@translator.Common["NumDossierFraude"]</div>
+                        <div class="pt-0" style="color: #db1e27; font-weight: bold;">
+                            @(Html.DevExtreme().Button()
+                                .ID("btnFraudeDossierSource")
+                                .Text(Model.CodeUniqueDossierFraudeSource)
+                                .Type(ButtonType.Normal)
+                                .Width("100%")
+                                .Height(31)
+                                .ElementAttr("class", "mb-2 color-blue")
+                                .OnClick(@<text>
+                                              function (){
+                                              GetDossierFraudeSource(@Model.StatutDossierFraudeId);
+                                              }
+                                          </text>))
+                        </div>
+                        <script>_dossierFraudeCryptedId = '@Model.DossierFraudeIdSourceCrypted';</script>
+                    </div>
+                }
+                <div class="col-2 pl-0 pr-1">
+                    @if (!string.IsNullOrEmpty(Model.Modificateur_FullName))
+                    {
+                        <div class="text-truncate">
+                            <span class="smallCaps text-green">@translator.Common["Modificateur"]</span>
+                        </div>
+                        @Html.DevExtreme().TextBoxFor(x => x.Modificateur_FullName).Height(30).ReadOnly(true).Width("100%")
+                    }
+                </div>
+
+                <div class="col-2 pl-0 pr-1">
+                    @if (Model.DateModification != null)
+                    {
+                        <div class="text-truncate">
+                            <span class="smallCaps text-green">@translator.Common["DateModification"]</span>
+                        </div>
+                        @Html.DevExtreme().DateBoxFor(x => x.DateModification).ID("DateModification").Height(30).Name("DateModification").DisplayFormat(DateHelper.DateFormat()).UseMaskBehavior(true).Width("100%").ShowClearButton(true).ReadOnly(true)
+                    }
+
+                </div>
+
+                <div class="col-2 pl-0 pr-1">
+                    @if (Model.DateCloture != null)
+                    {
+                        <div class="text-truncate">
+                            <span class="smallCaps text-green">@translator.Common["EndDate"]</span>
+                        </div>
+                        @Html.DevExtreme().DateBoxFor(x => x.DateCloture).ID("DateCloture").Height(30).Name("DateCloture").DisplayFormat(DateHelper.DateFormat()).UseMaskBehavior(true).Width("100%").ShowClearButton(true).ReadOnly(true)
+                    }
+                </div>
+                <div class="col-2 pl-0 pr-1">
+                    <div class="col pl-0 @(Model.UserPrivilege.IsConfidential ? string.Empty : " dx-hidden")" id="div-confidentiel">
+                        <div class="text-truncate">
+                            <span class="smallCaps text-green">@translator.Common["Confidentiel"] </span>
+                        </div>
+                        <div class="adjust-padding-top-check-box pl-1">
+                            @Html.DevExtreme().CheckBoxFor(x => x.Confidentiel).ID("Confidentiel").Height(30).Name("Confidentiel").ReadOnly(_isReadOnly)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-2 pl-0 pr-1">
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="card shadow mb-4 bloc" id="bloc3">
+    <div class="card-header card-header-bloc">
+        <h6 class="m-0 text-green text-font-weight-600">
+            <i class="fas fa-list-alt mr-2"></i>@translator.Common["CaracteristiquesOperation"]
+        </h6>
+    </div>
+
+    <div class="card-body">
+
+    <div class="row pt-1 pb-1">
+        <div class="col-sm-12 col-md-7 col-lg-7 col-xl-7 mr-0">
+
+            <div class="row pt-1 pb-1">
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">
+                        @translator.Common["CategorieGroupeLab"] <span class="RequiredField">*</span>
+                    </span>
+                </div>
+
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-10">
+                    <div class="dx-hidden text-center loader-categorie"></div>
+                    @(Html.DevExtreme().SelectBoxFor(x => x.CategorieGroupeLabId)
+                        .DataSource(categorieGroupeLabs)
+                        .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                        .ID("CategorieGroupeLabId").Height(30)
+                        .Name("CategorieGroupeLabId")
+                        .DisplayExpr($"Name{_lang}")
+                        .ValueExpr("Id")
+                        .SearchEnabled(true).ShowClearButton(true).ElementAttr("class", "mandatory")
+                        .OnValueChanged(@<text>
+                                             function(e){
+                                             categorieGroupeLab_OnValueChanged(@(Model.DeclarationTracfins.Any().ToString().ToLower()));
+                                             }
+                                         </text>).ReadOnly(_isReadOnly))
+                </div>
+            </div>
+
+            <div class="row pt-1 pb-1">
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">
+                        @translator.Common["Lab.Categorie"] <span class="RequiredField">*</span>
+                    </span>
+                </div>
+
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-10">
+                    <div class="dx-hidden text-center loader-categorie"></div>
+                    @(Html.DevExtreme().SelectBoxFor(x => x.CategorieId)
+                        .ID("CategorieId")
+                        .Height(30)
+                        .Name("CategorieId")
+                        .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                        .DisplayExpr($"Name{_lang}").ValueExpr("Id")
+                        .SearchEnabled(true)
+                        .ShowClearButton(true)
+                        .OnFocusOut(@<text> function (){validatePaysByCategory('PaysId')}</text>)
+                        .ElementAttr("class", "input-categorie mandatory")
+                        .OnValueChanged("loadStatutDossierLab")
+                        .ReadOnly(_isReadOnly))
+                </div>
+            </div>
+
+            <div class="row pt-1 pb-1">
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">
+                        @translator.Common["OrigineGroupeLab"] <span class="RequiredField">*</span>
+                    </span>
+                </div>
+
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-10">
+                    <div class="dx-hidden text-center loader-origineLab"></div>
+                    @(Html.DevExtreme().SelectBoxFor(x => x.OrigineGroupeLabId)
+                        .DataSource(origineGroupeLabs)
+                        .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                        .ID("OrigineGroupeLabId").Height(30)
+                        .Name("OrigineGroupeLabId")
+                        .DisplayExpr($"Name{_lang}")
+                        .ValueExpr("Id")
+                        .SearchEnabled(true).ShowClearButton(true).ElementAttr("class", "mandatory").ReadOnly(_isReadOnly))
+                </div>
+            </div>
+
+            <div class="row pt-1 pb-1">
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">
+                        @translator.Common["Origine"] <span class="RequiredField">*</span>
+                    </span>
+                </div>
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-10">
+                    <div class="dx-hidden text-center loader-origineLab"></div>
+                    @(Html.DevExtreme().SelectBoxFor(x => x.OrigineLabId)
+                        .ID("OrigineLabId")
+                        .Height(30).Name("OrigineLabId")
+                        .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                        .DisplayExpr($"Name{_lang}")
+                        .ValueExpr("Id")
+                        .SearchEnabled(true)
+                        .ShowClearButton(true)
+                        .ElementAttr("class", "input-origineLab mandatory")
+                        .OnInitialized(@<text>
+                                            function ()
+                                            {
+                                            origine_lab_OnInitialized('@Model.CryptedId');
+                                            }
+
+                                        </text>)
+                        .OnValueChanged("origine_lab_OnValueChanged").ReadOnly(_isReadOnly))
+                </div>
+            </div>
+
+            <div class="row pt-1 pb-1">
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">@translator.Common["SecteurEconomique"]</span>
+
+                </div>
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-10">
+                    @Html.DevExtreme().SelectBoxFor(x => x.SecteurEconomiqueId).DataSourceOptions(c => c.Sort($"Name{_lang}")).ID("SecteurEconomiqueId").Height(30).Name("SecteurEconomiqueId").DisplayExpr($"Name{_lang}").ValueExpr("Id").SearchEnabled(true).ShowClearButton(true).ReadOnly(_isReadOnly)
+                </div>
+            </div>
+
+
+            <div class="row pt-1 pb-1">
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">
+                        @translator.Common["Pays"]<span class="RequiredField" id="PaysId@(requiredAsteriskSuffix)"></span>
+                    </span>
+
+                </div>
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-10">
+                    @(Html.DevExtreme().SelectBoxFor(x => x.PaysId).ID("PaysId")
+                        .Height(30)
+                        .Name("PaysId")
+                        .DataSource(_referentiel.Pays)
+                        .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                        .DisplayExpr($"Name{_lang}")
+                        .ValueExpr("Id")
+                        .SearchEnabled(true)
+                        .ShowClearButton(true)
+                        .ElementAttr(new
+                        {
+                            data_error_required = translator.Common["PaysObligatoire"]
+                        })
+                        .ReadOnly(_isReadOnly))
+                </div>
+            </div>
+
+            <div class="row pt-1 pb-1">
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">@translator.Common["Dgt"]</span>
+
+                </div>
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-1 mt-1">
+                    @Html.DevExtreme().CheckBoxFor(x => x.IsDgt).ID("IsDgt").Height(30).Name("IsDgt").OnValueChanged("showDateDerniereDeclarationDgt").ReadOnly(_isReadOnly)
+                </div>
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">@translator.Common["AutorisationDGT"]</span>
+
+                </div>
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-1 mt-1">
+                    @Html.DevExtreme().CheckBoxFor(x => x.IsAutorisationDGT).ID("IsAutorisationDGT").Height(30).Name("IsAutorisationDGT").ReadOnly(_isReadOnly)
+                </div>
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">@translator.Common["202COV"]</span>
+
+                </div>
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-1 mt-1">
+                    @Html.DevExtreme().CheckBoxFor(x => x.IsCov).ID("IsCov").Height(30).Name("IsCov").ReadOnly(_isReadOnly)
+                </div>
+
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">@translator.Common["DossierSuivi"]</span>
+
+                </div>
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-1 mt-1">
+                    @Html.DevExtreme().CheckBoxFor(x => x.IsSuivi).ID("IsSuivi").Height(30).Name("IsSuivi").ReadOnly(_isReadOnly)
+                </div>
+            </div>
+            <div class="row pt-1 pb-1">
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">@translator.Common["DossiersFluxMultiples"]</span>
+
+                </div>
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-1 mt-1">
+                    @Html.DevExtreme().CheckBoxFor(x => x.DossiersFluxMultiples).ID("DossiersFluxMultiples").Height(30).Name("DossiersFluxMultiples").ReadOnly(_isReadOnly)
+                </div>
+
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">@translator.Common["SurveillanceDaech"]</span>
+
+                </div>
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-1 mt-1">
+                    @Html.DevExtreme().CheckBoxFor(x => x.SurveillanceDaech).ID("SurveillanceDaech").Height(30).Name("SurveillanceDaech").ReadOnly(_isReadOnly)
+                </div>
+                <div class="col-sm-12 col-md-2 col-lg-2 col-xl-2 align-self-center">
+                    <span class="smallCaps text-green">@translator.Common["DerogationPolitiqueGroupe"]</span>
+                </div>
+                <div class="col-sm-12 col-md-10 col-lg-10 col-xl-1 mt-1">
+                    @Html.DevExtreme().CheckBoxFor(x => x.DerogationPolitiqueGroupe).ID("DerogationPolitiqueGroupe").Height(30).Name("DerogationPolitiqueGroupe").ReadOnly(_isReadOnly)
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-12 col-md-5 col-lg-5 col-xl-5">
+            <div class="card @(Model.DossierLabOperations?.Count > 0 ? string.Empty : "dx-hidden")" id="dossier-lab-operation-container" style="min-height:235px">
+                <div id="loader-dossier-lab-operation-container" class="dx-hidden text-center ml-auto mr-auto" style="position: relative;top: 113px;"></div>
+                <div class="card-body" id="dossier-lab-operation-container-body">
+                    <h5 class="card-title smallCaps text-green">@translator.Common["OperationsLab"]</h5>
+                    <div id="dossier-lab-operation-items-container">
+                        @for (var i = 0; i < Model.DossierLabOperations?.Count; i++)
+                        {
+                            var dossierLabOperation = Model.DossierLabOperations.ElementAt(i);
+                            dossierLabOperation.IsReadOnly = _isReadOnly;
+                            dossierLabOperation.Culture = _lang;
+                            @await Html.PartialAsync("_PartialDossierLabOperation", new Tuple<DossierLabOperationViewModel, int>(dossierLabOperation, i))
+                        }
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="card @(Model.DossierLabScenarios?.Count > 0 ? string.Empty : "dx-hidden") mt-2" id="dossier-lab-scenario-container" style="min-height:110px;font-variant:small-caps;">
+                <div id="loader-dossier-lab-scenario-container" class="dx-hidden text-center ml-auto mr-auto" style="position: relative;top: 55px;"></div>
+                <div class="card-body" id="dossier-lab-scenario-container-body">
+                    <h5 class="card-title">@translator.Common["Scenario"]</h5>
+                    <div id="dossier-lab-scenario-items-container">
+                        @for (var i = 0; i < Model.DossierLabScenarios?.Count; i++)
+                        {
+                            var dossierLabScenario = Model.DossierLabScenarios.ElementAt(i);
+                            dossierLabScenario.IsReadOnly = _isReadOnly;
+                            dossierLabScenario.Culture = _lang;
+                            @await Html.PartialAsync("_PartialDossierLabScenario", new Tuple<DossierLabScenarioViewModel, int>(dossierLabScenario, i))
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="card @(Model.CategorieGroupeLabId == 5 || Model.CategorieGroupeLabId == 6 ? string.Empty : " dx-hidden") mt-2" id="dossier-lab-DateReponse-container" style="min-height:110px;">
+                <div class="card-body" id="dossier-lab-DateReponse-container-body">
+                    <h5 class="card-title">@translator.Common["DateReponse"]</h5>
+                    <div id="dossier-lab-DateReponse-items-container">
+                        <div class="row pb-1">
+                            <div class="col-auto align-self-center">
+                                <span class="smallCaps text-green">
+                                    <span class="smallCaps text-green">
+                                        @translator.Common["DateReponse"] <span class="RequiredField">*</span>
+                                    </span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-auto p-0">
+                            @(Html.DevExtreme().DateBoxFor(x => x.DateReponse).ID("DateReponse").Height(30).Name("DateReponse")
+                                .DisplayFormat(DateHelper.DateFormat())
+                                .UseMaskBehavior(true).Width("100%").ShowClearButton(true).ReadOnly(_isReadOnly).ElementAttr("class", "mandatory"))
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div>
+        <div class="d-flex justify-content-between">
+            <div class="smallCaps text-green text-truncate">
+                @translator.Common["MotifsSoupcons"] <span class="RequiredField" id="MotifsSoupcons@(Constants.AsteriskIdSuffix)">*</span>
+            </div>
+            <div>
+                <button class="maximize-html-editor mr-1"
+                        style="background-color: transparent; border: none; cursor: pointer;"
+                        onclick="showPopupHtmlEditor('MotifsSoupcons', '@translator.Common["MotifsSoupcons"].Replace("'", "\\'")'); event.preventDefault();"
+                        onKeyDown="if(event.key==='Enter'||event.key===' '){showPopupHtmlEditor('MotifsSoupcons', '@translator.Common["MotifsSoupcons"].Replace("'", "\\'")');event.preventDefault();}">
+                    @translator.Common["Expand"]
+                </button>
+            </div>
+        </div>
+
+        @(Html.DevExtreme()
+            .HtmlEditorFor(x => x.MotifsSoupcons)
+            .ID("MotifsSoupcons")
+            .Height(200)
+            .Name("MotifsSoupcons")
+            .Toolbar(toolbar => toolbar.Items(items =>
+                {
+                    if (!_isReadOnly)
+                    {
+                        items.Add().FormatName("undo");
+
+                        items.Add().FormatName("redo");
+
+                        items.Add().FormatName("separator");
+
+                        items.Add()
+                            .FormatName("size")
+                            .FormatValues(new[] { "8pt", "10pt", "12pt", "14pt", "18pt", "24pt", "36pt" });
+
+                        items.Add()
+                            .FormatName("font")
+                            .FormatValues(new[] { "Arial", "Courier New", "Georgia", "Impact", "Lucida Console", "Tahoma", "Times New Roman", "Verdana" });
+
+                        items.Add().FormatName("separator");
+
+                        items.Add().FormatName("bold");
+
+                        items.Add().FormatName("italic");
+
+                        items.Add().FormatName("strike");
+
+                        items.Add().FormatName("underline");
+
+                        items.Add().FormatName("separator");
+
+                        items.Add().FormatName("alignLeft");
+
+                        items.Add().FormatName("alignCenter");
+
+                        items.Add().FormatName("alignRight");
+
+                        items.Add().FormatName("alignJustify");
+
+                        items.Add().FormatName("separator");
+
+                        items.Add()
+                            .FormatName("header")
+                            .FormatValues(new JS("[false, 1, 2, 3, 4, 5]"));
+
+                        items.Add().FormatName("separator");
+
+                        items.Add().FormatName("orderedList");
+
+                        items.Add().FormatName("bulletList");
+
+                        items.Add().FormatName("separator");
+
+                        items.Add().FormatName("color");
+
+                        items.Add().FormatName("background");
+
+                        items.Add().FormatName("separator");
+
+                        items.Add().FormatName("link");
+
+                        items.Add().FormatName("image");
+
+                        items.Add().FormatName("separator");
+
+                        items.Add().FormatName("clear");
+
+                        items.Add().FormatName("codeBlock");
+
+                        items.Add().FormatName("blockquote");
+                    }
+                })
+            ).ReadOnly(_isReadOnly))
+    </div>
+
+    </div>
+    </div>
+    <div class="card shadow mb-4 bloc" id="bloc2">
+    <div class="card-header card-header-bloc">
+        <h6 class="m-0 text-green text-font-weight-600">
+            <i class="fas fa-users mr-2"></i>@translator.Common["IdentificationTiers"]
+        </h6>
+    </div>
+    <div class="card-body" id="blocTiers">
+
+        @(Html.DevExtreme().TabPanel().ID("panelPersonnes").SelectedIndex(1).Loop(false).AnimationEnabled(true).SwipeEnabled(false).HoverStateEnabled(true).DeferRendering(false)
+            .Items(items =>
+            {
+                items.Add().Title(translator.Common["PersonnesPhysiques"])
+                    .Template(@<text>
+
+                                   <div class="m-3 smallCaps text-green accordion" id="accordionPhysicalPersonsList">
+                                       @for (var i = 0; i < Model.DossierLabPersonnePhysiques?.Count; i++)
+                                       {
+                                           var personnePhysique = Model.DossierLabPersonnePhysiques.ElementAt(i);
+                                           personnePhysique.Culture = _lang;
+                                           personnePhysique.IsReadOnly = _isReadOnly;
+                                           personnePhysique.showIsDeclarationTracfin = Model.DeclarationTracfins.Any();
+                                           personnePhysique.PersonnePhysiqueLab.IdPersonne ??= Guid.NewGuid();
+                                           @await Html.PartialAsync("_PartialPersonnePhysiqueLab", new Tuple<DossierLabPersonnePhysiqueViewModel, int>(personnePhysique, i))
+                                       }
+                                   </div>
+
+                                   <div class="d-flex justify-content-end mt-3 mb-1 mr-3">
+                                       @(Html.DevExtreme().Button()
+                                           .ID("btnAddNewPhysicalPerson")
+                                           .Text(translator.Common["Ajouter une personne physique"])
+                                           .Icon("add")
+                                           .ElementAttr("class", "color-blue")
+                                           .Visible(!_isReadOnly)
+                                           .OnClick("addPhysicalPerson"))
+                                   </div>
+                               </text>);
+
+                items.Add().Title(translator.Common["PersonnesMorales"])
+                    .Template(@<text>
+                                   <div class="m-3 smallCaps text-green accordion" id="accordionMoralPersonsList">
+                                       @for (var i = 0; i < Model.DossierLabPersonneMorales?.Count; i++)
+                                       {
+                                           var personneMorale = Model.DossierLabPersonneMorales.ElementAt(i);
+                                           personneMorale.Culture = _lang;
+                                           personneMorale.IsReadOnly = _isReadOnly;
+                                           personneMorale.showIsDeclarationTracfin = Model.DeclarationTracfins.Any();
+                                           personneMorale.PersonneMoraleLab.IdPersonne ??= Guid.NewGuid();
+                                           @await Html.PartialAsync("_PartialPersonneMoraleLab", new Tuple<DossierLabPersonneMoraleViewModel, int>(personneMorale, i))
+                                       }
+                                   </div>
+
+                                   <div class="d-flex justify-content-end mt-3 mb-1 mr-3">
+                                       @(Html.DevExtreme().Button()
+                                           .ID("btnAddNewMoralPerson")
+                                           .Text(translator.Common["Ajouter une personne morale"])
+                                           .Icon("add")
+                                           .ElementAttr("class", "color-blue")
+                                           .Visible(!_isReadOnly)
+                                           .OnClick("addMoralPerson"))
+                                   </div>
+                               </text>);
+
+                items.Add().Title(translator.Common["NonConnue"])
+                    .Template(@<text>
+                                   <div class="m-3 smallCaps text-green accordion" id="accordionNonConnusList">
+                                       @for (var i = 0; i < Model.DossierLabNonConnus?.Count; i++)
+                                       {
+                                           var nonConnu = Model.DossierLabNonConnus.ElementAt(i);
+                                           nonConnu.Culture = _lang;
+                                           nonConnu.IsReadOnly = _isReadOnly;
+                                           nonConnu.ShowIsDeclarationTracfin = Model.DeclarationTracfins.Any();
+                                           nonConnu.NonConnuLab.IdPersonne ??= Guid.NewGuid();
+                                           @await Html.PartialAsync("_PartialNonConnuLab", new Tuple<DossierLabNonConnueViewModel, int>(nonConnu, i))
+                                       }
+                                   </div>
+                                   <div class="d-flex justify-content-end mt-3 mb-1 mr-3">
+                                       @(Html.DevExtreme().Button()
+                                           .ID("btnAddNonConnu")
+                                           .Text(translator.Common["AddNonConnu"])
+                                           .Icon("add")
+                                           .ElementAttr("class", "color-blue")
+                                           .Visible(!_isReadOnly)
+                                           .OnClick("addNonConnu"))
+                                   </div>
+                               </text>);
+            }).OnContentReady("_panelPersonneOnContentReady")
+        )
+    </div>
+
+    <div class="card shadow mb-4 bloc" id="bloc4">
+        <div class="card-header card-header-bloc">
+            <h6 class="m-0 text-green text-font-weight-600">
+                <i class="fas fa-calendar-week mr-2"></i>@translator.Common["ActionMenees"]
+            </h6>
+        </div>
+
+        <div class="card-body">
+            <table class="table table-bordered table-sm" id="actionsTable">
+                <thead>
+                <tr>
+                    <th width="30%" class="adjust-cell-th">@translator.Common["LibelleAction"]</th>
+                    <th width="20%" class="adjust-cell-th">@translator.Common["DateAction"]</th>
+                    @if (_isReadOnly)
+                    {
+                        <th width="40%" class="adjust-cell-th">@translator.Common["CreateurAction"]</th>
+                    }
+                    else
+                    {
+                        <th width="30%" class="adjust-cell-th">@translator.Common["CreateurAction"]</th>
+                        <th class="remove-top-right-border-th"></th>
+                    }
+                    <th class="remove-top-right-border-th text-right p-0">
+                        @(Html.DevExtreme().Button()
+                            .ID("btnAddNewAction")
+                            .Icon("add")
+                            .ElementAttr("class", "color-blue mb-1")
+                            .Type(ButtonType.Normal)
+                            .OnClick("function(){showFormAction(null);}")
+                            .Visible(!_isReadOnly))
+                    </th>
+                </tr>
+                </thead>
+                <tbody>
+                @if (Model.DossierLabActions != null && Model.DossierLabActions.Count > 0)
+                {
+                    var dossierLab = Model.DossierLabActions.OrderBy(x => x.DateCreation).ToList();
+                    @for (var i = 0; i < dossierLab.Count; i++)
+                    {
+                        <tr id="trAction@(i)">
+                            <td id="cellLibelle@(i)">@dossierLab[i].Libelle</td>
+                            <td id="cellDateCreation@(i)">@dossierLab[i].DateCreation.GetValueOrDefault().ToString(DateHelper.DateFormat())</td>
+                            <td>@dossierLab[i].Createur_FullName</td>
+                            @if (_isReadOnly)
+                            {
+                                <td class="text-right p-2">
+
+
+                                    @(Html.DevExtreme().Button()
+                                        .ID($"btnViewActionForm{i.ToString()}")
+                                        .Text(translator.Common["Display"])
+                                        .Width(120)
+                                        .Icon("search")
+                                        .ElementAttr("class", "color-blue")
+                                        .Type(ButtonType.Normal)
+                                        .OnClick(@<text>
+                                                      function(){
+
+                                                      showFormAction(@i);
+                                                      }
+                                                  </text>))
+                                </td>
+                            }
+                            else
+                            {
+                                <td>
+                                    @(Html.DevExtreme().Button()
+                                        .ID($"btnEditActionForm{i.ToString()}")
+                                        .Text(translator.Common["EditAction"])
+                                        .Width(120)
+                                        .Icon("edit")
+                                        .ElementAttr("class", "color-blue")
+                                        .Type(ButtonType.Normal)
+                                        .OnClick(@<text>
+                                                      function(){
+                                                      showFormAction(@i);
+                                                      }
+                                                  </text>))
+
+                                </td>
+                                <td>
+
+                                    @(Html.DevExtreme().Button()
+                                        .ID($"btnDeleteActionForm{i.ToString()}")
+                                        .Text(translator.Common["Delete"])
+                                        .Width(120)
+                                        .Icon("trash")
+                                        .ElementAttr("class", "color-red")
+                                        .Type(ButtonType.Normal)
+                                        .OnClick(@<text>
+                                                      function(){
+                                                      showFormConfirmationDeleteAction(@i);
+                                                      }
+                                                  </text>))
+                                </td>
+                            }
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+
+            <div id="actionsContainer" class="dx-hidden">
+                @if (Model?.DossierLabActions != null && Model.DossierLabActions.Count > 0)
+                {
+                    var dossierLab = Model.DossierLabActions.OrderBy(x => x.DateCreation).ToList();
+                    for (var i = 0; i < dossierLab.Count; i++)
+                    {
+                        @await Html.PartialAsync("_PartialAction", new Tuple<DossierLabActionViewModel, int>(dossierLab[i], i))
+                    }
+                }
+            </div>
+
+            @(Html.DevExtreme().Popup()
+                .ID("modalAction")
+                .ElementAttr(new Dictionary<string, object>
+                    { { "class", "popup" } })
+                .ShowTitle(true)
+                .DragEnabled(true)
+                .ShowCloseButton(true)
+                .ShowTitle(true)
+                .ResizeEnabled(false)
+                .Width("75%")
+                .TitleTemplate(@<text>
+                                    <div class="d-flex flex-row align-items-center justify-content-between">
+                                        <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+                                            <i class="fas fa-plus mr-2"></i>@translator.Common["EditAction"]
+                                        </div>
+                                    <button style="cursor: pointer; font-size: 24px; background-color: transparent; border: none; padding: 0; color: inherit;" onclick="$('#modalAction').dxPopup('hide');">&times;</button>
+                                    </div>
+                                </text>)
+                .Height("auto")
+                .ContentTemplate(@<text>
+                                      <div class="row">
+                                          <div class="col-sm-12 col-md-12 col-lg-2 col-xl-2 mb-3 align-self-center">
+                                              <span class="smallCaps text-green">
+                                                  @translator.Common["Libelle"]
+                                              </span>
+                                          </div>
+                                          <div class="col-sm-12 col-md-12 col-lg-10 col-xl-10 mb-1">
+                                              @Html.DevExtreme().TextBox().Name("LibelleEditName").ID("LibelleEdit").OnValueChanged("validateActionForm").Height(30).Width("100%").Disabled(_isReadOnly)
+                                          </div>
+                                          <div class="col-sm-12 col-md-12 col-lg-2 col-xl-2 mb-3 align-self-center">
+                                              <span class="smallCaps text-green">
+                                                  @translator.Common["DateAction"]
+                                              </span>
+                                          </div>
+                                          <div class="col-sm-12 col-md-12 col-lg-10 col-xl-10 mb-1">
+                                              @Html.DevExtreme().DateBox().ID("DateCreationActionEdit").Height(30).Name("DateCreationActionEdit").OnValueChanged("validateActionForm").DisplayFormat(DateHelper.DateFormat()).UseMaskBehavior(true).Width("30%").Disabled(_isReadOnly)
+                                          </div>
+
+                                          <div class="col-12 mb-1">
+                                              <div class="d-flex justify-content-between">
+                                                  <div class="smallCaps text-green text-truncate">
+                                                      @translator.Common["Description"]
+                                                  </div>
+                                                  <div>
+                                                      <button class="maximize-html-editor mr-1"
+                                                              style="background-color: transparent; border: none; cursor: pointer;"
+                                                              onclick="showPopupHtmlEditor('DescriptionEdit', '@translator.Common["Description"].Replace("'", "\\'")'); event.preventDefault();"
+                                                              onKeyDown="if(event.key==='Enter'||event.key===' '){showPopupHtmlEditor('DescriptionEdit', '@translator.Common["Description"].Replace("'", "\\'")');event.preventDefault();}">
+                                                          @translator.Common["Expand"]
+                                                      </button>
+                                                  </div>
+                                              </div>
+                                              @(Html.DevExtreme().HtmlEditor().ID("DescriptionEdit").Height(200).OnValueChanged("validateActionForm").ReadOnly(_isReadOnly)
+                                                  .Toolbar(toolbar => toolbar.Items(items =>
+                                                  {
+                                                      items.Add().FormatName("undo");
+
+                                                      items.Add().FormatName("redo");
+
+                                                      items.Add().FormatName("separator");
+
+                                                      items.Add()
+                                                          .FormatName("size")
+                                                          .FormatValues(new[] { "8pt", "10pt", "12pt", "14pt", "18pt", "24pt", "36pt" });
+
+                                                      items.Add()
+                                                          .FormatName("font")
+                                                          .FormatValues(new[] { "Arial", "Courier New", "Georgia", "Impact", "Lucida Console", "Tahoma", "Times New Roman", "Verdana" });
+
+                                                      items.Add().FormatName("separator");
+
+                                                      items.Add().FormatName("bold");
+
+                                                      items.Add().FormatName("italic");
+
+                                                      items.Add().FormatName("strike");
+
+                                                      items.Add().FormatName("underline");
+
+                                                      items.Add().FormatName("separator");
+
+                                                      items.Add().FormatName("alignLeft");
+
+                                                      items.Add().FormatName("alignCenter");
+
+                                                      items.Add().FormatName("alignRight");
+
+                                                      items.Add().FormatName("alignJustify");
+
+                                                      items.Add().FormatName("separator");
+
+                                                      items.Add()
+                                                          .FormatName("header")
+                                                          .FormatValues(new JS("[false, 1, 2, 3, 4, 5]"));
+
+                                                      items.Add().FormatName("separator");
+
+                                                      items.Add().FormatName("orderedList");
+
+                                                      items.Add().FormatName("bulletList");
+
+                                                      items.Add().FormatName("separator");
+
+                                                      items.Add().FormatName("color");
+
+                                                      items.Add().FormatName("background");
+
+                                                      items.Add().FormatName("separator");
+
+                                                      items.Add().FormatName("link");
+
+                                                      items.Add().FormatName("image");
+
+                                                      items.Add().FormatName("separator");
+
+                                                      items.Add().FormatName("clear");
+
+                                                      items.Add().FormatName("codeBlock");
+
+                                                      items.Add().FormatName("blockquote");
+                                                  })))
+
+                                          </div>
+
+                                          <div class="d-flex flex-row bd-highlight col-12 justify-content-end mt-2">
+
+                                              <div class="bd-highlight mr-2">
+                                                  @(Html.DevExtreme().Button()
+                                                      .ID("btnValidateActionForm")
+                                                      .Text(translator.Common["Save"])
+                                                      .Icon("far fa-save color-blue2")
+                                                      .Type(ButtonType.Normal).Visible(!_isReadOnly))
+                                              </div>
+
+                                              <div class="bd-highlight">
+                                                  @(Html.DevExtreme().Button()
+                                                      .ID("btnCloseActionForm")
+                                                      .Text(translator.Common["Exit"])
+                                                      .Icon("fas fa-door-open")
+                                                      .Type(ButtonType.Normal))
+
+                                              </div>
+                                          </div>
+                                      </div>
+                                  </text>)
+                .OnShown(@<text>
+                              function (e)
+                              {
+                              $("#modalAction").dxPopup({
+                              position: "center"
+                              });
+                              }
+                          </text>)
+            )
+
+        </div>
+    </div>
+
+    <div class="card shadow mb-4 bloc" id="bloc5">
+        <div class="card-header card-header-bloc">
+            <h6 class="m-0 text-green text-font-weight-600">
+                <i class="fas fa-stamp mr-2"></i>@translator.Common["DecisionsPrises"]
+            </h6>
+        </div>
+
+        <div class="card-body">
+            <div class="row">
+
+                <div class="col pr-md-1 pr-lg-1 pr-xl-1">
+                    <div class="text-truncate">
+                        <span class="smallCaps text-green">@translator.Common["AvisSF"] </span>
+                    </div>
+                    @Html.DevExtreme().SelectBoxFor(x => x.AvisId).ID("AvisId").Height(30).Name("AvisId").DataSource(avisLabs).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").SearchEnabled(true).ShowClearButton(true).ReadOnly(_isReadOnly)
+                </div>
+                <div class="col pl-lg-1 pl-xl-1 pr-lg-1 pr-xl-1 pl-md-1">
+                    <div class="text-truncate">
+                        <span class="smallCaps text-green">@translator.Common["VisaSF"] </span>
+                    </div>
+                    @Html.DevExtreme().SelectBoxFor(x => x.VisaId).ID("VisaId").Height(30).Name("VisaId").DataSource(visaLabs).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").SearchEnabled(true).ShowClearButton(true).ReadOnly(_isReadOnly)
+                </div>
+
+                <div class="col pl-lg-1 pl-xl-1 pr-lg-1 pr-xl-1 pl-md-1">
+                    <div class="text-truncate">
+                        <span class="smallCaps text-green">@translator.Common["PresentationComiteDate"]</span>
+                    </div>
+                    @Html.DevExtreme().DateBoxFor(x => x.PresentationComiteDate).ID("PresentationComiteDate").Height(30).Name("PresentationComiteDate").DisplayFormat(DateHelper.DateFormat()).Width("100%").ShowClearButton(true).ReadOnly(_isReadOnly)
+                </div>
+                <div class="col pl-lg-1 pl-xl-1 pr-lg-1 pr-xl-1 pl-md-1 @(!isTracfin && (Model.CategorieGroupeLabId == 1 && Model.CategorieGroupeLabId == 2) ? string.Empty : "dx-hidden" )" id="date-declaration-locale">
+                    <div class="text-truncate">
+
+                        <span class="smallCaps text-green">
+                            @translator.Common["DateDeclarationLocale"] <span class="RequiredField" id="DateDeclarationLocale@(requiredAsteriskSuffix)">*</span>
+                        </span><i id="targetDateDeclarationLocale" class="fas fa-info-circle infoTooltipTarget"></i>
+                        @(Html.DevExtreme().Tooltip().Width(500)
+                            .ID("ToolTip-DateDeclarationLocale")
+                            .Target("#targetDateDeclarationLocale")
+                            .ShowEvent("mouseenter")
+                            .HideEvent("mouseleave")
+                            .CloseOnOutsideClick(false)
+                            .Position(Position.Bottom)
+                            .ContentTemplate(@<text>
+                                                  <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                      @Html.Raw(translator.TemplateTraduction["ToolTipDateDeclarationLocale"])
+                                                  </div>
+                                              </text>)
+                        )
+                    </div>
+                                @(Html.DevExtreme().DateBoxFor(x => x.DateDeclarationLocale).ID("DateDeclarationLocale")
+                                .Height(30).Name("DateDeclarationLocale")
+                                .DisplayFormat(DateHelper.DateFormat())
+                                .Width("100%").ShowClearButton(true)
+                                .ReadOnly(_isReadOnly)
+                                .ElementAttr("class", "mandatory"))
+                </div>
+
+                <div class="col pl-lg-1 pl-xl-1 pr-lg-1 pr-xl-1 pl-md-1" id="statut-dossier-lab-container">
+                    <div class="text-truncate">
+                        <span class="smallCaps text-green">
+                            @translator.Common["Statut"] <span class="RequiredField">*</span>
+                        </span>
+                    </div>
+                    @(Html.DevExtreme().SelectBoxFor(x => x.StatutDossierId).ID("StatutDossierId")
+                        .Height(30)
+                        .Name("StatutDossierId")
+                        .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                        .DisplayExpr(Model.IsDeclarationSoupcon && Model.IsNewDeclarationTracfin && isTracfin ? $"DsName{_lang}" : $"Name{_lang}")
+                        .ValueExpr("Id")
+                        .SearchEnabled(true)
+                        .ShowClearButton(true)
+                        .ElementAttr("class", "mandatory")
+                        .Disabled(Model.StatutDossierId == (int)StatutDossierLabEnum.AttenteValidation)
+                        .OnValueChanged(@<text> function (e){dateDebutFinAnalyseDeclarationTracfinRequired(0)}</text>)
+                        .ReadOnly(_isReadOnly))
+                </div>
+
+
+            </div>
+
+        </div>
+    </div>
+
+    <div class="card shadow mb-4 bloc" id="bloc6">
+        <div class="card-header card-header-bloc">
+            <h6 class="m-0 text-green text-font-weight-600">
+                <i class="fas fa-paperclip mr-2"></i>@translator.Common["Attachments"]
+            </h6>
+
+        </div>
+
+        <div class="card-body">
+            <div class=" @(Model.IsDgt ? string.Empty : " dx-hidden")" id="date-derniere-declaration-dgt">
+                <div class="text-truncate">
+                    <span class="smallCaps text-green">
+                        @translator.Common["DateDerniereDeclarationDgt"]
+                    </span>
+                </div>
+                <div class="d-flex pb-2 justify-content-start">
+                    @(Html.DevExtreme().DateBoxFor(x => x.DateDerniereDeclarationDgt)
+                        .Name("DateDerniereDeclarationDgt")
+                        .ID("DateDerniereDeclarationDgt"))
+                </div>
+            </div>
+
+            <div class="d-flex pb-2 justify-content-@(Model.DocumentDossierLabs.Count > 0 ? "between" : "end")">
+
+                @if (Model.DocumentDossierLabs.Count > 0)
+                {
+                    @(Html.DevExtreme().Button()
+                        .ID("btnDownloadAllFiles")
+                        .Hint(translator.Common["DownloadAll"])
+                        .Icon("fas fa-download color-blue2")
+                        .Type(ButtonType.Normal)
+                        .OnClick(@<text>
+                                      function () {
+                                      downloadAllDocumentsLab('@Model.CryptedId','@Model.CodeUnique');
+                                      }
+                                  </text>))
+                }
+
+                @if (!_isReadOnly)
+                {
+                    @(Html.DevExtreme().Button()
+                        .ID("btnShowFormAttachments")
+                        .Hint(translator.Common["AddDocument"])
+                        .Type(ButtonType.Normal)
+                        .Icon("add")
+                        .ElementAttr("class", "color-blue")
+                        .OnClick(@<text>
+                                      function ()
+                                      {
+                                      showAddNewAttachmentPopup();
+                                      }
+                                  </text>))
+                }
+            </div>
+            <div id="createOrUpdateDossierLab_formAttachmentsCollection">
+                @{
+                    var attachments = await _attachmentService.GetAttachmentsByDossierId(
+                        Model.CryptedId, Model.Lang.ToLower()) ?? new List<DocumentDossierLabViewModel>();
+                    if (Model.IsNew && Model.IsCreatedFromFraude && !string.IsNullOrEmpty(Model.DossierFraudeCodeUnique))
+                    {
+                        var dossierlab = await _attachmentService.GetAttachmentsFraudeByDossierId(
+                            Model.DossierFraudeCryptedId, Model.Lang.ToLower()) ?? new DossierLabViewModel();
+                        attachments = dossierlab.DocumentDossierLabs;
+                    }
+
+                    for (var i = 0; i < attachments.Count; i++)
+                    {
+                        @await Html.PartialAsync("_PartialFormAttachmentsCollectionItem",
+                            new Tuple<DocumentDossierLabViewModel, int>(attachments[i], i))
+                    }
+                }
+            </div>
+            @(Html.DevExtreme().DataGrid()
+                .ID("gridAttachmentsLab")
+                .Selection(s => s.Mode(SelectionMode.Single))
+                .HoverStateEnabled(true)
+                .SearchPanel(searchPanel => searchPanel.Visible(false))
+                .RemoteOperations(false)
+                .AllowColumnReordering(true)
+                .RowAlternationEnabled(false)
+                .ShowBorders(true)
+                .AllowColumnResizing(true)
+                .ColumnAutoWidth(true)
+                .ColumnChooser(cc => cc.Enabled(false).AllowSearch(false))
+                .Selection(s => s.Mode(SelectionMode.Single))
+                .Columns(columns =>
+                {
+                    columns
+                        .Add()
+                        .DataField("DocumentName")
+                        .Caption(translator.Common["DocumentName"]);
+
+                    columns.Add().DataField("CategorieDocumentName").Caption(translator.Common["FileCategory"]);
+                    columns.Add().DataField("FileName").Caption(translator.Common["FileName"]);
+
+
+                    columns.Add()
+                        .Type(GridCommandColumnType.Buttons)
+                        .Width(110)
+                        .Buttons(b =>
+                        {
+                            b.Add()
+                                .Hint("Edit")
+                                .Icon("edit")
+                                .Visible(!_isReadOnly)
+                                .OnClick("showEditAttachmentForm");
+
+
+                            b.Add()
+                                .Hint("Download")
+                                .Icon("download")
+                                .OnClick("downloadDocumentLab");
+
+
+                            b.Add()
+                                .Hint("Delete")
+                                .Icon("trash")
+                                .Visible(!_isReadOnly)
+                                .OnClick("deleteNewAttachmentDetails");
+                        });
+                })
+                .MasterDetail(md =>
+                {
+                    md.Enabled(true);
+                    md.Template(@<text>
+
+                                     <% if(data.CategorieDocumentId === 8) { %>
+                                     <table class="table table-bordered table-sm">
+                                         <thead>
+                                         <tr>
+                                             <% if(data.PersonneAssocieId) { %>
+                                             <th scope="col">@translator.Common["PersonneAssocie"]</th>
+                                             <% } %>
+                                             <th scope="col">@translator.Common["TypeFileDocument"]</th>
+                                             <% if(data.TypeDocumentLabCode == "TA2" || data.TypeDocumentLabCode == "TA3" || data.TypeDocumentLabCode == "TA5" || data.TypeDocumentLabCode == "TA9") { %>
+                                             <th scope="col">@translator.Common["IdentityNumber"]</th>
+                                             <th scope="col">@translator.Common["AuthorityRelease"]</th>
+                                             <th scope="col">@translator.Common["CountryRelase"]</th>
+                                             <th scope="col">@translator.Common["DateValidity"]</th>
+                                             <% } %>
+                                             <% if(data.TypeDocumentLabCode == "TA2" ) { %>
+                                             <th scope="col">@translator.Common["LevelCNI"]</th>
+                                             <% } %>
+                                             <% if(data.TypeDocumentLabCode == "TA17" || data.TypeDocumentLabCode == "TA8") { %>
+                                             <th scope="col">@translator.Common["Precision_if_OtherType"]</th>
+                                             <% } %>
+                                             <% if(data.TypeDocumentLabCode == "TA10" ) { %>
+                                             <th scope="col">@translator.Common["SourceFileDocument"]</th>
+                                             <% } %>
+                                             <% if(data.TypeDocumentLabCode == "TA1" || data.TypeDocumentLabCode == "TA4"|| data.TypeDocumentLabCode == "TA6" || data.TypeDocumentLabCode == "TA7" || data.TypeDocumentLabCode == "TA8"|| data.TypeDocumentLabCode == "TA10" || data.TypeDocumentLabCode == "TA11" || data.TypeDocumentLabCode == "TA12" || data.TypeDocumentLabCode == "TA13" || data.TypeDocumentLabCode == "TA14" || data.TypeDocumentLabCode == "TA15" || data.TypeDocumentLabCode == "TA16" || data.TypeDocumentLabCode == "TA17" ) { %>
+                                             <th scope="col">@translator.Common["DateDocument"]</th>
+                                             <% } %>
+
+                                         </tr>
+                                         </thead>
+                                         <tbody>
+                                         <tr>
+                                             <% if(data.PersonneAssocieId) { %>
+                                             <td><%- data.PersonneAssocie %></td>
+                                             <% } %>
+                                             <td><%- data.TypeDocumentLabName %></td>
+                                             <% if(data.TypeDocumentLabCode == "TA2" || data.TypeDocumentLabCode == "TA3" || data.TypeDocumentLabCode == "TA5" || data.TypeDocumentLabCode == "TA9") { %>
+                                             <td><%- data.IdentityNumber %></td>
+                                             <td><%- isNullOrUndefined(data.AuthorityRelease) ? "" : data.AuthorityRelease %></td>
+                                             <td><%- data.CountryRelaseName %></td>
+                                             <td><%- data.DateValidity %></td>
+                                             <% } %>
+
+                                             <% if(data.TypeDocumentLabCode == "TA2" ) { %>
+                                             <td style='text-align:center; vertical-align:middle'>
+                                                 <% if(data.LevelCNI == true ) { %>
+                                                 <input type="checkbox" disabled="disabled" checked="checked">
+                                                 <% } else { %>
+                                                 <input type="checkbox" disabled="disabled">
+                                                 <% } %>
+                                             </td>
+                                             <% } %>
+                                             <% if(data.TypeDocumentLabCode == "TA17" || data.TypeDocumentLabCode == "TA8" ) { %>
+                                             <td><%- data.Precision_if_OtherType %></td>
+                                             <% } %>
+                                             <% if(data.TypeDocumentLabCode == "TA10" ) { %>
+                                             <td><%- data.SourceFileDocument %></td>
+                                             <% } %>
+                                             <% if(data.TypeDocumentLabCode == "TA1" || data.TypeDocumentLabCode == "TA4"|| data.TypeDocumentLabCode == "TA6" || data.TypeDocumentLabCode == "TA7" || data.TypeDocumentLabCode == "TA8"|| data.TypeDocumentLabCode == "TA10" || data.TypeDocumentLabCode == "TA11" || data.TypeDocumentLabCode == "TA12" || data.TypeDocumentLabCode == "TA13" || data.TypeDocumentLabCode == "TA14" || data.TypeDocumentLabCode == "TA15" || data.TypeDocumentLabCode == "TA16" || data.TypeDocumentLabCode == "TA17" ) { %>
+                                             <td><%- data.DateDocument %></td>
+                                             <% } %>
+
+                                         </tr>
+                                         </tbody>
+                                     </table>
+                                     <% } %>
+                                 </text>);
+                })
+                .OnContentReady(@<text>
+                                     function ()
+                                     {
+                                     if(!bRefreshDataGridAttachments) return;
+
+                                     bRefreshDataGridAttachments = false;
+
+                                     initAttachmentsDataGrid(@Html.Raw(Json.Serialize(attachments)));
+                                     }
+                                 </text>))
+
+
+            @if (!_isReadOnly)
+            {
+                <div class="text-center">
+                </div>
+            }
+
+        </div>
+    </div>
+
+
+    <div id="bloc7" class="card shadow bloc mb-4 mt-4">
+
+        <div class="card-header card-header-bloc">
+            <h6 class="m-0 text-green text-font-weight-600">
+                <i class="fas fa-share-square mr-2"></i>@translator.Common["DemandeInformation"]
+            </h6>
+
+        </div>
+
+        <div class="card-body">
+
+            @(Html.DevExtreme().DataGrid<DemandeInformationLabViewModel>()
+                .ID("gridDemandeInformationLab")
+                .Export(e => e.Enabled(true)
+                    .AllowExportSelectedData(true))
+                .Grouping(grouping => grouping.AutoExpandAll(true))
+                .Selection(s => s.Mode(SelectionMode.Single))
+                .HoverStateEnabled(true)
+                .SearchPanel(searchPanel => searchPanel.Visible(true))
+                .RemoteOperations(false)
+                .AllowColumnReordering(true)
+                .RowAlternationEnabled(false)
+                .ShowBorders(true)
+                .AllowColumnResizing(true)
+                .ColumnAutoWidth(true)
+                .ColumnChooser(cc => cc.Enabled(true).AllowSearch(true))
+                .OnInitialized("exporting")
+                .Columns(columns =>
+                {
+                    columns.AddFor(m => m.Titre).Caption(translator.Common["IntitleDemandeInformation"]);
+
+                    columns.Add().Caption(translator.Common["Statut"]).DataField($"StatutDemandeInformationLab.Name{_lang}");
+
+                    columns.AddFor(m => m.Createur.FullName).Caption(translator.Common["Createur"]);
+
+                    columns.AddFor(m => m.DateCreation).Caption(translator.Common["DateCreation"]).DataType(GridColumnDataType.Date).Format(CultureInfo.CurrentUICulture.DateTimeFormat.ShortDatePattern);
+
+                    columns.AddFor(m => m.DateCloture).Caption(translator.Common["EndDate"]).DataType(GridColumnDataType.Date).Format(CultureInfo.CurrentUICulture.DateTimeFormat.ShortDatePattern);
+
+                    columns.AddFor(m => m.NombreRelance).Caption(translator.Common["NombreRelance"]);
+
+                    columns.AddFor(m => m.LastDateRelance).Caption(translator.Common["LastDateRelance"]).DataType(GridColumnDataType.Date).Format(CultureInfo.CurrentUICulture.DateTimeFormat.ShortDatePattern);
+                }).OnRowPrepared("gridDemandeInformationDossierLab_OnRowPrepared").OnSelectionChanged("griddemandeinformationLab_OnSelectionChanged"))
+
+            <script>
+                            _dossierlabCryptedId = '@Model.CryptedId';
+                            _isEditDossierLab = "@Model.IsEditDossierlab" == "True" ? true : false;
+                            _currentUser = @currentUser;
+                        </script>
+
+            <div class="d-flex justify-content-end mt-2">
+
+                @if (Model.IsEditDossierlab)
+                {
+                    <div class="ml-2" id="addDemandeInformationLabDiv">
+
+
+                        @(Html.DevExtreme().Button().ID("btnAddDemandeInformationLab")
+                            .Type(ButtonType.Normal)
+                            .Icon("add")
+                            .ElementAttr("class", "color-blue")
+                            .OnClick("adddemandeinformationlab_onClick"))
+                    </div>
+
+
+                    <div class=" ml-2" id="deleteDemandeInformationLabDiv" style="display:none">
+                        @(Html.DevExtreme().Button().ID("btndeleteDemandeInformationLab")
+                            .Type(ButtonType.Normal)
+                            .Icon("trash")
+                            .ElementAttr("class", "color-red")
+                            .OnClick("deleteddemandeinformationlab_onClick"))
+                    </div>
+
+                    <div class=" ml-2" id="clotureDemandeInformationLabDiv" style="display:none">
+                        @(Html.DevExtreme().Button().ID("btnclotureDemandeInformationLab")
+                            .Type(ButtonType.Normal)
+                            .Icon("fas fa-times-circle text-danger")
+                            .ElementAttr("class", "color-red")
+                            .OnClick("cloturedemandeinformationlab_onClick"))
+                    </div>
+
+                    <div class=" ml-2" id="relanceDemandeInformationLabDiv" style="display:none">
+                        @(Html.DevExtreme().Button().ID("btnrelanceDemandeInformationLab")
+                            .Text(translator.Common["Relance"])
+                            .Type(ButtonType.Normal)
+                            .Icon("refresh")
+                            .ElementAttr("class", "color-blue")
+                            .OnClick("relancedemandeinformationlab_onClick"))
+                    </div>
+                }
+                <div class=" ml-2" id="editDemandeInformationLabDiv" style="display:none">
+                    @(Html.DevExtreme().Button().ID("btneditdemandeInformationLab")
+                        .Type(ButtonType.Normal)
+                        .Icon("edit")
+                        .ElementAttr("class", "color-blue")
+                        .OnClick("editdemandeinformationlab_onClick"))
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="bloc8" class="card shadow blocds mb-4 mt-4 @(Model.DeclarationTracfins.Any() ? string.Empty : "dx-hidden")">
+        <div class="card-header card-header-bloc">
+            <h6 class="m-0 text-green text-font-weight-600">
+                <i class="fas fa-share-square mr-2"></i>@translator.Common["DeclarationSoupcon"]
+            </h6>
+
+        </div>
+        @if (Model.IsNewDeclarationTracfin || Model.DeclarationTracfins.Any(x => x.EstNouvelleDeclarationTracfin))
+        {
+            <div class="card-body" id="declaration-tracfin-container">
+                @for (var i = 0; i < Model.DeclarationTracfins?.Count; i++)
+                {
+                    var declarationTracfin = Model.DeclarationTracfins.ElementAt(i);
+                    declarationTracfin.Culture = _lang;
+                    if (declarationTracfin.OrganismeLab != null)
+                    {
+                        declarationTracfin.OrganismeLab.Culture = _lang;
+                    }
+
+                    declarationTracfin.IsReadOnly = _isReadOnly;
+                    declarationTracfin.IsAdminGlobal = Model.IsAdminGlobal;
+                    declarationTracfin.IsDirectionTracfin = isTracfin;
+                    @await Html.PartialAsync("_PartialDeclarationTracfinViewNew", new Tuple<DeclarationTracfinViewModel, int>(declarationTracfin, i))
+                }
+
+            </div>
+        }
+        else
+        {
+            <div class="card-body" id="declaration-tracfin-container">
+                @for (var i = 0; i < Model.DeclarationTracfins?.Count; i++)
+                {
+                    var declarationTracfin = Model.DeclarationTracfins.ElementAt(i);
+                    declarationTracfin.Culture = _lang;
+                    if (declarationTracfin.OrganismeLab != null)
+                    {
+                        declarationTracfin.OrganismeLab.Culture = _lang;
+                    }
+
+                    declarationTracfin.IsReadOnly = _isReadOnly;
+                    declarationTracfin.IsAdminGlobal = Model.IsAdminGlobal;
+                    @await Html.PartialAsync("_PartialDeclarationTracfinView", new Tuple<DeclarationTracfinViewModel, int>(declarationTracfin, i))
+                }
+
+            </div>
+        }
+
+    </div>
+    </div>
+
+    @(Html.DevExtreme().Popup()
+        .ID("modalAttachments")
+        .ElementAttr(new Dictionary<string, object>
+            { { "class", "popup" } })
+        .ShowTitle(true)
+        .DragEnabled(true)
+        .ShowCloseButton(false)
+        .ShowTitle(true)
+        .ResizeEnabled(false)
+        .Width("35%").Height(500)
+        .TitleTemplate(@<text>
+                            <div class="d-flex flex-row align-items-center justify-content-between">
+                                <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+                                    <i class="fas fa-plus mr-2"></i>@translator.Common["AjouterPieceJointe"]
+                                </div>
+                            </div>
+                        </text>)
+        .Height("auto").Content("<div id=\"attachments-container\"></div>")
+        .OnShown(@<text>
+                      function (e)
+                      {
+                      $("#modalAttachments").dxPopup({
+                      position: "center"
+                      });
+                      }
+                  </text>)
+    )
+    @(Html.DevExtreme().Popup()
+        .ID("modalHtmlEditor")
+        .ElementAttr(new Dictionary<string, object>
+            { { "class", "popup" } })
+        .ShowTitle(true)
+        .DragEnabled(true)
+        .ShowCloseButton(true)
+        .ShowTitle(true)
+        .ResizeEnabled(false)
+        .Width("85%").Height("auto")
+        .ContentTemplate(@<text>
+                              <div class="row">
+
+                                  <div class="col-12" id="modalHtmlEditorScrollView">
+                                  </div>
+
+                                  <div class="d-flex flex-row col-12 justify-content-end mt-2">
+
+                                      <div>
+                                          @(Html.DevExtreme().Button()
+                                              .ID("btnmodalHtmlEditorScrollView")
+                                              .Text(translator.Common["Exit"])
+                                              .Icon("fas fa-door-open")
+                                              .Type(ButtonType.Normal)
+                                              .OnClick("function(){ $('#modalHtmlEditor').dxPopup('hide');}"))
+                                      </div>
+                                  </div>
+                              </div>
+                          </text>)
+        .OnShown(@<text>
+                      function (e)
+                      {
+                      $("#modalHtmlEditor").dxPopup({
+                      position: "center"
+                      });
+                      }
+                  </text>))
+    <input type="file" hidden="hidden" id="XMLDeclarationTracfin" name="XMLDeclarationTracfin" onchange="importDeclarationTracfinXml()" accept=".xml">
+    <input type="file" hidden="hidden" id="XMLDeclarationTracfinNew" name="XMLDeclarationTracfin" onchange="importDeclarationTracfinNewXml()" accept=".xml">
+    </div>
+    </form>
+}
+
+
+@(Html.DevExtreme().Popup()
+    .ID("DemandeInformationLabModalPreview")
+    .ElementAttr(new Dictionary<string, object>
+        { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .Width("auto")
+    .OnShowing("demandeInformationLabModalPreview_OnShowing")
+    .ElementAttr("style", "min-Height:95%;overflow-y: scroll;")
+    .TitleTemplate(@<text>
+                        <div class="d-flex flex-row align-items-center justify-content-between">
+                            <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+                                <i class="fas fa-pen mr-2"></i>@translator.Common["DemandeInformation"]
+
+                            </div>
+            <button style="cursor: pointer; font-size: 24px; background-color: transparent; border: none; padding: 0; color: inherit;" onclick="$('#DemandeInformationLabModalPreview').dxPopup('hide');">&times;</button>
+                        </div>
+                    </text>))
+@(Html.DevExtreme().Popup()
+    .ID("DeleteDemandeInformationLabModalPreview")
+    .ElementAttr(new Dictionary<string, object>
+        { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true).ShowTitle(true)
+    .ResizeEnabled(false)
+    .Width("50%")
+    .Height("auto")
+    .TitleTemplate(@<text>
+                        <div class="d-flex flex-row align-items-center justify-content-between">
+                            <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green"><i class="fas fa-trash mr-2"></i> @translator.Common["DemandeInformation"] >> @translator.Common["DeleteRequest"] </div>
+                            <button style="cursor: pointer; font-size: 24px; background-color: transparent; border: none; padding: 0; color: inherit;" onclick="$('#DeleteDemandeInformationLabModalPreview').dxPopup('hide');">&times;</button>
+                        </div>
+                    </text>))
+@(Html.DevExtreme().Popup()
+    .ID("ClotureDemandeInformationLabModalPreview")
+    .ElementAttr(new Dictionary<string, object>
+        { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true).ShowTitle(true)
+    .ResizeEnabled(false)
+    .Width("50%")
+    .Height("auto")
+    .TitleTemplate(@<text>
+                        <div class="d-flex flex-row align-items-center justify-content-between">
+                            <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green"><i class="fas fa-trash mr-2"></i> @translator.Common["DemandeInformation"] >> @translator.Common["CasesClosed"] </div>
+                            <button style="cursor: pointer; font-size: 24px; background-color: transparent; border: none; padding: 0; color: inherit;" onclick="$('#ClotureDemandeInformationLabModalPreview').dxPopup('hide');">&times;</button>
+                        </div>
+                    </text>))
+@(Html.DevExtreme().Popup()
+    .ID("RelanceDemandeInformationLabModalPreview")
+    .ElementAttr(new Dictionary<string, object>
+        { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true).ShowTitle(true)
+    .ResizeEnabled(false)
+    .Width("50%")
+    .Height("auto")
+    .TitleTemplate(@<text>
+                        <div class="d-flex flex-row align-items-center justify-content-between">
+                            <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green"><i class="fas fa-pen mr-2"></i> @translator.Common["DemandeInformation"] >> @translator.Common["Relance"] </div>
+                            <button style="cursor: pointer; font-size: 24px; background-color: transparent; border: none; padding: 0; color: inherit;" onclick="$('#RelanceDemandeInformationLabModalPreview').dxPopup('hide');">&times;</button>
+                        </div>
+                    </text>))
+
+
+@functions {
+
+    private HtmlString DeclareNombreInitialTiers(string variableName, DossierLabViewModel model)
+    {
+        if (model == null)
+        {
+            return new HtmlString($"var {variableName} = undefined;");
+        }
+
+        var value = (model.DossierLabPersonnePhysiques?.Count ?? 0) +
+                    (model.DossierLabPersonneMorales?.Count ?? 0) +
+                    (model.DossierLabNonConnus?.Count ?? 0);
+        return new HtmlString($"var {variableName} = {Html.Raw(Json.Serialize(value))};");
+    }
+
+}
+
+<script>
+    showLoadPanel("@translator.Common["ChargementDuDossier"]");
+
+    var arrayFirstLoadPersonnePhysique = [];
+    var arrayFirstLoadPersonneMorale = [];
+    var arrayFirstLoadNonConnu = [];
+
+    @DeclareNombreInitialTiers("_nombreInitialTiers", Model);
+    var nombreDataGridReferencesFinancieresReady = 0;
+
+    $(document).ready(function () {
+
+        directionOnValueChangedCreateUpdateDossierLab('@Model.CryptedId','@_isReadOnly.ToString().ToLower()',
+            function () {
+                categorieGroupeLab_OnValueChanged(@(Model.DeclarationTracfins.Any().ToString().ToLower()),
+                    function () {
+                        setCategorieGroupeDeclarationTracfin();
+                        demandeinformationlab_initilise_grid();
+                    });
+            });
+    });
+
+</script>
+<script>_codeUnique = '@Model.CodeUnique'</script>
+<script>_dossierCryptedId = '@Model.CryptedId'</script>
+<script>_Lang = '@_lang'</script>
+<script type="text/javascript">
+    var contributeurSelectBoxOpenedArray = [];
+    $(document).ready(function () {
+        setFieldsValidators();
+    });
+</script>
