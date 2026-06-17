@@ -1,0 +1,1995 @@
+@inject IViewTranslator translator
+@inject IRoleAccessUser _roleAccess
+
+@model Tuple<DossierLabPersonnePhysiqueViewModel, int>;
+@inject IReferentielViewModel _referentiel;
+
+@{
+    var _isReadOnly = Model.Item1.IsReadOnly;
+    var _lang = Context.Features.Get<IRequestCultureFeature>().RequestCulture.Culture.ToString().ToCamelCase();
+    var typesClient = Model.Item1.DirectionId is > 0 ? _referentiel.GetTypeClientLabs(Model.Item1.DirectionId.Value).Where(x => x.IsCorporate != true) : null;
+    dynamic dateNaissanceEntete = Model.Item1.PersonnePhysiqueLab.DateNaissance != DateTime.MinValue && Model.Item1.PersonnePhysiqueLab.DateNaissance.HasValue && Model.Item1.PersonnePhysiqueLab.DateNaissance > DateTime.Today && Model.Item1.PersonnePhysiqueLab.DateNaissance <= new DateTime(1900, 1, 1) ? Model.Item1.PersonnePhysiqueLab.DateNaissance.Value.ToString(_lang == "Fr" ? "dd/MM/yyyy" : "yyyy-MM-dd", CultureInfo.InvariantCulture) : string.Empty;
+    var relationAffaires = translator.Common["RelationAffaires"];
+    var clientOccasionnel = translator.Common["ClientOccasionnel"];
+    var tentativeEer = translator.Common["TentativeEer"];
+    var typesImplication = _referentiel.TypesImplicationLabs;
+    var priorities = new[] { new { Id = 1, Name = relationAffaires }, new { Id = 2, Name = clientOccasionnel }, new { Id = 3, Name = tentativeEer } };
+    var hasDateNaissance = Model.Item1.PersonnePhysiqueLab.DateNaissance != DateTime.MinValue && dateNaissanceEntete.Trim() != string.Empty && Model.Item1.PersonnePhysiqueLab.DateNaissance > DateTime.Today && Model.Item1.PersonnePhysiqueLab.DateNaissance <= new DateTime(1900, 1, 1);
+    var canalEntreeRelationSources = _referentiel.CanalsEntreeEnRelation.Where(x => x.ActiviteId == 1);
+    var hasTypeRelationAffaire = Model.Item1.PersonnePhysiqueLab.TypeRelationAffaireLab != null;
+    var typeRelationAffaire = Model.Item1.Culture == "Fr"
+        ? Model.Item1.PersonnePhysiqueLab.TypeRelationAffaireLab?.NameFr
+        : Model.Item1.PersonnePhysiqueLab.TypeRelationAffaireLab?.NameEn;
+    var _isRelationTerminee = Model.Item1.PersonnePhysiqueLab.TypeRelationAffaireLabId == 4 || Model.Item1.PersonnePhysiqueLab.TypeRelationAffaireLabId == 3;
+    var isRobot = _roleAccess.HasRoles(ActiviteModule.Lab, null, RoleUser.Robot);
+    var isIsole = _roleAccess.HasClaimIsole(ActiviteModule.Lab);
+    var isPp = "True";
+    var isPm = "False";
+    var Yes = "Oui";
+    var No = "Non";
+    var YesEu = "Oui, dans l'UE";
+    var YesNoEu = "Oui, hors UE";
+    var dontKnow = "Je ne sais pas";
+
+    var ouiNonDontKnow = new[] { new { Id = 1, Name = Yes }, new { Id = 2, Name = No }, new { Id = 3, Name = dontKnow } };
+    var ouiNon = new[] { new { Id = 1, Name = Yes }, new { Id = 0, Name = No } };
+
+    var ouiNonEu = new[] { new { Id = 1, Name = YesEu }, new { Id = 2, Name = YesNoEu }, new { Id = 3, Name = No } };
+
+    var idEtranger = _referentiel.IdentificationProfessionnelles
+        .Single(idp => idp.Code == nameof(IdentificationProfessionnelleEnum.RN6))
+        .Id;
+    var requiredAsteriskSuffix = Model.Item2 + Constants.AsteriskIdSuffix;
+}
+<script type="text/javascript">
+    $(document).ready(function () {
+        ppeId_lab_OnValueChanged(@Model.Item2);
+        arrayFirstLoadPersonnePhysique[@(Model.Item2)] = true;
+        setPartialPersonnePhysiqueLabAdditionalValidationRules(@(Model.Item2));
+        identificationProfessionnelle_OnValueChanged(@(Model.Item2));
+        disableEnableRequiredFiledOnAddPpPm();
+        $(".afterPersonneDsField").toggleClass("pr-xl-1", !_labIsDeclarationTracfin);
+        toggleDisplayButtonAddNewCoordonnee(@Model.Item2);
+    });
+</script>
+<div class="card physicalPerson" id="rowPhysicalPerson@(Model.Item2)">
+    @Html.TextBox($"DossierLabPersonnePhysiques[{Model.Item2}].CryptedId", Model.Item1.CryptedId, new { type = "hidden" })
+    @Html.TextBox($"DossierLabPersonnePhysiques[{Model.Item2}].CryptedPersonnePhysiqueLabId", Model.Item1.CryptedPersonnePhysiqueLabId, new { id = "CryptedPersonnePhysiqueLabId" + Model.Item2, type = "hidden" })
+    @Html.TextBox($"DossierLabPersonnePhysiques[{Model.Item2}].CryptedDossierLabId", Model.Item1.CryptedDossierLabId, new { type = "hidden" })
+    @Html.TextBox($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.CryptedId", Model.Item1.PersonnePhysiqueLab.CryptedId, new { id = "CryptedPersonnePhysiqueLabCryptedId" + Model.Item2, type = "hidden" })
+    @Html.TextBox($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.IdPersonne", Model.Item1.PersonnePhysiqueLab?.IdPersonne, new { id = "PersonnePhysiqueLabIdPersonne" + Model.Item2, type = "hidden" })
+    @Html.TextBox($"DossierLabPersonnePhysiques[{Model.Item2}].ToDelete", Model.Item1.ToDelete, new { id = "physicalPersonToDelete" + Model.Item2, type = "hidden" })
+    @Html.TextBox($"DossierLabPersonnePhysiques[{Model.Item2}].physicalPersonIsAlreadyImported", false, new { id = "physicalPersonIsAlreadyImported" + Model.Item2, type = "hidden" })
+    @Html.TextBox($"DossierLabPersonnePhysiques[{Model.Item2}].IsNew", Model.Item1.IsNew, new { id = "physicalPersonIsNew" + Model.Item2, type = "hidden" })
+    <div class="card-header p-1" id="headingPhysicalPerson@(Model.Item2)">
+        <div class="d-flex adjust-card-header justify-content-between">
+            <div style="width: 100%;">
+                <a href="#" id="link@(Model.Item2)" data-toggle="collapse" data-target="#collapsePhysicalPerson@(Model.Item2)" aria-expanded="false" aria-controls="collapsePhysicalPerson@(Model.Item2)" style="text-decoration:none !important; color:inherit">
+                    <div>
+                        <i class="fas fa-user-plus mr-2"></i>@(translator.Common["PhysicalPerson"]) :
+                        <span id="identityPhysicalPerson@(Model.Item2)"> @($"{Model.Item1.PersonnePhysiqueLab.Prenoms} {Model.Item1.PersonnePhysiqueLab.NomNaissance}") @(hasDateNaissance ? "(" : string.Empty)@(dateNaissanceEntete)@(hasDateNaissance ? ")" : string.Empty) @(hasTypeRelationAffaire ? " - " : string.Empty)@(typeRelationAffaire) </span>
+                    </div>
+                </a>
+            </div>
+            <div class="d-flex isPersonneDs @(Model.Item1.showIsDeclarationTracfin ? "" : "dx-hidden") mr-5">
+                <div class="text-truncate mr-3">
+                    <span class="smallCaps text-green font-size-14px font-weight-bold">@translator.Common["IntegreeDs"]</span>
+                </div>
+                <div>
+                    @(Html.DevExtreme().CheckBoxFor(x => x.Item1.IsDeclarationTracfin)
+                        .Name($"DossierLabPersonnePhysiques[{Model.Item2}].IsDeclarationTracfin")
+                        .ID("PersonnePhysiqueLabIsDeclarationTracfin" + Model.Item2)
+                        .ElementAttr("class", "smallCaps text-green")
+                        .ReadOnly(_isReadOnly)
+                        .OnValueChanged(@<text>
+                                             function(e)
+                                             {
+                                             if(!ensureNombreTiersIntegresDsBelowMaximumNumber(e) ||
+                                             !ensureNombreLiensPersonnesIntegreesDsParDossierBelowMaxNumber(e) ||
+                                             !ensureNombreReferencesFinancieresTiersIntegresDsBelowMaximumNumber(e))
+                                             return;
+                                             refreshAllOperationsAssurancesConcernedPersonsLists();
+                                             refreshAllOperationsImmobilieresConcernedPersonsLists();
+                                             }
+                                         </text>))
+                </div>
+            </div>
+            @if (!isRobot && !isIsole)
+            {
+                <div class="pr-1">
+                    @(Html.DevExtreme().Button()
+                        .Icon("search")
+                        .ElementAttr("class", "color-blue")
+                        .ID("CriblagePersonnePhysiqueLab" + Model.Item2)
+                        .Hint(translator.Common["CriblagePersonnePhysiqueParNom"])
+                        .Visible(!_isReadOnly)
+                        .OnClick(@<text>
+                                      function () {
+                                      showCriblagePersonnePhysiqueLab_onClick('@(Model.Item2)')
+                                      }
+                                  </text>))
+                </div>
+            }
+            <div class="pr-1">
+                @(Html.DevExtreme().Button()
+                    .Icon("trash")
+                    .ElementAttr("class", "color-red")
+                    .ID("remRowDossierLabPersonnePhysiqueLab" + Model.Item2)
+                    .OnClick(@<text>
+                                  function () {
+                                  var confirmDialog = DevExpress.ui.dialog.custom({
+                                  title: "@translator.Common["Warning"]",
+                                  message: "@translator.Common["VoulezVousSupprimerSujet"]",
+                                  buttons: [{ text: "@translator.Common["Yes"]", onClick: function() { return true; } }, { text: "@translator.Common["No"]", onClick: function() { return false; } }]
+                                  });
+                                  confirmDialog.show().done(function (dialogResult) {
+                                  if (dialogResult)
+                                  {
+                                  removePhysicalPerson(@(Model.Item2));
+                                  refreshAllOperationsAssurancesConcernedPersonsLists();
+                                  refreshAllOperationsImmobilieresConcernedPersonsLists();
+                                  }
+                                  });
+                                  }
+                              </text>).Visible(!_isReadOnly))
+            </div>
+
+            <div>
+                @(Html.DevExtreme().Button()
+                    .Icon("card")
+                    .ElementAttr("class", "color-blue")
+                    .ID("addDossierFraudePersonnePhysiqueLab" + Model.Item2).OnClick(@<text>
+                                                                                          function () {
+
+                                                                                          searchPpPm_OnClick('@(Model.Item2)','@isPp','@isPm');
+                                                                                          }
+                                                                                      </text>).Visible(!_isReadOnly)
+                )
+                @(Html.DevExtreme().Popup()
+                    .ID("searchThirdModal")
+                    .ElementAttr(new Dictionary<string, object>
+                        { { "class", "popup" } })
+                    .ShowTitle(true)
+                    .DragEnabled(true).ShowCloseButton(true)
+                    .ResizeEnabled(false)
+                    .Width("100%")
+                    .Height("auto")
+                    .ElementAttr("style", "min-Height:60%;overflow-y: scroll;")
+                    .TitleTemplate(@<text>
+                                        <div class="d-flex flex-row align-items-center justify-content-between">
+                                            <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green">
+                                                <i class="fas fa-pen mr-2"></i>@translator.Common["SearchThird"]
+                                            </div>
+                                            <button style="cursor: pointer; font-size: 24px; background-color: transparent; border: none; padding: 0; color: inherit;" onclick="$('#searchThirdModal').dxPopup('hide');">&times;</button>
+                                        </div>
+                                    </text>))
+            </div>
+        </div>
+    </div>
+    <div id="collapsePhysicalPerson@(Model.Item2)" class="collapse hide" aria-labelledby="headingPhysicalPerson@(Model.Item2)" data-parent="#accordionPhysicalPersonsList">
+        <div>
+            <div class="mt-3">
+                <div class="nav nav-tabs mb-3 adjust-nav-tab" id="nav-tab" role="tablist">
+                    <a class="nav-item nav-link smallCaps text-green active" id="nav-identification-tab@(Model.Item2)" data-toggle="pill" href="#nav-identification@(Model.Item2)" role="tab" aria-controls="nav-identification@(Model.Item2)" aria-selected="true">
+                        @translator.Common["Identification"]
+                        @(Html.DevExtreme().Tooltip().Width(500)
+                            .ID("ToolTip-nav-identification" + Model.Item2)
+                            .Target("#nav-identification-tab" + Model.Item2)
+                            .ShowEvent("mouseenter")
+                            .HideEvent("mouseleave")
+                            .CloseOnOutsideClick(false)
+                            .Position(Position.Bottom)
+                            .ContentTemplate(@<text>
+                                                  <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                      @Html.Raw(translator.Common["ToolTipIdentificationNav"])
+                                                  </div>
+                                              </text>)
+                        )
+                    </a>
+                    <a class="nav-item nav-link smallCaps text-green" id="nav-coordonnees-pp-tab@(Model.Item2)" data-toggle="pill" href="#nav-coordonnees-pp@(Model.Item2)" role="tab" aria-controls="nav-coordonnees-pp@(Model.Item2)" aria-selected="false">@translator.Common["Coordonnees"]</a>
+                    <a class="nav-item nav-link smallCaps text-green" id="nav-pieceidentites-tab@(Model.Item2)" data-toggle="pill" href="#nav-pieceidentites@(Model.Item2)" role="tab" aria-controls="nav-pieceidentites@(Model.Item2)" aria-selected="false">
+                        @translator.Common["PieceIdentitesHistorique"]
+                        @(Html.DevExtreme().Tooltip().Width(500)
+                            .ID("ToolTip-nav-pieceidentites-tabPp" + Model.Item2)
+                            .Target("#nav-pieceidentites-tab" + Model.Item2)
+                            .ShowEvent("mouseenter")
+                            .HideEvent("mouseleave")
+                            .CloseOnOutsideClick(false)
+                            .Position(Position.Bottom)
+                            .ContentTemplate(@<text>
+                                                  <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                      @Html.Raw(translator.Common["ToolTipPieceIdentite"])
+                                                  </div>
+                                              </text>)
+                        )
+                    </a>
+                    <a class="nav-item nav-link smallCaps text-green" id="nav-activite-tab@(Model.Item2)" data-toggle="pill" href="#nav-activite@(Model.Item2)" role="tab" aria-controls="nav-activite@(Model.Item2)" aria-selected="false">@translator.Common["ActiviteProfessionnelle"]</a>
+                    <a class="nav-item nav-link smallCaps text-green" id="nav-surfacefinanciere-tab@(Model.Item2)" data-toggle="pill" href="#nav-surfacefinanciere@(Model.Item2)" role="tab" aria-controls="nav-surfacefinanciere@(Model.Item2)" aria-selected="false">@translator.Common["SurfaceFinanciere"]</a>
+                    <a class="nav-item nav-link smallCaps text-green" id="nav-relationclient-tab@(Model.Item2)" data-toggle="pill" href="#nav-relationclient@(Model.Item2)" role="tab" aria-controls="nav-relationclient@(Model.Item2)" aria-selected="false">@translator.Common["RelationClient"]</a>
+                    <a class="nav-item nav-link smallCaps text-green" id="nav-supportfinancier-tab@(Model.Item2)" data-toggle="pill" href="#nav-supportfinancier@(Model.Item2)" role="tab" aria-controls="nav-supportfinancier@(Model.Item2)" aria-selected="false">@translator.Common["ReferencesFinancieres"]</a>
+                    @(Html.DevExtreme().Tooltip().Width(500)
+                        .ID("ToolTip-nav-supportfinancierPp" + Model.Item2)
+                        .Target("#nav-supportfinancier-tab" + Model.Item2)
+                        .ShowEvent("mouseenter")
+                        .HideEvent("mouseleave")
+                        .CloseOnOutsideClick(false)
+                        .Position(Position.Bottom)
+                        .ContentTemplate(@<text>
+                                              <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                  @Html.Raw(translator.TemplateTraduction["ToolTipNavSupportFinancierNav"])
+                                              </div>
+                                          </text>)
+                    )
+                    <a class="nav-item nav-link smallCaps text-green" id="nav-notoriete-tab@(Model.Item2)" data-toggle="pill" href="#nav-notoriete@(Model.Item2)" role="tab" aria-controls="nav-notoriete@(Model.Item2)" aria-selected="false">@translator.Common["NotorieteDefavorable"]</a>
+                    <a class="nav-item nav-link smallCaps text-green" id="nav-liens-personnephysique-tab@(Model.Item2)" data-toggle="pill" href="#nav-liens-personnephysique@(Model.Item2)" role="tab" aria-controls="nav-liens-personnephysique@(Model.Item2)" aria-selected="false">@translator.Common["Liens"]</a>
+                    @(Html.DevExtreme().Tooltip().Width(500)
+                        .ID("ToolTip-nav-liens-personnephysique-tab" + Model.Item2)
+                        .Target("#nav-liens-personnephysique-tab" + Model.Item2)
+                        .ShowEvent("mouseenter")
+                        .HideEvent("mouseleave")
+                        .CloseOnOutsideClick(false)
+                        .Position(Position.Bottom)
+                        .ContentTemplate(@<text>
+                                              <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                  @Html.Raw(translator.TemplateTraduction["ToolTipLiensPersonnephysiqueNav"])
+                                              </div>
+                                          </text>)
+                    )
+                </div>
+                <div class="tab-content" id="nav-tabContent">
+                    <div class="tab-pane fade show active" id="nav-identification@(Model.Item2)" role="tabpanel" aria-labelledby="nav-identification-tab@(Model.Item2)">
+                        <div class="col-12 mb-3">
+                            <div class="card bloc-card-personne">
+                                <div class="card-body p-2">
+                                    <h6 class="card-title">@translator.Common["BasicInformations"]</h6>
+                                    <div class="row text-normal">
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pr-1">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green">@translator.Common["IdentifiantClient"]</span>
+                                            </div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.IdentifiantClient)
+                                                .Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.IdentifiantClient")
+                                                .ID("PersonnePhysiqueLabIdentifiantClient" + Model.Item2)
+                                                .ShowClearButton(true).ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-lg-1 pl-xl-1 pr-lg-1 pr-xl-1 pl-md-1 ">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green">
+                                                    @translator.Common["NomNaissance"] <span class="RequiredField">*</span>
+                                                </span>
+                                            </div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.NomNaissance)
+                                                .Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.NomNaissance")
+                                                .OnValueChanged(@<text>
+                                                                     function() {
+                                                                     updateHeaderIdentityPhysicalPerson(@(Model.Item2));
+                                                                     refreshAllOperationsAssurancesConcernedPersonsLists();
+                                                                     refreshAllOperationsImmobilieresConcernedPersonsLists();
+                                                                     }
+                                                                 </text>)
+                                                .ID("PersonnePhysiqueLabNomNaissance" + Model.Item2).ReadOnly(_isReadOnly).ShowClearButton(true).ElementAttr("class", "mandatory"))
+                                        </div>
+
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pl-1 pr-md-1 pr-lg-1 pr-xl-1">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green">@translator.Common["NomUsuel"]</span>
+                                            </div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.NomUsuel)
+                                                .Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.NomUsuel")
+                                                .ID("PersonnePhysiqueLabNomUsuel" + Model.Item2)
+                                                .ShowClearButton(true).ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-lg-1">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green">
+                                                    @translator.Common["Prenoms"] <span class="RequiredField">*</span>
+                                                </span>
+                                            </div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.Prenoms)
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.Prenoms")
+                                                .OnValueChanged(@<text>
+                                                                     function() {
+                                                                     updateHeaderIdentityPhysicalPerson(@(Model.Item2));
+                                                                     refreshAllOperationsAssurancesConcernedPersonsLists();
+                                                                     refreshAllOperationsImmobilieresConcernedPersonsLists();
+                                                                     }
+                                                                 </text>)
+                                                .ID("PersonnePhysiqueLabPrenoms" + Model.Item2).ShowClearButton(true).ElementAttr("class", "mandatory").ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pl-1">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green">
+                                                    @translator.Common["Alias"]
+                                                    <i id="targetAlias@(Model.Item2)" class="fas fa-info-circle infoTooltipTarget"></i>
+                                                </span>
+
+                                            </div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.Alias)
+		                                        .Height(30)
+		                                        .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.Alias")
+		                                        .ID("PersonnePhysiqueLabAlias" + Model.Item2).ShowClearButton(true).ReadOnly(_isReadOnly))
+                                            @(Html.DevExtreme().Tooltip().Width(500)
+                                                .ID("ToolTip-Alias" + Model.Item2)
+                                                .Target("#targetAlias" + Model.Item2)
+                                                .ShowEvent("mouseenter")
+                                                .HideEvent("mouseleave")
+                                                .CloseOnOutsideClick(false)
+                                                .Position(Position.Bottom)
+                                                .ContentTemplate(@<text>
+                                                                      <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                                          @Html.Raw(translator.Common["ToolTipAlias"])
+                                                                      </div>
+                                                                  </text>)
+                                            )
+                                        </div>
+
+                                    </div>
+                                    <div class="row text-normal pt-2">
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pr-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["TypeImplication"] <span class="RequiredField" id="PersonnePhysiqueLabTypeImplicationId@(requiredAsteriskSuffix)">*</span></span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.TypeImplicationId)
+                                                .DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}")
+                                                .ValueExpr("Id").Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.TypeImplicationId")
+                                                .ID("PersonnePhysiqueLabTypeImplicationId" + Model.Item2).DataSource(typesImplication)
+                                                .SearchEnabled(true)
+                                                .OnValueChanged(@<text>
+                                                    function() {
+                                                        desactivateNotorieteDefavorableIfVictimePresumeSelectedPP(@(Model.Item2));
+                                                    }
+                                                </text>)
+                                                .ElementAttr(new
+                                                {
+                                                    data_error_required = translator.Common["TypeImplicationObligatoire"]
+                                                })
+                                                .ShowClearButton(true)                                           
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-1 pr-md-1 pr-lg-1 pr-xl-">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["TypeClient"]</span></div>
+                                            <div class="dx-hidden text-center loader-customer-type-individual"></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.TypeClientId)
+                                                .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                .DisplayExpr($"Name{_lang}")
+                                                .ValueExpr("Id")
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.TypeClientId")
+                                                .ID("PersonnePhysiqueLabTypeClientId" + Model.Item2).DataSource(typesClient)
+                                                .SearchEnabled(true).ShowClearButton(true)
+                                                .ElementAttr("class", "input-customer-type-individual")
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pl-1 pr-md-1 pr-lg-1 pr-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["Civilite"]</span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.CiviliteId)
+		                                        .DataSourceOptions(c => c.Sort($"Name{_lang}").Filter("['!', ['Id', '=', 4]]"))
+		                                        .DisplayExpr($"Name{_lang}")
+		                                        .ValueExpr("Id").Height(30)
+		                                        .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.CiviliteId")
+		                                        .ID("PersonnePhysiqueLabCiviliteId" + Model.Item2).DataSource(_referentiel.Civilites)
+		                                        .SearchEnabled(true)
+		                                        .ShowClearButton(true)
+		                                        .ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pr-1 pl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["Sexe"] </span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.SexeId)
+                                                .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                .DisplayExpr($"Name{_lang}")
+                                                .ValueExpr("Id").Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.SexeId")
+                                                .ID("PersonnePhysiqueLabSexeId" + Model.Item2)
+                                                .DataSource(_referentiel.Sexes)
+                                                .SearchEnabled(true)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["SituationFamiliale"] </span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.SituationFamilialeId)
+                                                .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                .DisplayExpr($"Name{_lang}")
+                                                .ValueExpr("Id").Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.SituationFamilialeId")
+                                                .ID("PersonnePhysiqueLabSituationFamilialeId" + Model.Item2)
+                                                .DataSource(_referentiel.SituationFamiliales)
+                                                .SearchEnabled(true).ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+
+
+
+                                    </div>
+
+                                    <div class="row text-normal pt-2">
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pr-1">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green">@translator.Common["IdFiscal"] 
+                                                <i id="targetIdFiscal@(Model.Item2)" class="fas fa-info-circle infoTooltipTarget"></i>
+                                                </span>
+                                            </div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.IdFiscal)
+			                                    .Height(30)               
+			                                    .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.IdFiscal")
+			                                    .ID("PersonnePhysiqueLabIdFiscal" + Model.Item2)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly)
+                                                .MaxLength(13)
+                                                .ElementAttr("data_error_required", translator.Common["FormatFiscalIncorrect"])
+                                                .OnValueChanged(@<text>
+                                                    function(e) {
+                                                        verifNumeroFiscal(e, @(Model.Item2))
+                                                    }
+                                                </text>)
+                                                )
+                                            @(Html.DevExtreme().Tooltip().Width(500)
+                                                .ID("ToolTip-IdFiscal" + Model.Item2)
+                                                .Target("#targetIdFiscal" + Model.Item2)
+                                                .ShowEvent("mouseenter")
+                                                .HideEvent("mouseleave")
+                                                .CloseOnOutsideClick(false)
+                                                .Position(Position.Bottom)
+                                                .ContentTemplate(@<text>
+                                                                      <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                                          @Html.Raw(translator.TemplateTraduction["ToolTipIdFiscal"])
+                                                                      </div>
+                                                                  </text>)
+                                            )
+                                        </div>
+                                        <div class="col-xl-4 pr-1 pl-1">
+
+                    <div class="smallCaps text-green text-truncate pr-2  align-self-center">
+                        @translator.Common["Nationalites5max"]
+                    </div>
+                    <div>
+
+                                                @(Html.DevExtreme().TagBoxFor(x => x.Item1.PersonnePhysiqueLab.NationalitesId)
+                                                    .ID("PersonnePhysiqueLabNationalitesId" + Model.Item2)
+                                                    .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.NationalitesId")
+                                                    .DataSource(_referentiel.Pays.Where(x=>!x.IsDrom))
+                                                    .ShowSelectionControls(true)
+                                                    .SearchEnabled(true)
+                                                    .DisplayExpr($"Name{_lang}")
+                                                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                    .ValueExpr("Id")
+                                                    .ApplyValueMode(EditorApplyValueMode.UseButtons)
+                                                    .ReadOnly(_isReadOnly).ShowMultiTagOnly(false)
+                                                    .OnValueChanged(@<text>
+                                                                         function (e) {
+                                                                         if (e.value.length > 5) {
+                                                                         const allPrevValues = e.previousValue;
+                                                                         e.component.option("value", allPrevValues);
+                                                                         }
+                                                                         }
+                                                                     </text>))
+                                            </div>
+                                        </div>
+
+                                        <div class="col-xl-1 pr-1 pl-1">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green">
+                                                    @translator.Common["PPE"]
+                                                    <span class="RequiredField" id="PersonnePhysiqueLabPpeId@(requiredAsteriskSuffix)">*</span>
+                                                    <button id="targetPpe@(Model.Item2)" class="fas fa-info-circle infoTooltipTarget" onclick="showPpePpPopupLab_onClick()"></button>
+                                                </span>
+                                            </div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.PpeId)
+                                                .DisplayExpr("Name")
+                                                .ValueExpr("Id").Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.PpeId")
+                                                .ID("PersonnePhysiqueLabPpeId" + Model.Item2)
+                                                .DataSource(ouiNonDontKnow)
+                                                .SearchEnabled(true)
+                                                .ReadOnly(_isReadOnly)
+                                                .ElementAttr(new
+                                                {
+                                                    data_error_required = translator.Common["PpeObligatoire"]
+                                                })
+                                                .OnValueChanged(@<text>
+                                                    function () {  ppeId_lab_OnValueChanged(@(Model.Item2)); }
+                                                </text>))
+                                            @(Html.DevExtreme().Tooltip().Width(900)
+                                                .ID("ToolTip-Ppe" + Model.Item2)
+                                                .Target("#targetPpe" + Model.Item2)
+                                                .ShowEvent("mouseenter")
+                                                .HideEvent("mouseleave")
+                                                .CloseOnOutsideClick(false)
+                                                .Position(Position.Bottom)
+                                                .ContentTemplate(@<text>
+                                                                      <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 900px;">
+                                                                          @Html.Raw(translator.TemplateTraduction["ToolTipPpe"])
+                                                                      </div>
+                                                                  </text>)
+                                            )
+                                        </div>
+
+                <div class="col-xl-4 pl-1">
+                    <div id="FonctionRelationDiv@(Model.Item2)" class="@(Model.Item1.PersonnePhysiqueLab.PpeId == 1 ? "" : "dx-hidden")">
+                        <div class="smallCaps text-green text-truncate pr-2 align-self-center">
+                            @translator.Common["FonctionRelation"]<span class="RequiredField">*</span>
+                        </div>
+                        <div>
+
+                                                    @(Html.DevExtreme().TagBoxFor(x => x.Item1.PersonnePhysiqueLab.PpeTypesId)
+                                                        .ID("PpeTypes" + Model.Item2)
+                                                        .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.PpeTypesId")
+                                                        .DataSource(_referentiel.PpeTypeList)
+                                                        .ShowSelectionControls(true)
+                                                        .SearchEnabled(true)
+                                                        .DisplayExpr($"Name{_lang}")
+                                                        .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                        .ValueExpr("Id").MaxDisplayedTags(2)
+                                                        .ApplyValueMode(EditorApplyValueMode.UseButtons).Width(415).MaxDisplayedTags(3).ShowMultiTagOnly(false)
+                                                        .ReadOnly(_isReadOnly)
+                                                        .ElementAttr(new
+                                                        {
+                                                            data_error_required = translator.Common["PpeTypesIdObligatoire"]
+                                                        }))
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="row">
+                                <div class="col-sm-12 col-md-12 col-lg-12 col-xl-12 pr-md-3 mb-3">
+                                    <div class="card bloc-card-personne">
+                                        <div class="card-body p-2">
+                                            <h6 class="card-title">@translator.Common["Birth"]</h6>
+                                            <div class="row text-normal">
+                                                <div class="col-sm-12 col-md-12 col-lg-12 col-xl-3 pr-xl-1">
+                                                    <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["DateNaissance"]</span></div>
+                                                    @(Html
+                                                    .DevExtreme().DateBoxFor(x => x.Item1.PersonnePhysiqueLab.DateNaissance)
+                                                    .Height(30)
+                                                    .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.DateNaissance")
+                                                    .OnValueChanged(@<text>
+                                                                function () {  updateHeaderIdentityPhysicalPerson(@(Model.Item2)); }
+                                                                     </text>)
+                                                    .ID("PersonnePhysiqueLabDateNaissance" + Model.Item2).DisplayFormat(Format.ShortDate).Width("100%").Max(DateTime.Today).Min(DateTime.Today.AddYears(-120)).ShowClearButton(false).ReadOnly(_isReadOnly))
+
+                                                </div>
+                                                <div class="col-sm-12 col-md-12 col-lg-12 col-xl-3 pr-xl-1 pl-xl-1">
+                                                    <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["DateNaissanceEstimation"]</span></div>
+                                                    @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.DateNaissanceEstimation)
+                                                        .Height(30)
+                                                        .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.DateNaissanceEstimation")
+                                                        .ID("PersonnePhysiqueLabEstimationDateNaissance" + Model.Item2)
+                                                        .ShowClearButton(true)
+                                                        .ReadOnly(_isReadOnly))
+                                                </div>
+                                                <div class="col-sm-12 col-md-12 col-lg-12 col-xl-3 pr-xl-1 pl-xl-1">
+                                                    <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["PaysNaissance"]</span></div>
+                                                    @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.PaysNaissanceId)
+                                                        .DataSource(_referentiel.Pays.Where(x => !x.IsDrom))
+                                                        .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                        .DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30)
+                                                        .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.PaysNaissanceId")
+                                                        .ID("PersonnePhysiqueLabPaysNaissanceId" + Model.Item2)
+                                                        .SearchEnabled(true)
+                                                        .ShowClearButton(true)
+                                                        .ReadOnly(_isReadOnly))
+                                                </div>
+                                                <div class="col-sm-12 col-md-12 col-lg-12 col-xl-3 pl-xl-1">
+                                                    <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["LieuNaissance"] <i id="targetLieuNaissance@(Model.Item2)" class="fas fa-info-circle infoTooltipTarget"></i></span></div>
+                                                    @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.LieuNaissance)
+                                                        .Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.LieuNaissance")
+                                                        .ID("PersonnePhysiqueLabLieuNaissance" + Model.Item2)
+                                                        .ShowClearButton(true)
+                                                        .ReadOnly(_isReadOnly))
+                                                    @(Html.DevExtreme().Tooltip().Width(500)
+                                                        .ID("ToolTip-LieuNaissance" + Model.Item2)
+                                                        .Target("#targetLieuNaissance" + Model.Item2)
+                                                        .ShowEvent("mouseenter")
+                                                        .HideEvent("mouseleave")
+                                                        .CloseOnOutsideClick(false)
+                                                        .Position(Position.Bottom)
+                                                        .ContentTemplate(@<text>
+                                                                              <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                                                  @Html.Raw(translator.Common["ToolTipLieuNaissance"])
+                                                                              </div>
+                                                                          </text>)
+                                                    )
+                                                </div>
+
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-sm-12">
+                                    <div class="card bloc-card-personne">
+                                        <div class="card-body p-2">
+                                            <h6 class="card-title">@translator.Common["OtherInformations"]</h6>
+                                            <div class="row text-normal">
+                                                <div class="col-sm-12 col-md-12 col-lg-12 col-xl-3 divIdentificationSpecifique">
+                                                    <div class="text-truncate">
+                                                        <span class="smallCaps text-green"> @translator.Common["TypeListCriblage"]</span>
+                                                    </div>
+                                                    <div class="adjust-padding-top-check-box">
+                                                        @(Html.DevExtreme().SelectBoxFor(x => x.Item1.TypeListeCriblageId)
+                                                            .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                            .DisplayExpr($"Name{_lang}")
+                                                            .ValueExpr("Id").Height(30)
+                                                            .Name($"DossierLabPersonnePhysiques[{Model.Item2}].TypeListeCriblageId")
+                                                            .ID("PersonnePhysiqueLabTypeListeId" + Model.Item2)
+                                                            .DataSource(_referentiel.TypeListeCriblages)
+                                                            .SearchEnabled(true)
+                                                            .ShowClearButton(true)
+                                                            .ReadOnly(_isReadOnly))
+                                                    </div>
+                                                </div>
+                                                <div class="col-sm-12 col-md-12 col-lg-12 col-xl-3 pr-xl-1 pl-xl-3">
+                                                    <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["DroitAuCompte"]</span></div>
+                                                    <div class="adjust-padding-top-check-box">
+                                                        @(Html.DevExtreme().CheckBoxFor(x => x.Item1.PersonnePhysiqueLab.DroitAuCompte)
+                                                            .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.DroitAuCompte")
+                                                            .ID("PersonnePhysiqueLabDroitAuCompte" + Model.Item2)
+                                                            .ElementAttr("class", "smallCaps text-green")
+                                                            .ReadOnly(_isReadOnly))
+                                                    </div>
+                                                </div>
+                                                <div class="col-sm-12 col-md-12 col-lg-12 col-xl-3 pl-xl-1 afterPersonneDsField">
+                                                    <div class="text-truncate">
+                                                        <span class="smallCaps text-green">@translator.Common["DonneesConnexion"] <i id="targetIsDonneesConnexion@(Model.Item2)" class="fas fa-info-circle infoTooltipTarget"></i></span>
+                                                    </div>
+                                                    <div class="adjust-padding-top-check-box">
+                                                        @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.IsDonneesConnexion)
+                                                            .DisplayExpr("Name")
+                                                            .ValueExpr("Id").Height(30)
+                                                            .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.IsDonneesConnexion")
+                                                            .ID("PersonnePhysiqueLabIsDonneesConnexion" + Model.Item2).DataSource(ouiNon)
+                                                            .SearchEnabled(true)
+                                                            .ReadOnly(_isReadOnly))
+                                                        @(Html.DevExtreme().Tooltip().Width(500)
+                                                        .ID("ToolTip-IsDonneesConnexion" + Model.Item2)
+                                                        .Target("#targetIsDonneesConnexion" + Model.Item2)
+                                                        .ShowEvent("mouseenter")
+                                                        .HideEvent("mouseleave")
+                                                        .CloseOnOutsideClick(false)
+                                                        .Position(Position.Bottom)
+                                                        .ContentTemplate(@<text>
+                                                                              <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                                                  @Html.Raw(translator.Common["ToolTipDonneeConnexion"])
+                                                                              </div>
+                                                                          </text>)
+                                                    )
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+<div class="col-12 mb-3">
+    <div class="card bloc-card-personne">
+        <div class="card-body p-2">
+
+            <h6 class="card-title">@translator.Common["AutreIdentiteInformation"]</h6>
+
+                                    <div class="row text-normal">
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pr-md-1 pr-lg-1 pr-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["UtilisationAutreIdentite"]</span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.IsUtilisationAutreIdentite)
+                                                .DisplayExpr("Name")
+                                                .ValueExpr("Id").Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.IsUtilisationAutreIdentite")
+                                                .ID("PersonnePhysiqueLabIsUtilisationAutreIdentite" + Model.Item2).DataSource(ouiNon)
+                                                .SearchEnabled(true)
+                                                .ReadOnly(_isReadOnly)
+                                                .OnValueChanged(@<text>
+                                                                    function(e) {
+                                                                    IsUtilisationAutreIdentite_OnValueChanged(@Model.Item2);
+                                                                    }
+                                                                 </text>))
+                                        </div>
+                                    </div>
+                                    <div class="row text-normal @(Model.Item1.PersonnePhysiqueLab.IsUtilisationAutreIdentite == 1 ? "" : "dx-hidden")" id="informationAutreIdentite1@(Model.Item2)">
+
+
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pr-md-1 pr-lg-1 pr-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["NomNaissance"] <span class="RequiredField">*</span></span></div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.AutreIdentiteNomNaissance)
+                                                .Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.AutreIdentiteNomNaissance")
+                                                .OnValueChanged(@<text>
+                                                function () {  updateHeaderIdentityPhysicalPerson(@(Model.Item2)); }
+                                            </text>)
+                                                .ID("PersonnePhysiqueLabNomAutreIdentiteNaissance" + Model.Item2).ReadOnly(_isReadOnly).ShowClearButton(true).ElementAttr("class", "mandatory"))
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pl-1 pr-md-1 pr-lg-1 pr-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["NomUsuel"]</span></div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.AutreIdentiteNomUsuel)
+                                                .Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.AutreIdentiteNomUsuel")
+                                                .ID("PersonnePhysiqueLabAutreIdentiteNomUsuel" + Model.Item2)
+                                                .ShowClearButton(true).ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pl-lg-1 pr-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["Prenoms"] <span class="RequiredField">*</span></span></div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.AutreIdentitePrenoms)
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.AutreIdentitePrenoms")
+                                                .OnValueChanged(@<text>
+                                                function () {  updateHeaderIdentityPhysicalPerson(@(Model.Item2)); }
+                                            </text>)
+                                                .ID("PersonnePhysiqueLabAutreIdentitePrenoms" + Model.Item2).ShowClearButton(true).ElementAttr("class", "mandatory").ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pl-1 pr-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["Alias"] <i id="targetAutreIdentiteAlias@(Model.Item2)" class="fas fa-info-circle infoTooltipTarget"></i></span></div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.AutreIdentiteAlias)
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.AutreIdentiteAlias")
+                                                .OnValueChanged(@<text>
+                                                function () {  updateHeaderIdentityPhysicalPerson(@(Model.Item2)); }
+                                            </text>)
+                                                .ID("PersonnePhysiqueLabAutreIdentiteAlias" + Model.Item2).ShowClearButton(true).ReadOnly(_isReadOnly))
+                                            @(Html.DevExtreme().Tooltip().Width(500)
+                                                .ID("ToolTip-AutreIdentiteAlias" + Model.Item2)
+                                                .Target("#targetAutreIdentiteAlias" + Model.Item2)
+                                                .ShowEvent("mouseenter")
+                                                .HideEvent("mouseleave")
+                                                .CloseOnOutsideClick(false)
+                                                .Position(Position.Bottom)
+                                                .ContentTemplate(@<text>
+                                                                      <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                                          @Html.Raw(translator.Common["ToolTipAlias"])
+                                                                      </div>
+                                                                  </text>)
+                                            )
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["Sexe"] </span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.AutreIdentiteSexeId)
+                                                .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                .DisplayExpr($"Name{_lang}")
+                                                .ValueExpr("Id").Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.AutreIdentiteSexeId")
+                                                .ID("PersonnePhysiqueLabAutreIdentiteSexeId" + Model.Item2)
+                                                .DataSource(_referentiel.Sexes)
+                                                .SearchEnabled(true)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+
+
+            </div>
+            <div class="row text-normal pt-2 @(Model.Item1.PersonnePhysiqueLab.IsUtilisationAutreIdentite == 1 ? "" : "dx-hidden")" id="informationAutreIdentite2@(Model.Item2)">
+
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["DateNaissance"]  <i id="targetAutreIdentiteDateNaissance@(Model.Item2)" class="fas fa-info-circle infoTooltipTarget"></i></span></div>
+                                            @(Html.DevExtreme().DateBoxFor(x => x.Item1.PersonnePhysiqueLab.AutreIdentiteDateNaissance).Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.AutreIdentiteDateNaissance")
+                                            .ID("PersonnePhysiqueLabAutreIdentiteDateNaissance" + Model.Item2).DisplayFormat(Format.ShortDate).Width("100%").ShowClearButton(true).ReadOnly(_isReadOnly))
+                                            @(Html.DevExtreme().Tooltip().Width(500)
+                                                .ID("ToolTip-AutreIdentiteDateNaissance" + Model.Item2)
+                                                .Target("#targetAutreIdentiteDateNaissance" + Model.Item2)
+                                                .ShowEvent("mouseenter")
+                                                .HideEvent("mouseleave")
+                                                .CloseOnOutsideClick(false)
+                                                .Position(Position.Bottom)
+                                                .ContentTemplate(@<text>
+                                                                      <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                                          @Html.Raw(translator.Common["ToolTipDateNaissance"])
+                                                                      </div>
+                                                                  </text>)
+                                            )
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pr-xl-1 pl-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["DateNaissanceEstimation"]</span></div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.AutreIdentiteDateNaissanceEstimation)
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.AutreIdentiteDateNaissanceEstimation")
+                                                .ID("PersonnePhysiqueLabAutreIdentiteDateNaissanceEstimation" + Model.Item2)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1 pl-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["PaysNaissance"]</span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.AutreIdentitePaysNaissanceId)
+                                                .DataSource(_referentiel.Pays.Where(x => !x.IsDrom))
+                                                .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                .DisplayExpr($"Name{_lang}").ValueExpr("Id").Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.AutreIdentitePaysNaissanceId")
+                                                .ID("PersonnePhysiqueLabAutreIdentitePaysNaissanceId" + Model.Item2)
+                                                .SearchEnabled(true)
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1 pl-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["LieuNaissance"] <i id="targetAutreIdentiteLieuNaissance@(Model.Item2)" class="fas fa-info-circle infoTooltipTarget"></i></span></div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.AutreIdentiteLieuNaissance)
+                                                .Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.AutreIdentiteLieuNaissance")
+                                                .ID("PersonnePhysiqueLabAutreIdentiteLieuNaissance" + Model.Item2)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly))
+                                            @(Html.DevExtreme().Tooltip().Width(500)
+                                                .ID("ToolTip-AutreIdentiteLieuNaissance" + Model.Item2)
+                                                .Target("#targetAutreIdentiteLieuNaissance" + Model.Item2)
+                                                .ShowEvent("mouseenter")
+                                                .HideEvent("mouseleave")
+                                                .CloseOnOutsideClick(false)
+                                                .Position(Position.Bottom)
+                                                .ContentTemplate(@<text>
+                                                                      <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                                          @Html.Raw(translator.Common["ToolTipLieuNaissance"])
+                                                                      </div>
+                                                                  </text>)
+                                            )
+                                        </div>
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-4 pl-xl-1">
+                                            <div class="smallCaps text-green text-truncate pr-2 align-self-center">
+                                                @translator.Common["Nationalites1max"]
+                                            </div>
+                                            <div>
+
+                                                @(Html.DevExtreme().TagBoxFor(x => x.Item1.PersonnePhysiqueLab.AutreIdentiteNationalitesId)
+                                                    .ID($"AutreIdentiteNationalites{Model.Item2}")
+                                                    .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.AutreIdentiteNationalitesId")
+                                                    .DataSource(_referentiel.Pays.Where(x => !x.IsDrom))
+                                                    .ShowSelectionControls(true)
+                                                    .SearchEnabled(true)
+                                                    .DisplayExpr($"Name{_lang}")
+                                                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                    .ValueExpr("Id")
+                                                    .ApplyValueMode(EditorApplyValueMode.UseButtons)
+                                                    .ReadOnly(_isReadOnly).MaxDisplayedTags(3).ShowMultiTagOnly(false)
+                                                    .OnValueChanged(@<text>
+                                                    function (e) {
+                                                    if (e.value.length > 1) {
+                                                    const allPrevValues = e.previousValue;
+                                                    e.component.option("value", allPrevValues);
+                                                    }
+                                                    }
+                                                </text>))
+                                            </div>
+                                        </div>
+                                    </div>
+
+        </div>
+    </div>
+</div>
+</div>
+<div class="tab-pane fade" id="nav-coordonnees-pp@(Model.Item2)" role="tabpanel" aria-labelledby="nav-coordonnees-pp-tab@(Model.Item2)">
+    <div id="coordonnees-personnephysique-@(Model.Item2)">
+
+        @for (var i = 0; i < Model.Item1.PersonnePhysiqueLab.CoordonneePersonnePhysiqueLabs?.Count; i++)
+        {
+            var coordonneePersonnePhysique = Model.Item1.PersonnePhysiqueLab.CoordonneePersonnePhysiqueLabs.ElementAt(i);
+            coordonneePersonnePhysique.Culture = _lang;
+            coordonneePersonnePhysique.IsReadOnly = _isReadOnly;
+            coordonneePersonnePhysique.Order = i;
+            @await Html.PartialAsync("/Areas/Lab/Views/Dossier/_PartialCoordonneePersonnePhysiqueLab.cshtml", new Tuple<CoordonneePersonnePhysiqueLabViewModel, int>(coordonneePersonnePhysique, Model.Item2))
+        }
+
+                        </div>
+                        <div class="d-flex justify-content-end mt-1 mb-1 mr-3">
+                            @(Html.DevExtreme().Button()
+                              .ID($"btnAddNewCoordonneePhysicalPerson{Model.Item2}")
+                              .Icon("add")
+                              .ElementAttr("class", "color-blue")
+                              .Disabled(_isReadOnly)
+                              .OnClick(@<text>
+                                        function (e) 
+                                        {
+                                            addCoordonneePhysicalPerson(@(Model.Item2));
+                                        }
+                            </text>))
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="nav-activite@(Model.Item2)" role="tabpanel" aria-labelledby="nav-activite-tab@(Model.Item2)">
+                        <div class="col-12 mb-3">
+                            <div class="card bloc-card-personne">
+                                <div class="card-body p-2">
+                                    <h6 class="card-title">@translator.Common["ActiviteProfessionnelle"]</h6>
+
+                                    <div class="row text-normal">
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pr-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["Profession"]</span></div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.Profession)
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.Profession")
+                                                .ID("PersonnePhysiqueLabProfession" + Model.Item2)
+                                                .ShowClearButton(true).ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-1 pr-md-1 pr-lg-1 pr-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["IdentificationProfessionnelle"]</span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId)
+                                                .DataSourceOptions(c => c.Sort("Id"))
+                                                .DisplayExpr($"Name{_lang}")
+                                                .ValueExpr("Id").Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.IdentificationProfessionnelleId")
+                                                .ID("PersonnePhysiqueLabIdentificationProfessionnelleId" + Model.Item2)
+                                                .DataSource(_referentiel.IdentificationProfessionnelles)
+                                                .SearchEnabled(true)
+                                                .ReadOnly(_isReadOnly)
+                                                .OnValueChanged(@<text>
+                                                                     function () {
+                                                                     identificationProfessionnelle_OnValueChanged(@(Model.Item2));
+                                                                     }
+                                                                 </text>))
+                                        </div>
+                                        <div id="AutreIdentificationProfessionnelleDiv@(Model.Item2)" class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pl-lg-1 pl-xl-1 pr-lg-1 pr-xl-1 pl-md-1 @(Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId is 7 or 8 ? "" : "dx-hidden")">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green">@translator.Common["AutreIdentificationProfessionnelle"]</span>
+                                            </div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.AutreIdentificationProfessionnelle)
+                                                .Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.AutreIdentificationProfessionnelle")
+                                                .ID("PersonnePhysiqueLabAutreIdentificationProfessionnelle" + Model.Item2)
+                                                .ReadOnly(_isReadOnly)
+                                                .ShowClearButton(true))
+                                        </div>
+                                        <div id="PersonnePhysiqueLabNumeroImmatriculationDiv@(Model.Item2)" class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pl-1 pr-md-1 pr-lg-1 pr-xl-1 @(Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId is 9 or 10 ? "dx-hidden" : "")">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green">@translator.Common["NumeroImmatriculation"]</span> 
+                                                <span class="RequiredField" id="PersonnePhysiqueLabNumeroImmatriculation@(requiredAsteriskSuffix)">*</span>
+                                            </div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.NumeroImmatriculation)
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.NumeroImmatriculation")
+                                                .ID("PersonnePhysiqueLabNumeroImmatriculation" + Model.Item2)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly)
+                                                .OnValueChanged(@<text>
+                                                                     function () {  updateHeaderIdentityPhysicalPerson(@(Model.Item2)); }
+                                                                 </text>)                                                
+                                                .ElementAttr(new { 
+                                                    data_error_required = translator.Common["NumeroImmatriculationRequired"]
+                                                })
+                                                )
+                                        </div>
+                                        <div id="PersonnePhysiqueLabDenominationSocialeDiv@(Model.Item2)" class="col-sm-6 col-md-4 col-lg-2 col-xl-2 pl-lg-1 @(Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId is 9 or 10 ? "dx-hidden" : "")">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green">@translator.Common["DenominationSociale"] 
+                                                    <span class="RequiredField" id="PersonnePhysiqueLabDenominationSociale@(requiredAsteriskSuffix)">*</span>
+                                                </span>
+                                            </div>
+                                            @(Html.DevExtreme()
+                                                 .TextBoxFor(x => x.Item1.PersonnePhysiqueLab.DenominationSociale)
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.DenominationSociale")
+                                                .OnValueChanged(@<text>
+                                                                     function () {  updateHeaderIdentityPhysicalPerson(@(Model.Item2)); }
+                                                                 </text>)
+                                                .ID("PersonnePhysiqueLabDenominationSociale" + Model.Item2)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly)
+                                                .ElementAttr(new { 
+                                                    data_error_required = translator.Common["DenominationSocialeRequired"] 
+                                                })
+                                                )
+
+                                        </div>
+                                        <div id="PersonnePhysiqueLabPaysDeRegistreDiv@(Model.Item2)" class="col-sm-6 col-md-4 col-lg-3 col-xl-3 pl-3" style="@(Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId != idEtranger ? "display:none;" : "display:block;")">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["PaysDeRegistre"] </span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.PaysDeRegistreId)
+                                                .ID("partialPersonnePhysiqueLab_PaysDeRegistreId" + Model.Item2)
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.PaysDeRegistreId")
+                                                .DataSource(_referentiel.Pays)
+                                                .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                .DisplayExpr($"Name{_lang}")
+                                                .ValueExpr("Id")
+                                                .SearchEnabled(true)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+                                    
+                                    </div>
+
+                                    <div class="row text-normal pt-2">
+                                        <div id="PersonnePhysiqueLabFormeJuridiqueIdDiv@(Model.Item2)" class="col-sm-6 col-md-4 col-lg-2 col-xl-3 pr-1 @(Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId == 9 || Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId == 10 ? "dx-hidden" : "")">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["FormeJuridique"]</span></div>
+                                            <div class="dx-hidden text-center loader-customer-type-individual"></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.FormeJuridiqueId)
+                                                .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                .DisplayExpr($"Name{_lang}")
+                                                .ValueExpr("Id")
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.FormeJuridiqueId")
+                                                .ID("PersonnePhysiqueLabFormeJuridiqueId" + Model.Item2).DataSource(_referentiel.FormeJuridiques)
+                                                .SearchEnabled(true).ShowClearButton(true)
+                                                .ElementAttr("class", "input-customer-type-individual")
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+
+                                        <div id="PersonnePhysiqueLabActivitePrincipaleDiv@(Model.Item2)" class="col-sm-6 col-md-4 col-lg-2 col-xl-5 pl-xl-1 pr-xl-1 @(Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId == 9 || Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId == 10 ? "dx-hidden" : "")">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["ActivitePrincipale"]</span></div>
+                                            @(Html.DevExtreme().TextBoxFor(x => x.Item1.PersonnePhysiqueLab.ActivitePrincipale)
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.ActivitePrincipale")
+                                                .ID("PersonnePhysiqueLabActivitePrincipale" + Model.Item2).ShowClearButton(true).ReadOnly(_isReadOnly))
+                                        </div>
+
+                                        <div id="PersonnePhysiqueLabSecteurProfessionnelIdDiv@(Model.Item2)" class="col-sm-6 col-md-4 col-lg-2 col-xl-4  pl-xl-1 @(Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId == 9 || Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId == 10 ? "dx-hidden" : "")">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["SecteurProfessionnel"]</span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.SecteurProfessionnelId)
+                                                .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                .DisplayExpr($"Name{_lang}")
+                                                .ValueExpr("Id")
+                                                .Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.SecteurProfessionnelId")
+                                                .ID("PersonnePhysiqueLabSecteurProfessionnelId" + Model.Item2)
+                                                .DataSource(_referentiel.SecteurProfessionnels)
+                                                .SearchEnabled(true)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+
+                </div>
+            </div>
+
+        </div>
+        <div id="PartialActiviteCoordonneePersonnePhysiqueLabDiv@(Model.Item2)" class="card bloc-card-personne mt-3 @(Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId == 9 || Model.Item1.PersonnePhysiqueLab.IdentificationProfessionnelleId == 10 ? "dx-hidden" : "")" id="PartialActiviteCoordonneePersonnePhysiqueLabDiv@(Model.Item2)">
+
+                                <div class="card-body p-2">
+                                    <h6 class="card-title">@translator.Common["Coordonnees"]</h6>
+                                    <div id="coordonnees-activite-@(Model.Item2)">
+                                        @if (Model.Item1.PersonnePhysiqueLab?.Voie != null)
+                                        {
+                                            var coordonneePersonnePhysique = Model.Item1.PersonnePhysiqueLab;
+                                            coordonneePersonnePhysique.Lang = _lang;
+                                            coordonneePersonnePhysique.IsReadOnly = _isReadOnly;
+                                            @await Html.PartialAsync("/Areas/Lab/Views/Dossier/_PartialActiviteCoordonneePersonnePhysiqueLab.cshtml", new Tuple<PersonnePhysiqueLabViewModel, int>(coordonneePersonnePhysique, Model.Item2))
+                                        }
+                                    </div>
+                                    <div class="d-flex justify-content-end mt-1 mb-1 mr-3">
+                                        @(Html.DevExtreme().Button()
+                                            .ID($"btnAddNewCoordonneeActivite{Model.Item2}")
+                                            .Icon("add")
+                                            .ElementAttr("class", "color-blue")
+                                            .Visible(Model.Item1.PersonnePhysiqueLab?.Voie == null)
+                                            .Disabled(_isReadOnly)
+                                            .OnClick(@<text>
+                                                          function () {
+                                                          addCoordonneeActivite(@(Model.Item2));
+                                                          }
+                                                      </text>)
+                                        )
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="nav-pieceidentites@(Model.Item2)" role="tabpanel" aria-labelledby="nav-pieceidentites-tab@(Model.Item2)">
+                        <div class="col-12 mb-3">
+                            <div class="card bloc-card-personne">
+                                <div class="card-body p-2">
+                                    <h6 class="card-title">@translator.Common["PieceIdentitesHistorique"]</h6>
+                                    <div class="row">
+                                        <div class="col-md-12 p-12">
+                                            @(Html.DevExtreme().DataGrid<PieceIdentiteViewModel>()
+                                                    .ID($"gridPieceIdentite{Model.Item2}")
+                                                    .ShowBorders(true)
+                                                    .Paging(paging => paging.Enabled(false))
+                                                    .Editing(editing =>
+                                                    {
+                                                        editing.Mode(GridEditMode.Row);
+                                                    editing.AllowAdding(!_isReadOnly);
+                                                    editing.AllowDeleting(!_isReadOnly);
+                                                    editing.AllowUpdating(!_isReadOnly);
+                                                    editing.UseIcons(!_isReadOnly);
+                                                    })
+                                                    .Columns(columns =>
+                                                    {
+                                                    columns.AddFor(m => m.Id).Visible(false).SortOrder(SortOrder.Desc);
+                                                    columns.AddFor(m => m.TypePieceIdentiteId)
+                                                    .Caption(translator.Common["Type"])
+                                                    .AllowSorting(false)
+                                                    .Lookup(lookup => lookup
+                                                    .DataSource(_referentiel.TypePieceIdentites)
+                                                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                    .DisplayExpr($"Name{_lang}").ValueExpr("Id")
+                                                    );
+
+                                columns.AddFor(m => m.CryptedId).Visible(false);
+                                columns.AddFor(m => m.CryptedPersonnePhysiqueLabId).Visible(false);
+                                columns.AddFor(m => m.Numero).Caption(translator.Common["Numero"]).AllowSorting(false);
+
+                                                    columns.AddFor(m => m.PaysDelivranceId)
+                                                    .Caption(translator.Common["PaysDelivrance"])
+                                                    .AllowSorting(false)
+                                                    .Lookup(lookup => lookup
+                                                    .DataSource(_referentiel.Pays)
+                                                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                    .DisplayExpr($"Name{_lang}").ValueExpr("Id")
+                                                    );
+                                                    columns.AddFor(m => m.Autorite).Caption(translator.Common["AutoriteDelivrance"]).AllowSorting(false).Width(150);
+                                                    columns.AddFor(m => m.DateValiditeDebut).Caption($"{translator.Common["DateValidite"]} {translator.Common["Du"]}")
+                                                    .Width(120).DataType(GridColumnDataType.Date).AllowSorting(false);
+                                                    columns.AddFor(m => m.DateValiditeFin).Width(130).Caption(translator.Common["Au"]).DataType(GridColumnDataType.Date).AllowSorting(false);
+                                                    })
+                                                    .DataSource(Model.Item1.PersonnePhysiqueLab.PieceIdentites)
+                                                    .OnRowInserted(@<text>
+                                                                function(e)
+                                                                {
+                                                                updateListPieceJointesForm(@(Model.Item2));
+                                                                } </text>)
+                                                    .OnRowRemoved(@<text>
+                                                        function(e)
+                                                        {
+                                                        updateListPieceJointesForm(@(Model.Item2));
+                                                        } </text>).OnRowUpdated(@<text>
+                                                        function(e)
+                                                        {
+                                                        updateListPieceJointesForm(@(Model.Item2));
+                                                        } </text>)
+                                                    .OnContentReady(@<text>
+                                                        function()
+                                                        {
+                                                        updateListPieceJointesForm(@(Model.Item2));
+                                                        }
+                                                    </text>) )
+                                        </div>
+
+                    <div class="col-md-12 dx-hidden" id="pieces-jointes-form-container@(Model.Item2)"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="tab-pane fade" id="nav-surfacefinanciere@(Model.Item2)" role="tabpanel" aria-labelledby="nav-surfacefinanciere-tab@(Model.Item2)">
+    <div class="col-12 mb-3">
+        <div class="card bloc-card-personne">
+            <div class="card-body p-2">
+                <h6 class="card-title">@translator.Common["SurfaceFinanciere"]</h6>
+                <div class="row text-normal">
+                    <div class="col">
+
+                                            <div class="d-flex justify-content-end">
+                                                <div>
+                                                    <button class="maximize-html-editor mr-1"
+                                                            style="background-color: transparent; border: none; cursor: pointer;"
+                                                            onclick="showPopupHtmlEditor('PersonnePhysiqueLabSurfaceFinanciere@(Model.Item2)', '@translator.Common["SurfaceFinanciere"].Replace("'", "\\'")',true);event.preventDefault();">
+                                                        @translator.Common["Expand"]
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            @(Html.DevExtreme().HtmlEditorFor(x => x.Item1.PersonnePhysiqueLab.SurfaceFinanciere)
+                                                .ID("PersonnePhysiqueLabSurfaceFinanciere" + Model.Item2)
+                                                .Height(200)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.SurfaceFinanciere").ReadOnly(_isReadOnly))
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="nav-relationclient@(Model.Item2)" role="tabpanel" aria-labelledby="nav-relationclient-tab@(Model.Item2)">
+                        <div class="col-12 mb-3">
+                            <div class="card bloc-card-personne">
+                                <div class="card-body p-2">
+                                    <h6 class="card-title">@translator.Common["Relation"]</h6>
+                                    <div class="row text-normal">
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["DateOfContact"]</span></div>
+                                            @(Html.DevExtreme().DateBoxFor(x => x.Item1.PersonnePhysiqueLab.DateEntreeEnRelation)
+                                                .Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.DateEntreeEnRelation")
+                                                .ID("PersonnePhysiqueLabDateEntreeEnRelation" + Model.Item2)
+                                                .DisplayFormat(DateHelper.DateFormat())
+                                                .UseMaskBehavior(true).Width("100%")
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1 pl-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["CanalEntreeEnRelation"]</span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => Model.Item1.PersonnePhysiqueLab.CanalEntreeEnRelationId)
+                                                .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                .DisplayExpr($"Name{_lang}")
+                                                .ValueExpr("Id")
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.CanalEntreeEnRelationId")
+                                                .ID("PersonnePhysiqueLabCanalEntreeEnRelationId" + Model.Item2)
+                                                .DataSource(canalEntreeRelationSources)
+                                                .SearchEnabled(true)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly))
+                                        </div>
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1 pl-xl-1 dx-hidden">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green"> @translator.Common["Lab.CessationRelation"]</span>
+                                            </div>
+                                            <div class="adjust-padding-top-check-box">
+                                                @(Html.DevExtreme().CheckBoxFor(x => x.Item1.PersonnePhysiqueLab.CessationRelation)
+                                                    .ID($"PersonnePhysiqueLabCessationRelation{Model.Item2}")
+                                                    .Height(30)
+                                                    .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.CessationRelation")
+                                                    .ReadOnly(_isReadOnly))
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-5 pr-xl-1 pl-xl-1">
+                                            <div class="text-truncate">
+                                                <span class="smallCaps text-green"> @translator.Common["TypeRelationAffaire"]</span>
+                                            </div>
+                                            <div>
+                                                @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.TypeRelationAffaireLabId)
+                                                    .DisplayExpr($"Name{_lang}")
+                                                    .ValueExpr("Id")
+                                                    .ID($"PersonnePhysiqueLabTypeRelationAffaireLabId{Model.Item2}")
+                                                    .ElementAttr("class","PersonnePhysiqueLabTypeRelationAffaireLabId")
+                                                    .Height(30)
+                                                    .SearchEnabled(true)
+                                                    .ShowClearButton(true)
+                                                    .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.TypeRelationAffaireLabId")
+                                                    .ReadOnly(_isReadOnly)
+                                                    .DataSource(_referentiel.TypeRelationAffaireLabs)
+                                                    .OnValueChanged(@<text>
+                                                                        function (e) {
+                                                                        if (e.value == 4)
+                                                                        {
+                                                                        $("#PersonnePhysiqueLabCessationRelation@(Model.Item2)").dxCheckBox("instance").option("value", true);
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                        $("#PersonnePhysiqueLabCessationRelation@(Model.Item2)").dxCheckBox("instance").option("value", false);
+                                                                        }
+
+                                                                        $("#PersonnePhysiqueLabDateCessationRelation@(Model.Item2)").removeClass("required-date");
+                                                                        $("#PersonnePhysiqueLabDateCessationRelation@(Model.Item2)").dxDateBox("instance").option("disabled", !(e.value == 4 || e.value == 3));
+                                                                        if(!(e.value == 4 || e.value == 3))
+                                                                        {
+                                                                        $("#PersonnePhysiqueLabDateCessationRelation@(Model.Item2)").dxDateBox("instance").option("value", null);
+                                                                        }
+                                                                        updateHeaderIdentityPhysicalPerson(@(Model.Item2));
+                                                                        }
+                                                                     </text>))
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1 pl-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["DateCessationRelation"] </span></div>
+                                            @(Html.DevExtreme().DateBoxFor(x => Model.Item1.PersonnePhysiqueLab.DateCessationRelations)
+                                                .Height(30).Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.DateCessationRelations")
+                                                .ID("PersonnePhysiqueLabDateCessationRelation" + Model.Item2)
+                                                .DisplayFormat(DateHelper.DateFormat())
+                                                .UseMaskBehavior(true)
+                                                .Width("100%")
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly)
+                                                .Disabled(!_isRelationTerminee)
+                                                .OnValueChanged(@<text>
+                                                                    function (e) {
+                                                                    if(e.value ==null && $("#PersonnePhysiqueLabCessationRelation@(Model.Item2)").dxCheckBox("instance").option('value'))
+                                                                    {
+                                                                    $("#PersonnePhysiqueLabDateCessationRelation@(Model.Item2)").addClass("required-date");
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                    $("#PersonnePhysiqueLabDateCessationRelation@(Model.Item2)").removeClass("required-date");
+                                                                    }
+                                                                    }
+                                                                 </text>))
+                                        </div>
+
+                                    </div>
+                                    <div class="row text-normal">
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["DetentionCoffre"]</span></div>
+                                            <div class="adjust-padding-top-check-box">
+                                                @(Html.DevExtreme().CheckBoxFor(x => x.Item1.PersonnePhysiqueLab.DetentionCoffre)
+                                                    .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.DetentionCoffre")
+                                                    .ID("PersonnePhysiqueLabDetentionCoffre" + Model.Item2)
+                                                    .ElementAttr("class", "smallCaps text-green")
+                                                    .ReadOnly(_isReadOnly))
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1 pl-xl-1">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["CompteEko"]</span></div>
+                                            <div class="adjust-padding-top-check-box">
+                                                @(Html.DevExtreme().CheckBoxFor(x => x.Item1.PersonnePhysiqueLab.CompteEko)
+                                                    .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.CompteEko")
+                                                    .ID("PersonnePhysiqueLabCompteEko" + Model.Item2)
+                                                    .ElementAttr("class", "smallCaps text-green")
+                                                    .ReadOnly(_isReadOnly))
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <h6 class="card-title mt-3 pr-xl-1">@translator.Common["CaracteristiqueRelationClient"]</h6>
+                                    <div class="row text-normal">
+
+                                        <div class="col-sm-6 col-md-4 col-lg-2 col-xl-3">
+                                            <div class="text-truncate">
+
+                                                <span class="smallCaps text-green">
+                                                    @translator.Common["NatureRelationClient"]
+                                                    <button id="targetNatureRelationClientPp@(Model.Item2)" 
+                                                            class="fas fa-info-circle infoTooltipTarget" 
+                                                            style="background-color: transparent; border: none; cursor: pointer; padding: 0; color: inherit;" 
+                                                            onclick="showNatureRelationClientPpPopupLab_onClick()" 
+                                                            onKeyDown="if(event.key === 'Enter' || event.key === ' ') { showNatureRelationClientPpPopupLab_onClick(); event.preventDefault(); }">
+                                                    </button>
+                                                </span>
+                                            </div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => x.Item1.PersonnePhysiqueLab.NatureRelationClientId)
+                                                .DataSourceOptions(c => c.Sort("Name"))
+                                                .DisplayExpr("Name")
+                                                .ValueExpr("Id").Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.NatureRelationClientId")
+                                                .ID("PersonnePhysiqueLabNatureRelationClientId" + Model.Item2).DataSource(priorities)
+                                                .SearchEnabled(true)
+                                                .ShowClearButton(true)
+                                                .OnValueChanged("setRelationAffaireValidator")
+                                                .ReadOnly(_isReadOnly))
+                                            @(Html.DevExtreme().Tooltip().Width(900)
+                                                .ID("ToolTip-NatureRelationClientPp" + Model.Item2)
+                                                .Target("#targetNatureRelationClientPp" + Model.Item2)
+                                                .ShowEvent("mouseenter")
+                                                .HideEvent("mouseleave")
+                                                .CloseOnOutsideClick(false)
+                                                .Position(Position.Bottom)
+                                                .ContentTemplate(@<text>
+                                                                      <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 900px;">
+                                                                          @Html.Raw(translator.TemplateTraduction["ToolTipNatureRelationClient"])
+                                                                      </div>
+                                                                  </text>)
+                                            )
+                                        </div>
+                                    </div>
+                                    <div class="col mt-2 p-0">
+                                        <div class="d-flex justify-content-between">
+                                            <h6 class="card-title mb-1">@translator.Common["ElementClesRelation"] <i id="targetElementClesRelationPp@(Model.Item2)" class="fas fa-info-circle infoTooltipTarget"></i></h6>
+                                            <button class="maximize-html-editor mr-1" style="align-self: end; display: flex; background-color: transparent; border: none; cursor: pointer;"
+                                                    onclick="showPopupHtmlEditor('PersonnePhysiqueLabElementClesRelation@(Model.Item2)', '@translator.Common["ElementClesRelation"].Replace("'", "\\'")',true);event.preventDefault();">
+                                                @translator.Common["Expand"]
+                                            </button>
+                                        </div>
+                                        @(Html.DevExtreme().HtmlEditorFor(x => x.Item1.PersonnePhysiqueLab.ElementClesRelation)
+                                            .ID("PersonnePhysiqueLabElementClesRelation" + Model.Item2)
+                                            .Height(200)
+                                            .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.ElementClesRelation").ReadOnly(_isReadOnly))
+                                        @(Html.DevExtreme().Tooltip().Width(500)
+                                            .ID("ToolTip-ElementClesRelationPp" + Model.Item2)
+                                            .Target("#targetElementClesRelationPp" + Model.Item2)
+                                            .ShowEvent("mouseenter")
+                                            .HideEvent("mouseleave")
+                                            .CloseOnOutsideClick(false)
+                                            .Position(Position.Bottom)
+                                            .ContentTemplate(@<text>
+                                                                  <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                                      @Html.Raw(translator.Common["ToolTipElementClesRelation"])
+                                                                  </div>
+                                                              </text>)
+                                        )
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="nav-supportfinancier@(Model.Item2)" role="tabpanel" aria-labelledby="nav-supportfinancier-tab@(Model.Item2)">
+                        <div class="col-12 mb-3">
+                            <div class="card bloc-card-personne">
+                                <div class="card-body p-2">
+                                    <h6 class="card-title">@translator.Common["ReferencesFinancieres"]</h6>
+                                    @(
+                                        Html.DevExtreme().DataGrid<SupportFinancierPersonnePhysiqueViewModel>()
+                                                        .ID($"gridSupportFinancierPersonnePhysique{Model.Item2}")
+                                                        .ShowBorders(true)
+                                                        .Paging(paging => paging.Enabled(false))
+                                                        .Editing(editing =>
+                                                        {
+                                                            editing.Mode(GridEditMode.Row);
+                                                            editing.AllowAdding(!_isReadOnly);
+                                                            editing.AllowDeleting(!_isReadOnly);
+                                                            editing.AllowUpdating(!_isReadOnly);
+                                                            editing.UseIcons(!_isReadOnly);
+                                                        })
+                                                        .Columns(columns =>
+                                                        {
+                                                            columns.AddFor(m => m.Id).Visible(false).SortOrder(SortOrder.Desc);
+
+
+                                                            columns.AddFor(m => m.TypeReferenceLabId)
+                                                                                                        .Caption(translator.Common["TypeReference"])
+                                                                                                        .AllowSorting(false)
+                                                                                                        .Lookup(lookup => lookup
+                                                                                                            .DataSource(_referentiel.TypeReferenceLabs)
+                                                                                                            .DataSourceOptions(c => c.Sort("Id"))
+                                                                                                            .DisplayExpr($"Name{_lang}")
+                                                                                                            .ValueExpr("Id"))
+                                                                                                        .ValidationRules(r =>
+                                                                                                            r.AddRequired()
+                                                                                                            .Message($"{translator.Common["TypeReference"]} {translator.Common["Required"]}"));
+
+
+                                                            columns.AddFor(m => m.CryptedId).Visible(false);
+
+                                                            columns.AddFor(m => m.AutreTypeReference)
+                                                                                       .Caption(translator.Common["AutreTypeReference"])
+                                                                                       .AllowSorting(false) 
+                                                                                       .ValidationRules(r =>
+                                                                                           r.AddCustom()
+                                                                                               .Message($"{translator.Common["AutreTypeReference"]} {translator.Common["Required"]}")
+                                                                                               .ValidationCallback("customRequiredReferenceFinanciereFieldValidationCallback")
+                                                                                               .Reevaluate(true));
+
+
+
+                                                            columns.AddFor(m => m.CryptedPersonnePhysiqueLabId).Visible(false);
+
+                                                            columns.AddFor(m => m.Iban)
+                                                                                                            .Caption(translator.Common["IBAN"] + "\n" + translator.Common["ToolTipIbanHeader"])
+                                                                                                            .AllowSorting(false)
+                                                                                                            .Width("12%")
+                                                                                                            .ValidationRules(r =>
+                                                                                                                {
+                                                                                                    r.AddCustom()
+                                                                                                        .Message($"{translator.Common["IBAN"]} {translator.Common["Required"]}")
+                                                                                                        .ValidationCallback("customRequiredReferenceFinanciereFieldValidationCallback");
+
+
+                                                                                r.AddCustom()
+                                                                                    .Message(translator.Common["InvalidFormat"])
+                                                                                    .ValidationCallback("customReferenceFinanciereFieldPatternValidationCallback")
+                                                                                    .Reevaluate(true);
+
+                                                                                r.AddCustom()
+                                                                                    .Message(translator.Common["MinRequiredLength"])    
+                                                                                    .ValidationCallback("customReferenceFinanciereFieldMinLengthValidationCallback")
+                                                                                    .Reevaluate(true);
+
+                                                                                r.AddCustom()
+                                                                                    .Message(translator.Common["MaxRequiredLength"])   
+                                                                                    .ValidationCallback("customReferenceFinanciereFieldMaxLengthValidationCallback")
+                                                                                    .Reevaluate(true);
+                                                                            });
+
+
+                                                            columns.AddFor(m => m.CodeBic)
+                                                                                       .Caption(translator.Common["CodeBic"])
+                                                                                       .AllowSorting(false)
+                                                                                       .Width("7%")
+                                                                                       .ValidationRules(r =>
+                                                                                       {
+                                                                                            r.AddCustom()
+                                                                                        .Message($"{translator.Common["CodeBic"]} {translator.Common["Required"]}")
+                                                                                        .ValidationCallback("customRequiredReferenceFinanciereFieldValidationCallback")
+                                                                                        .Reevaluate(true);
+
+                                                                                            r.AddCustom()
+                                                                                        .Message(translator.Common["MinRequiredLength"])
+                                                                                        .ValidationCallback("customReferenceFinanciereFieldMinLengthValidationCallback")
+                                                                                        .Reevaluate(true);
+
+                                                                                            r.AddCustom()
+                                                                                        .Message(translator.Common["MaxRequiredLength"])
+                                                                                        .ValidationCallback("customReferenceFinanciereFieldMaxLengthValidationCallback")
+                                                                                        .Reevaluate(true);
+                                                                                       });
+
+                                            columns.AddFor(m => m.CodeCib)
+                                                   .Caption(translator.Common["CodeCib"])
+                                                   .AllowSorting(false)
+                                                   .Width("7%")
+                                                   .ValidationRules(r =>
+                                                   {
+                                                           r.AddCustom()
+                                                       .Message($"{translator.Common["CodeCib"]} {translator.Common["Required"]}")
+                                                       .ValidationCallback("customRequiredReferenceFinanciereFieldValidationCallback")
+                                                       .Reevaluate(true);
+
+                                                           r.AddCustom()
+                                                       .Message(translator.Common["InvalidFormat"])
+                                                       .ValidationCallback("customReferenceFinanciereFieldPatternValidationCallback")
+                                                       .Reevaluate(true);
+                                                   });
+
+
+                                            columns.AddFor(m => m.TypeLienSupportId)
+                                                   .Caption(translator.Common["TypeLienPersonne"] + "\n" + translator.Common["ToolTipTypeLienPersonne"])
+                                                   .AllowSorting(false)
+                                                   .Lookup(lookup => lookup
+                                                       .DataSource(_referentiel.TypeLienSupports)
+                                                       .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                       .DisplayExpr($"Name{_lang}").ValueExpr("Id"))
+                                                    .ValidationRules(r =>
+                                                        r.AddCustom()
+                                                        .Message($"{translator.Common["TypeLienPersonne"]} {translator.Common["Required"]}")
+                                                        .ValidationCallback("customRequiredReferenceFinanciereFieldValidationCallback")
+                                                        .Reevaluate(true));
+
+
+
+                                            columns.AddFor(m => m.TypeCompteId)
+                                                .Caption(translator.Common["TypeCompte"])
+                                                .AllowSorting(false)
+                                                .Lookup(lookup => lookup
+                                                    .DataSource(_referentiel.TypesComptes)
+                                                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                    .DisplayExpr($"Name{_lang}").ValueExpr("Id"));
+                                            columns.AddFor(m => m.DateOuvertureCompte).Caption(translator.Common["DateOuverture"]).DataType(GridColumnDataType.Date).AllowSorting(false);
+
+                                            columns.AddFor(m => m.Solde)
+                                                    .DataType(GridColumnDataType.Number)
+                                                    .Format(format => format.Type(Format.FixedPoint).Precision(2))
+                                                    .Caption(translator.Common["Solde"])
+                                                    .AllowSorting(false);
+                                        })
+                                        .DataSource(Model.Item1.PersonnePhysiqueLab.SupportFinancierPersonnePhysiques)
+                                        .OnRowInserted(
+                                    @<text>
+                                                            function(e)
+                                                            {
+                                                                updateListSupportFinancierPersonnePhysiquesForm(@(Model.Item2));
+                                                            } </text>)
+                                        .OnRowRemoved(@<text>
+                                                           function(e)
+                                                           {
+                                                                updateListSupportFinancierPersonnePhysiquesForm(@(Model.Item2));
+                                                           }
+                                                           </text>)
+                                        .OnRowUpdated(@<text>
+                                                           function(e)
+                                                           {
+                                                                updateListSupportFinancierPersonnePhysiquesForm(@(Model.Item2));
+                                                           } </text>)
+                                        .OnContentReady(@<text>
+                                                             function()
+                                                             {
+                                                                updateListSupportFinancierPersonnePhysiquesForm(@(Model.Item2));
+                                                                if(arrayFirstLoadPersonnePhysique[@(Model.Item2)])
+                                                                {
+                                                                    arrayFirstLoadPersonnePhysique[@(Model.Item2)] = false;
+                                                                    tryInitInfoContratConcerneOperationImmobiliere(++nombreDataGridReferencesFinancieresReady);
+                                                                }
+                                                                else
+                                                                {
+                                                                    refreshAllReferencesFinancieresOperationsImmobilieres();
+                                                                }
+                                                             }
+                                                         </text>)
+                                        .OnRowInserting("ensureNombreReferencesFinancieresTiersIntegresDsBelowMaximumNumberOnRowInserting")
+                                        .OnEditorPreparing("gridSupportFinancier_OnEditorPreparing"))
+                                </div>
+                                <div class="col-md-12 dx-hidden" id="support-financiers-personne-physique-form-container@(Model.Item2)"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="nav-notoriete@(Model.Item2)" role="tabpanel" aria-labelledby="nav-notoriete-tab@(Model.Item2)">
+                        <div class="col-12 mb-3">
+                            <div class="card bloc-card-personne">
+                                <div class="card-body p-2">
+                                    <h6 class="card-title">@translator.Common["ElementsNotorieteDefavorable"] <i id="targetElementsNotorieteDefavorablePp@(Model.Item2)" class="fas fa-info-circle infoTooltipTarget"></i></h6>
+
+                                    @(Html.DevExtreme().Tooltip().Width(500)
+                                        .ID("ToolTip-ElementsNotorieteDefavorablePp" + Model.Item2)
+                                        .Target("#targetElementsNotorieteDefavorablePp" + Model.Item2)
+                                        .ShowEvent("mouseenter")
+                                        .HideEvent("mouseleave")
+                                        .CloseOnOutsideClick(false)
+                                        .Position(Position.Bottom)
+                                        .ContentTemplate(@<text>
+                                                              <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                                  @Html.Raw(translator.Common["ToolTipElementsNotorieteDefavorable"])
+                                                              </div>
+                                                          </text>)
+                                    )
+                                    <div class="row">
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-3">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["FigureSanction"]</span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => Model.Item1.PersonnePhysiqueLab.FigureSanctionId)
+                                                .DataSourceOptions(c => c.Sort("Name"))
+                                                .DisplayExpr("Name")
+                                                .ValueExpr("Id")
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.FigureSanctionId")
+                                                .ID("PersonnePhysiqueLabFigureSanctionId" + Model.Item2)
+                                                .DataSource(ouiNonDontKnow)
+                                                .SearchEnabled(true)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly)
+                                                .OnValueChanged(@<text>
+                                                    function(e)
+                                                    {
+                                                        if (e.value == 1)
+                                                            $("#FigureSanctionPrecisionDiv" + @(Model.Item2)).removeClass('dx-hidden');
+                                                        else
+                                                            $("#FigureSanctionPrecisionDiv" + @(Model.Item2)).addClass('dx-hidden');
+                                                            $("#PersonnePhysiqueLabFigureSanctionPrecision"  + @(Model.Item2)).dxHtmlEditor("instance").option('value', "");
+                                                    }
+                                                     </text>))
+
+                                        </div>
+                                        <div id="FigureSanctionPrecisionDiv@(Model.Item2)" class="col-xl-9 @(Model.Item1.PersonnePhysiqueLab.FigureSanctionId == 2 ? "dx-hidden" : "")">
+                                            <div class="d-flex justify-content-between">
+                                                <span class="smallCaps text-green">@translator.Common["Precision"]</span>
+                                                <button class="maximize-html-editor mr-1" style="align-self: end; display: flex; background-color: transparent; border: none; cursor: pointer;" 
+                                                        onclick="showPopupHtmlEditor('PersonnePhysiqueLabFigureSanctionPrecision@(Model.Item2)', '@translator.Common["FigureSanctionPrecision"].Replace("'", "\\'")',true);event.preventDefault();">
+                                                    @translator.Common["Expand"]
+                                                </button>
+                                            </div>
+                                            @(Html.DevExtreme().HtmlEditorFor(x => x.Item1.PersonnePhysiqueLab.FigureSanctionPrecision)
+                                                .ID("PersonnePhysiqueLabFigureSanctionPrecision" + Model.Item2).Hint(translator.Common["FigureSanctionPrecisionHint"])
+                                                .Height(50)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.FigureSanctionPrecision").ReadOnly(_isReadOnly))
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2">
+                                        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-3">
+                                            <div class="text-truncate"><span class="smallCaps text-green">@translator.Common["ActiviteCriminelle"]</span></div>
+                                            @(Html.DevExtreme().SelectBoxFor(x => Model.Item1.PersonnePhysiqueLab.ActiviteCriminelleId)
+                                                .DataSourceOptions(c => c.Sort("Name"))
+                                                .DisplayExpr("Name")
+                                                .ValueExpr("Id")
+                                                .Height(30)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.ActiviteCriminelleId")
+                                                .ID("PersonnePhysiqueLabActiviteCriminelleId" + Model.Item2)
+                                                .DataSource(ouiNonEu)
+                                                .SearchEnabled(true)
+                                                .ShowClearButton(true)
+                                                .ReadOnly(_isReadOnly)
+                                                .OnValueChanged(@<text>
+                                                    function(e)
+                                                    {
+                                                    if (e.value == 3) {
+
+                                                    $("#ActiviteCriminellePrecisionDiv" + @(Model.Item2)).addClass('dx-hidden');
+                                                    $("#PersonnePhysiqueLabActiviteCriminellePrecision"  + @(Model.Item2)).dxHtmlEditor("instance").option('value', "");
+                                                    }
+                                                    else {
+
+                                                    $("#ActiviteCriminellePrecisionDiv" + @(Model.Item2)).removeClass('dx-hidden');
+                                                    }
+                                                    }
+                                                    </text>))
+
+                                        </div>
+                                        <div id="ActiviteCriminellePrecisionDiv@(Model.Item2)" class="col-xl-9 @(Model.Item1.PersonnePhysiqueLab.ActiviteCriminelleId == 3 ? "dx-hidden" : "")">
+                                            <div class="d-flex justify-content-between">
+                                                <span class="smallCaps text-green">
+                                                    @translator.Common["Precision"]<i id="targetActiviteCriminellePrecisionPp@(Model.Item2)" class="fas fa-info-circle infoTooltipTarget"></i>
+                                                    @(Html.DevExtreme().Tooltip().Width(500)
+                                                        .ID("ToolTip-ActiviteCriminellePrecisionPp" + Model.Item2)
+                                                        .Target("#targetActiviteCriminellePrecisionPp" + Model.Item2)
+                                                        .ShowEvent("mouseenter")
+                                                        .HideEvent("mouseleave")
+                                                        .CloseOnOutsideClick(false)
+                                                        .Position(Position.Bottom)
+                                                        .ContentTemplate(@<text>
+                                                                              <div class='smallCaps text-green toolTipSearch text-justify' style="max-width: 500px;">
+                                                                                  @Html.Raw(translator.TemplateTraduction["ToolTipActiviteCriminellePrecision"])
+                                                                              </div>
+                                                                          </text>)
+                                                    )
+                                                </span>
+                                                <button class="maximize-html-editor mr-1" style="align-self: end; display: flex; background-color: transparent; border: none; cursor: pointer;"
+                                                       onclick="showPopupHtmlEditor('PersonnePhysiqueLabActiviteCriminellePrecision@(Model.Item2)', '@translator.Common["ActiviteCriminellePrecision"].Replace("'", "\\'")',true);event.preventDefault();">
+                                                    @translator.Common["Expand"]
+                                                </button>
+                                            </div>
+                                            @(Html.DevExtreme().HtmlEditorFor(x => x.Item1.PersonnePhysiqueLab.ActiviteCriminellePrecision)
+                                                .ID("PersonnePhysiqueLabActiviteCriminellePrecision" + Model.Item2).Hint(translator.Common["ActiviteCriminellePrecisionHint"])
+                                                .Height(50)
+                                                .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.ActiviteCriminellePrecision").ReadOnly(_isReadOnly))
+                                        </div>
+                                    </div>
+                                    <div class="col mt-4 p-0">
+                                        <div class="">
+                                            @Html.Raw(translator.TemplateTraduction["NotorieteDefavorableTemplate"])
+                                            <button class="maximize-html-editor mr-1" style="align-self: end; display: flex; background-color: transparent; border: none; cursor: pointer;"
+                                                   onclick="showPopupHtmlEditor('PersonnePhysiqueLabNotorieteDefavorable@(Model.Item2)', '@translator.Common["NotorieteDefavorable"].Replace("'", "\\'")',true);event.preventDefault();">
+                                                @translator.Common["Expand"]
+                                            </button>
+                                        </div>
+                                        @(Html.DevExtreme().HtmlEditorFor(x => x.Item1.PersonnePhysiqueLab.NotorieteDefavorable)
+                                            .ID("PersonnePhysiqueLabNotorieteDefavorable" + Model.Item2)
+                                            .Height(100)
+                                            .Name($"DossierLabPersonnePhysiques[{Model.Item2}].PersonnePhysiqueLab.NotorieteDefavorable").ReadOnly(_isReadOnly))
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="nav-liens-personnephysique@(Model.Item2)" role="tabpanel" aria-labelledby="nav-liens-personnephysique-tab@(Model.Item2)">
+                        <div class="col-12 mb-3">
+                            <div class="card bloc-card-personne">
+                                <div class="nav nav-tabs adjust-nav-tab" id="nav-tab-lien-personnephysique@(Model.Item2)" role="tablist">
+                                    <a class="nav-item nav-link smallCaps text-green active" id="nav-pp-personnephysique-tab@(Model.Item2)" data-toggle="pill" href="#nav-pp-personnephysique@(Model.Item2)" role="tab" aria-controls="nav-pp-personnephysique@(Model.Item2)" aria-selected="true">@translator.Common["Avec"] @translator.Common["PhysicalPerson"]</a>
+
+                                    <a class="nav-item nav-link smallCaps text-green" id="nav-pm-personnephysique-tab@(Model.Item2)" data-toggle="pill" href="#nav-pm-personnephysique@(Model.Item2)" role="tab" aria-controls="nav-pm-personnephysique@(Model.Item2)" aria-selected="false">@translator.Common["Avec"] @translator.Common["MoralPerson"]</a>
+                                </div>
+                                <div class="tab-content" id="nav-tabContent-lien">
+                                    <div class="tab-pane fade show active" id="nav-pp-personnephysique@(Model.Item2)" role="tabpanel" aria-labelledby="nav-pp-tab-personnephysique@(Model.Item2)">
+                                        <div class="card-body p-2">
+                                            @{
+                                                var liens = new List<string> { "" };
+                                            }
+                                            @(Html.DevExtreme().DataGrid<LienPersonnePhysiqueViewModel>()
+                                            .ID($"gridLienPersonnePhysiquePhysique{Model.Item2}")
+                                            .ShowBorders(true)
+                                            .Paging(paging => paging.Enabled(false))
+                                            .Editing(editing =>
+                                            {
+                                                editing.Mode(GridEditMode.Row);
+                                                editing.AllowAdding(!_isReadOnly);
+                                                editing.AllowDeleting(!_isReadOnly);
+                                                editing.AllowUpdating(!_isReadOnly);
+                                                editing.UseIcons(!_isReadOnly);
+                                            })
+                                            .Columns(columns =>
+                                            {
+                                                columns.AddFor(m => m.Id).Visible(false).SortOrder(SortOrder.Desc);
+                                                columns.AddFor(m => m.CryptedId).Visible(false);
+                                                columns.AddFor(m => m.CryptedPersonnePhysiqueLabId).Visible(false);
+                                                columns.AddFor(m => m.CryptedPersonneMoraleLabId).Visible(false);
+                                                columns.AddFor(m => m.NomNaissance).Caption(translator.Common["NomNaissance"]).AllowSorting(false);
+                                                columns.AddFor(m => m.Prenom).Caption(translator.Common["Prenoms"]).AllowSorting(false);
+                                                columns.AddFor(m => m.DateNaissance).Caption(translator.Common["DateNaissance"]).Width(150).DataType(GridColumnDataType.Date).Format(DateHelper.DateFormat()).AllowSorting(false);
+                                                columns.AddFor(m => m.LieuNaissance).Caption(translator.Common["LieuNaissance"]).AllowSorting(false);
+                                                columns.AddFor(m => m.CertitudeLien)
+                                                    .Caption(translator.Common["CertitudeLien"])
+                                                    .AllowSorting(false).CalculateCellValue("CertitudeLien_calculateCellValue")
+                                                    .Lookup(lookup => lookup
+                                                        .DataSource(ouiNon)
+                                                        .DataSourceOptions(c => c.Sort("Name"))
+                                                        .DisplayExpr("Name").ValueExpr("Id")
+                                                    ); 
+                                                columns.AddFor(m => m.CategorieLienPersonnePhysiquePhysiqueId)
+                                                                 .Caption(translator.Common["CategorieLien"])
+                                                                 .AllowSorting(false)
+                                                                 .Lookup(lookup => lookup
+                                                                 .DataSource(_referentiel.CategorieLienPersonnePhysiquePhysiques)
+                                                                 .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                                 .DisplayExpr($"Name{_lang}").ValueExpr("Id")
+                                                             );
+                                                
+                                                columns.AddFor(m => m.TypeLienPersonnePhysiquePhysiqueId)
+                                                    .Caption(translator.Common["Lien"])
+                                                    .Name("TypeLienPersonnePhysiquePhysique")
+                                                    .AllowSorting(false)
+                                                    .Lookup(lookup => lookup
+                                                    .DataSource(_referentiel.TypeLienPersonnePhysiquePhysiques)
+                                                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                    .DisplayExpr($"Name{_lang}").ValueExpr("Id"))
+                                                    .ValidationRules(r =>
+                                                        r.AddCustom()
+                                                        .Message($"{translator.Common["Lien"]} {translator.Common["Required"]}")
+                                                        .ValidationCallback("customRequiredTypeLienPersonnePhysiquePhysiqueIdValidationCallback")
+                                                        .Reevaluate(true));
+
+                                                columns.AddFor(m => m.Precisions)
+                                                       .Caption(translator.Common["Precision"])
+                                                       .AllowSorting(false)
+                                                       .ValidationRules(r =>
+                                                            r.AddCustom()
+                                                            .Message(translator.Common["PrecisionObligatoire"])
+                                                            .ValidationCallback(
+                                                            @<text>
+                                                                function(e)
+                                                                {
+                                                                    return precisionsValidationCallback(e,
+                                                                    data => data.TypeLienPersonnePhysiquePhysiqueId,
+                                                                    _labIdTypeLienPpPp);
+                                                                }
+                                                            </text>)
+                                                    .Reevaluate(true));
+                                            })
+                                            .DataSource(Model.Item1.PersonnePhysiqueLab.LienPersonnePhysiques)
+                                            .OnEditorPreparing(@<text>
+                                            function(e)
+                                            {
+                                                loadTypeLienPersonnePhysiquePhysiquesById(e);
+                                            }
+
+                                            </text>)
+                                            .OnRowInserted(@<text>
+                                                function(e)
+                                                {
+                                                    updateListLienPersonnePhysiquePhysiquesForm(@(Model.Item2));
+                                                    setDefaultValueCertitudeLien(e);
+                                                } </text>)
+                                                .OnRowRemoved(@<text>
+                                                function(e)
+                                                {
+                                                    updateListLienPersonnePhysiquePhysiquesForm(@(Model.Item2));
+                                                } </text>)
+                                                .OnRowUpdated(@<text>
+                                                    function(e)
+                                                    {
+                                                        updateListLienPersonnePhysiquePhysiquesForm(@(Model.Item2));
+                                                    } </text>)
+                                                .OnContentReady(@<text>
+                                                    function(e)
+                                                    {
+                                                        updateListLienPersonnePhysiquePhysiquesForm(@(Model.Item2));
+                                                    }
+                                                </text>)
+                                                .OnRowInserting("ensureNombreLiensPersonnesIntegreesDsParDossierBelowMaxNumberOnRowInserting"))
+                                        </div>
+                                        <div class="col-md-12 dx-hidden" id="lien-personne-physique-physique-form-container@(Model.Item2)"></div>
+                                    </div>
+                                    <div class="tab-pane fade" id="nav-pm-personnephysique@(Model.Item2)" role="tabpanel" aria-labelledby="nav-pm-personnephysique-tab@(Model.Item2)">
+
+                                        <div class="card-body p-2">
+                                            @(Html.DevExtreme().DataGrid<LienPersonneMoraleViewModel>()
+                                            .ID($"gridLienPersonneMoralePhysique{Model.Item2}")
+                                            .ShowBorders(true)
+                                            .Paging(paging => paging.Enabled(false))
+                                            .Editing(editing =>
+                                            {
+                                                editing.Mode(GridEditMode.Row);
+                                                editing.AllowAdding(!_isReadOnly);
+                                                editing.AllowDeleting(!_isReadOnly);
+                                                editing.AllowUpdating(!_isReadOnly);
+                                                editing.UseIcons(!_isReadOnly);
+                                            })
+                                            .Columns(columns =>
+                                            {
+                                                columns.AddFor(m => m.Id).Visible(false).SortOrder(SortOrder.Desc);
+                                                columns.AddFor(m => m.CryptedId).Visible(false);
+                                                columns.AddFor(m => m.CryptedPersonneMoraleLabId).Visible(false);
+                                                columns.AddFor(m => m.CryptedPersonnePhysiqueLabId).Visible(false);
+                                                columns.AddFor(m => m.RaisonSociale).Caption(translator.Common["RaisonSociale"]).AllowSorting(false);
+                                                columns.AddFor(m => m.FormeJuridiqueId)
+                                                    .Caption(translator.Common["FormeJuridique"])
+                                                    .AllowSorting(false)
+                                                    .Lookup(lookup => lookup
+                                                    .DataSource(_referentiel.FormeJuridiques)
+                                                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                    .DisplayExpr($"Name{_lang}").ValueExpr("Id")
+                                                );
+                                                columns.AddFor(m => m.Immatriculation).Caption(translator.Common["Immatriculation"]).AllowSorting(false);
+                                                columns.AddFor(m => m.CertitudeLien)
+                                                    .Caption(translator.Common["CertitudeLien"])
+                                                    .AllowSorting(false).CalculateCellValue("CertitudeLien_calculateCellValue")
+                                                    .Lookup(lookup => lookup
+                                                        .DataSource(ouiNon)
+                                                        .DataSourceOptions(c => c.Sort("Name"))
+                                                        .DisplayExpr("Name").ValueExpr("Id")
+                                                    );
+
+                                                columns.AddFor(m => m.CategorieLienPersonneMoralePhysiqueId)
+                                                    .Caption(translator.Common["CategorieLien"])
+                                                                 .AllowSorting(false)
+                                                                 .Lookup(lookup => lookup
+                                                                 .DataSource(_referentiel.CategorieLienPersonnePhysiquePhysiques)
+                                                                 .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                                 .DisplayExpr($"Name{_lang}").ValueExpr("Id")
+                                                             );
+
+
+                                                columns.AddFor(m => m.TypeLienPersonneMoralePhysiqueId)
+                                                .Caption(translator.Common["Lien"])
+                                                .AllowSorting(false)
+                                                .Lookup(lookup => lookup
+                                                .DataSource(_referentiel.TypeLienPersonneMoralePhysiques)
+                                                .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                                .DisplayExpr($"Name{_lang}").ValueExpr("Id"))
+                                                .ValidationRules(r =>
+                                                    r.AddCustom()
+                                                    .Message($"{translator.Common["Lien"]} {translator.Common["Required"]}")
+                                                    .ValidationCallback("customRequiredTypeLienPersonneMoralePhysiqueIdValidationCallback")
+                                                    .Reevaluate(true));
+                                                
+                                                columns.AddFor(m => m.Precisions)
+                                                       .Caption(translator.Common["Precision"])
+                                                       .AllowSorting(false)
+                                                       .ValidationRules(r =>
+                                                            r.AddCustom()
+                                                            .Message(translator.Common["PrecisionObligatoire"])
+                                                            .ValidationCallback(
+                                                            @<text>
+                                                                function(e)
+                                                                {
+                                                                    return precisionsValidationCallback(e,
+                                                                        data => data.TypeLienPersonneMoralePhysiqueId,
+                                                                        _labIdTypeLienPmPp);
+                                                                }
+                                                            </text>)
+                                                      .Reevaluate(true));
+                                            })
+                                            .DataSource(Model.Item1.PersonnePhysiqueLab.LienPersonneMorales)
+                                            .OnEditorPreparing(@<text>
+                                            function(e)
+                                            {
+                                                loadTypeLienPersonnePhysiqueMoraleById(e);
+                                            }
+
+                                            </text>)
+                                            .OnRowInserted(@<text>
+                                                function(e)
+                                                {
+                                                    updateListLienPersonneMoralePhysiquesForm(@(Model.Item2));
+                                                    setDefaultValueCertitudeLien(e);
+                                                } </text>)
+                                            .OnRowRemoved(@<text>
+                                                function(e)
+                                                {
+                                                    updateListLienPersonneMoralePhysiquesForm(@(Model.Item2));
+                                                } </text>)
+                                            .OnRowUpdated(@<text>
+                                                function(e)
+                                                {
+                                                    updateListLienPersonneMoralePhysiquesForm(@(Model.Item2));
+                                                } </text>)
+                                            .OnContentReady(@<text>
+                                                function(e)
+                                                {
+                                                    updateListLienPersonneMoralePhysiquesForm(@(Model.Item2));
+                                                }
+                                            </text>)
+                                            .OnRowInserting("ensureNombreLiensPersonnesIntegreesDsParDossierBelowMaxNumberOnRowInserting"))
+                                        </div>
+                                        <div class="col-md-12 dx-hidden" id="lien-personne-morale-physique-form-container@(Model.Item2)"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    .adjust-nav-tab {
+        margin-left: -1px
+    }
+
+    .adjust-div-label-position {
+        padding-top: 10px;
+    }
+</style>
+
+
+@(Html.DevExtreme().Popup()
+    .ID("CriblagePersonnePhysiqueLabModalPreview")
+    .ElementAttr(new Dictionary<string, object>
+        { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .Width("auto")
+    .Height("auto")
+    .OnShowing("criblagePersonnePhysiqueLabModalPreview_OnShowing")
+    .ElementAttr("style", "min-Height:95%;overflow-y: scroll;")
+    .TitleTemplate(@<text>
+                       <div class="d-flex flex-row align-items-center justify-content-between">
+                           <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green"><i class="fas fa-pen mr-2"></i>@translator.Common["CriblagePersonnePhysiqueParNom"]  </div>
+                           <button style="cursor: pointer; font-size: 24px; background-color: transparent; border: none; padding: 0; color: inherit;" 
+                                   onclick="$('#CriblagePersonnePhysiqueLabModalPreview').dxPopup('hide');">&times;</button>
+                       </div>
+                    </text>))
+@(Html.DevExtreme().Popup()
+    .ID("NatureRelationClientPersonnePhysiqueLabModalPreview")
+    .ElementAttr(new Dictionary<string, object>
+        { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .Width("auto")
+    .Height("auto").MaxHeight("90%")
+    .OnShowing("natureRelationClientPersonnePhysiqueLabModalPreview_OnShowing")
+    .ElementAttr("style", "min-Height:95%;overflow-y: scroll;")
+    .TitleTemplate(@<text>
+                        <div class="d-flex flex-row align-items-center justify-content-between">
+                            <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green"><i class="fas fa-pen mr-2"></i>@translator.Common["NatureRelationClient"]  </div>
+                            <button style="cursor: pointer; font-size: 24px; background-color: transparent; border: none; padding: 0; color: inherit;" 
+                                    onclick="$('#NatureRelationClientPersonnePhysiqueLabModalPreview').dxPopup('hide');">&times;</button>
+                        </div>
+                    </text>))
+@(Html.DevExtreme().Popup()
+    .ID("PpePersonnePhysiqueLabModalPreview")
+    .ElementAttr(new Dictionary<string, object>
+        { { "class", "popup" } })
+    .ShowTitle(true)
+    .DragEnabled(true).ShowCloseButton(true)
+    .ResizeEnabled(false)
+    .Width("auto")
+    .Height("auto").MaxHeight("90%")
+    .OnShowing("ppePersonnePhysiqueLabModalPreview_OnShowing")
+    .ElementAttr("style", "min-Height:95%;overflow-y: scroll;")
+    .TitleTemplate(@<text>
+        <div class="d-flex flex-row align-items-center justify-content-between">
+            <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green"><i class="fas fa-pen mr-2"></i>@translator.Common["Ppe"]  </div> 
+            <button style="cursor: pointer; font-size: 24px; background-color: transparent; border: none; padding: 0; color: inherit;" 
+                    onclick="$('#PpePersonnePhysiqueLabModalPreview').dxPopup('hide');">&times;</button>
+        </div>
+    </text>))
+<style>
+    .adjust-nav-tab {
+        margin-left: -1px
+    }
+
+    .adjust-div-label-position {
+        padding-top: 10px;
+    }
+</style>
