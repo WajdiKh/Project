@@ -1,2 +1,223 @@
-using BacaratWeb.ViewModel.Transfert;
-IEnumerable<StatutDocumentViewModel> StatutDocuments { get; }
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using BacaratWeb.Areas.Fraude.Models;
+using BacaratWeb.Areas.Gda.Models;
+using BacaratWeb.Areas.Lab.Models;
+using BacaratWeb.Model;
+using BacaratWeb.Models.Referentials.AvisIm;
+using BacaratWeb.Shared;
+using BacaratWeb.ViewModel.AvisIm;
+using BacaratWeb.ViewModel.Commun.Referentials;
+using BacaratWeb.ViewModel.Commun.Referentials.SAvis;
+using BacaratWeb.ViewModel.Fraude;
+using BacaratWeb.ViewModel.Gda;
+using BacaratWeb.ViewModel.Lab;
+using Microsoft.AspNetCore.Http;
+using CarnetAdresseViewModel = BacaratWeb.Areas.Administration.Models.CarnetAdresseViewModel;
+
+namespace BacaratWeb.Models.Referentials.Contracts
+{
+    public interface IReferentielViewModel
+    {
+        IHttpContextAccessor ContextAccessor { get; }
+        IEnumerable<ActiviteViewModel> Activites { get; }
+        IEnumerable<AspNetRolesViewModel> AspNetRoles { get; }
+        IEnumerable<AspNetUserViewModel> AspNetUsers { get; }
+        IEnumerable<CategorieCanalBdfViewModel> CategorieCanalBdfs { get; }
+        IEnumerable<CanalEntreeEnRelationViewModel> CanalsEntreeEnRelation { get; }
+        IEnumerable<CategorieFraudeViewModel> Categories { get; }
+        IEnumerable<CategorieGDRViewModel> CategorieGDRs { get; }
+        IEnumerable<CapaciteJuridiqueViewModel> CapaciteJuridiques { get; }
+        IEnumerable<ApplicationAquisitionViewModel> ApplicationAquisitions { get; }
+        IEnumerable<CinematiqueGDRViewModel> CinematiqueGDRs { get; }
+        IEnumerable<CategorieGdaViewModel> CategorieGdas { get; }
+        IEnumerable<CiviliteViewModel> Civilites { get; }
+        IEnumerable<SelectedItem> IdentificationProfessionnelles { get; }
+        IEnumerable<DirectionViewModel> Directions { get; }
+        IEnumerable<DirectionViewModel> DdcDirections { get; }
+        IEnumerable<EntiteViewModel> Entites { get; }
+        IEnumerable<CategorieEtablissementDeclarantViewModel> CategorieEtablissementDeclarants { get; }
+        IEnumerable<EtatFraudeViewModel> EtatFraudes { get; }
+        IEnumerable<HistoriqueConnexionViewModel> HistoriqueConnexions { get; }
+        IEnumerable<ImpactViewModel> Impacts { get; }
+        IEnumerable<RegimeSanctionGdaViewModel> RegimeSanctionGdas { get; }
+        IEnumerable<LangueViewModel> Langues { get; }
+        IEnumerable<CategorieModeOperatoireViewModel> CategorieModeOperatoires { get; }
+        IEnumerable<MotifExemptionNotificationViewModel> MotifExemptionNotifications { get; }
+        IEnumerable<MotifExemptionNotificationViewModel> MotifExemptionNotificationsFraude { get; }
+        IEnumerable<MotifExemptionNotificationGdaViewModel> MotifExemptionNotificationGdas { get; }
+        IEnumerable<OrigineViewModel> Origines { get; }
+        IEnumerable<ProduitViewModel> Produits { get; }
+        IEnumerable<VoixRecouvrementViewModel> VoixRecouvrements { get; }
+        IEnumerable<OrigineGdaViewModel> OrigineGdas { get; }
+        IEnumerable<ReferentielActionHorsCompteViewModel> ReferentielActionHorsComptes { get; }
+        IEnumerable<TypesLiensViewModel> TypesLiens { get; }
+        IEnumerable<TypesActifsViewModel> TypesActifs { get; }
+        IEnumerable<TypologiesActifsViewModel> TypologiesActifs { get; }
+        IEnumerable<SelectedItem> Professions { get; }
+
+        IEnumerable<RoleClientViewModel> RolesClient { get; }
+        IEnumerable<ScenarioNorkomViewModel> ScenarioNorkoms { get; }
+        IEnumerable<SecteurFraudeViewModel> Secteurs { get; }
+        IEnumerable<StatutDossierFraudeViewModel> StatutDossierFraudes { get; }
+        IEnumerable<StatutPersonneFraudeViewModel> StatutPersonneFraudes { get; }
+        IEnumerable<TypeClientFraudeViewModel> TypesClientFraudes { get; }
+        IEnumerable<ScenarioFraudeViewModel> ScenarioFraudes { get; }
+        IEnumerable<StatutDossierGdaViewModel> StatutDossierGdas { get; }
+        IEnumerable<StatutPersonneGdaViewModel> StatutPersonneGdas { get; }
+        IEnumerable<RegimeJuridiqueGdaViewModel> RegimeJuridiqueGdas { get; }
+        IEnumerable<CategorieTypePaiementViewModel> CategorieTypePaiemens { get; }
+        IEnumerable<CategorieTypologieBdfViewModel> CategorieTypologieBdfs { get; }
+        IEnumerable<TypologieGdaViewModel> TypologieGdas { get; }
+        IEnumerable<TypeDegelViewModel> TypeDegels { get; }
+        IEnumerable<UtilisateurViewModel> Utilisateurs { get; }
+        IEnumerable<AutorisationPpfViewModel> AutorisationPpfs { get; }
+        IEnumerable<BamCeilingViewModel> BamCeilings { get; }
+        IEnumerable<StatutActionsGdaViewModel> StatutActionsGdas { get; }
+        IEnumerable<StatutImmediateActionsGdaViewModel> StatutImmediateActionsGdas { get; }
+        IEnumerable<StatutOscGdaViewModel> StatutOscGdas { get; }
+        IEnumerable<ReferentielImmediateActionsGdaViewModel> ReferentielImmediateActionsGdas { get; }
+        IEnumerable<DebitCreditOscViewModel> DebitCreditOscs { get; }
+        IEnumerable<CcBlockedViewModel> CcBlocked { get; }
+        IEnumerable<SafetyInstructionsViewModel> SafetyInstructions { get; }
+        IEnumerable<CategorieMotifRejetChequeViewModel> CategorieMotifRejetCheques { get; }
+        IEnumerable<CategorieTypeCollecteChequeViewModel> CategorieTypeCollecteCheques { get; }
+        IEnumerable<ComplementMotifRejetChequeViewModel> ComplementMotifRejetCheques { get; }
+        IEnumerable<DefaillanceViewModel> Defaillances { get; }
+        IEnumerable<DomaineViewModel> Domaines { get; }
+        IEnumerable<StatutEscaladeViewModel> StatutEscalades { get; }
+        IEnumerable<EvenementViewModel> Evenements { get; }
+        IEnumerable<ApplicationViewModel> Applications { get; }
+        IEnumerable<EnvironnementViewModel> Environnements { get; }
+
+        IEnumerable<SelectedItem> TypesComptes { get; }
+        IEnumerable<SelectedItem> DroitsComptes { get; }
+        IEnumerable<SelectedItem> TypeLienPersonnePhysiquePhysiques { get; }
+        IEnumerable<SelectedItem> CategorieLienPersonnePhysiquePhysiques { get; }
+        IEnumerable<SelectedItem> TypeLienPersonneMoraleMorales { get; }
+
+        IEnumerable<SelectedItem> Sexes { get; }
+        IEnumerable<SelectedItem> SituationFamiliales { get; }
+        IEnumerable<SelectedItem> TypesDocuments { get; }
+        IEnumerable<DeviseViewModel> Devises { get; }
+        IEnumerable<SelectedItem> Bunits { get; }
+        IEnumerable<SelectedItemPays> Pays { get; }
+        IEnumerable<SelectedItem> TypePieceIdentites { get; }
+        IEnumerable<SelectedItem> TypeListeCriblages { get; }
+        IEnumerable<SelectedItem> TypeAdresses { get; }
+        IEnumerable<SelectedItem> TypeFonctionDirigeants { get; }
+        IEnumerable<SelectedItem> TypeContrats { get; }
+        IEnumerable<CategorieDocumentViewModel> CategorieDocuments { get; }
+        IEnumerable<TypeDocumentLabViewModel> TypeDocumentLabs { get; }
+		IEnumerable<NatureDsViewModel> NaturesDs { get; }
+		IEnumerable<CategorieContributeurViewModel> CategoriesContributeurs { get; }
+        IEnumerable<ContributeurViewModel> Contributeurs { get; }
+        IEnumerable<SelectedItem> PrincipalInstrumentFinanciers { get; }
+        IEnumerable<SelectedItem> CategorieTracfins { get; }
+        IEnumerable<SelectedItem> StatutOperations { get; }
+        IEnumerable<SelectedItem> TypeDeclarations { get; }
+        IEnumerable<SelectedItem> NatureSoupconFraudeFiscales { get; }
+        IEnumerable<SelectedItem> NatureSoupconInfractionPinales { get; }
+        IEnumerable<SelectedItem> TypeLienSupports { get; }
+        IEnumerable<SelectedItem> TypeReferenceLabs { get; }
+
+        IEnumerable<SelectedItem> FormeJuridiques { get; }
+        IEnumerable<SelectedItem> TypeLienPersonneMoralePhysiques { get; }
+        IEnumerable<SelectedItem> TypeLienPersonnePhysiqueMorales { get; }
+        IEnumerable<SelectedItem> ComplementVoies { get; }
+
+        IEnumerable<SelectedItem> InteretDroitVotes { get; }
+        IEnumerable<SelectedItem> EntiteGroupeTypes { get; }
+        IEnumerable<SelectedItem> TypeFonds { get; }
+        IEnumerable<TypeImplicationLabViewModel> TypesImplicationLabs { get; }
+        IEnumerable<ProfessionalIdentificationLabViewModel> ProfessionalIdentificationsLabs { get; }
+        IEnumerable<TypeClientLabViewModel> TypesClientLabs { get; }
+        IEnumerable<TypeClientLabViewModel> GetTypeClientLabs(int directionId);
+        IEnumerable<SelectedItem> OrganismeLabs { get; }
+        IEnumerable<EntiteLabViewModel> EntiteLabs { get; }
+        IEnumerable<SelectedItem> GroupeCategorieLabs { get; }
+        IEnumerable<CategorieLabViewModel> CategorieLabs { get; }
+        IEnumerable<CategorieGroupeLabViewModel> CategorieGroupeLabs { get; }
+        IEnumerable<SelectedItem> GroupeOrigineLabs { get; }
+        IEnumerable<OrigineLabViewModel> OrigineLabs { get; }
+        IEnumerable<SelectedItem> OrigineLabUpdateForms { get; }
+        IEnumerable<OrigineGroupeLabViewModel> OrigineGroupeLabs { get; }
+        IEnumerable<SelectedItem> FonctionsLabs { get; }
+        IEnumerable<ScenarioLabViewModel> ScenarioLabs { get; }
+        IEnumerable<SelectedItem> ApplicationScenarioLabs { get; }
+        IEnumerable<SelectedItem> SecteurLabs { get; }
+        IEnumerable<SecteurEconomiqueLabViewModel> SecteurEconomiqueLabs { get; }
+        IEnumerable<SelectedItem> SecteurProfessionnels { get; }
+        IEnumerable<StatutDossierLabViewModel> StatutDossierLabs { get; }
+        IEnumerable<StatutDemandeInformationLabViewModel> StatutDemandeInformationLabs { get; }
+        IEnumerable<TypeGarantieViewModel> TypesGaranties { get; }
+        IEnumerable<TypeOperationViewModel> TypesOperations { get; }
+        IEnumerable<CriteresAlerteOrigineViewModel> CriteresAlerteOrigines{ get; }
+        IEnumerable<ModaliteFinancementViewModel> ModaliteFinancements { get; }
+        IEnumerable<StatutDemandeInformationViewModel> StatutDemandeInformationEscalades { get; }
+        IEnumerable<StatutDemandeInformationFraudeViewModel> StatutDemandeInformationFraudes { get; }
+        IEnumerable<StatutDemandeInformationGdaViewModel> StatutDemandeInformationGdas { get; }
+        IEnumerable<StatutDemandeInformationAvisSiViewModel> StatutDemandeInformationAvisSis { get; }
+        IEnumerable<StatutDemandeInformationSAvisViewModel> StatutDemandeInformationAviss { get; }
+        IEnumerable<SelectedItem> TypeVoies { get; }
+        IEnumerable<SelectedItem> AvisLabs { get; }
+        IEnumerable<SelectedItem> VisaLabs { get; }
+        IEnumerable<SelectedItem> TypeLegislationLabs { get; }
+        IEnumerable<InformationRequestCloseReasonViewModel> InformationRequestCloseReasons { get; }
+        IEnumerable<SelectedItem> SecteurProfessionnelAmds { get; }
+        IEnumerable<StatutDossierAmfViewModel> StatutDossierAmfs { get; }
+        IEnumerable<SelectedItem> TypeVoieAmfs { get; }
+        IEnumerable<DefaillanceSAvisViewModel> DefaillanceSAviss { get; }
+        IEnumerable<TypologieDemandeSAvisViewModel> TypologieDemandeSAviss { get; }
+        IEnumerable<TypologieClientSAvisViewModel> TypologieClientSAviss { get; }
+        IEnumerable<CategorieOutilSAvisViewModel> CategorieOutilSAviss { get; }
+        IEnumerable<PrioriteSAvisViewModel> PrioriteSAviss { get; }
+        IEnumerable<StatutSAvisViewModel> StatutSAviss { get; }
+        IEnumerable<CategorieSAvisViewModel> CategorieSAviss { get; }
+        IEnumerable<DomaineSAvisViewModel> DomaineSAviss { get; }
+        IEnumerable<SousCategorieSAvisViewModel> SousCategorieSAviss { get; }
+        IEnumerable<ApplicationSAvisViewModel> ApplicationSAviss { get; }
+        IEnumerable<EnvironnementSAvisViewModel> EnvironnementSAviss { get; }
+
+        //AvisIm
+        IEnumerable<DefaillanceAvisImViewModel> DefaillanceAvisIms { get; }
+        IEnumerable<ApplicationAvisImViewModel> ApplicationAvisIms { get; }
+        IEnumerable<EnvironnementAvisImViewModel> EnvironnementAvisIms { get; }
+        IEnumerable<LienUsViewModel> LienUss { get; }
+        IEnumerable<UsLinkNatureViewModel> UsLinkNatures { get; }
+        IEnumerable<TypeFormulaireViewModel> TypeFormulaires { get; }
+        IEnumerable<TypeFormulaireViewModel> TypeFormulairesTotus { get; }
+        IEnumerable<TypeFormulaireViewModel> TypeFormulairesNotTotus { get; }
+        IEnumerable<IntermediaryAgreementNoticeViewModel> IntermediaryAgreementNotices { get; }
+        IEnumerable<FinalAgreementNoticeViewModel> FinalAgreementNotices { get; }
+        IEnumerable<DefaillanceAvisSiViewModel> DefaillanceAvisSis { get; }
+        IEnumerable<TypologieDemandeViewModel> TypologieDemandes { get; }
+        IEnumerable<QualificationDossierViewModel> QualificationDossiers { get; }
+        IEnumerable<QualificationDossierEscaladeViewModel> QualificationDossierEscalades { get; }
+        IEnumerable<StatutAvisSiViewModel> StatutAvisSis { get; }
+        IEnumerable<DemandeDerogationViewModel> DemandeDerogations { get; }
+        IEnumerable<ApplicationAvisSiViewModel> ApplicationAvisSis { get; }
+        IEnumerable<EnvironnementAvisSiViewModel> EnvironnementAvisSis { get; }
+        IEnumerable<DecisionAvisSiViewModel> DecisionAvisSis { get; }
+        IEnumerable<SelectedItem> TitreAuquelEntiteAgitAmfs { get; }
+        IEnumerable<SelectedItem> TypeActiviteAmfs { get; }
+        IEnumerable<SelectedItem> TypeInstrumentFinancierAmfs { get; }
+        IEnumerable<SelectedItem> TypeInstrumentUsuellementNegocieAmfs { get; }
+        IEnumerable<SelectedItem> TypeProduitDeriveAmfs { get; }
+        IEnumerable<SelectedItem> SensDemandes { get; }
+        IEnumerable<SelectedItem> StatutOrdreOuTransactionAmfs { get; }
+        IEnumerable<TypeRelationAffaireLabViewModel> TypeRelationAffaireLabs { get; }
+        IEnumerable<TypeRelationAffaireFraudeViewModel> TypeRelationAffaireFraudes { get; }
+        IEnumerable<TypeRelationAffaireGdaViewModel> TypeRelationAffaireGdas { get; }
+        IEnumerable<StatutUtilisateurViewModel> StatutUtilisateurs { get; }
+        IEnumerable<CarnetAdresseViewModel> CarnetAdresses { get; }
+        IEnumerable<ModeEnvoieTracfinViewModel> ModeEnvoieTracfins { get; }
+        IEnumerable<ConfigurationViewModel> ConfigurationsValues { get; }
+        IEnumerable<PpeTypeViewModel> PpeTypeList { get; }
+        IEnumerable<CouleurViewModel> Couleurs { get; }
+        IEnumerable<CategorieAvoirViewModel> CategoriesAvoir { get; }
+        IEnumerable<DirectionViewModel> GetWriteAuthorizedDirections(int userId, ActiviteModule activite);
+        IEnumerable<ZoneGeographiqueViewModel> ZoneGeographiques { get; }
+
+    }
+}
