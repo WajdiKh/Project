@@ -1,8 +1,1330 @@
-using BacaratWeb.ViewModel.Transfert;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
+using BacaratWeb.Areas.Fraude.Models;
+using BacaratWeb.Areas.Gda.Models;
+using BacaratWeb.Areas.Lab.Models;
+using BacaratWeb.Extensions;
+using BacaratWeb.Helpers;
+using BacaratWeb.Helpers.RoleClaims;
+using BacaratWeb.Model;
+using BacaratWeb.Models.Referentials.AvisIm;
+using BacaratWeb.Models.Referentials.Contracts;
+using BacaratWeb.Services.Commun.Interfaces;
+using BacaratWeb.Shared;
+using BacaratWeb.Shared.Configurations;
+using BacaratWeb.ViewModel.AvisIm;
+using BacaratWeb.ViewModel.Commun.Referentials;
+using BacaratWeb.ViewModel.Commun.Referentials.SAvis;
+using BacaratWeb.ViewModel.Fraude;
+using BacaratWeb.ViewModel.Gda;
+using BacaratWeb.ViewModel.Lab;
+using DevExpress.Xpo;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
+using CarnetAdresseViewModel = BacaratWeb.Areas.Administration.Models.CarnetAdresseViewModel;
 
-private Func<Task<IEnumerable<StatutDocumentViewModel>>> GetStatutDocumentCollection => () =>
-    this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
-        () => _service.GetStatutDocuments(),
-        x => x.ProjectTo<StatutDocumentViewModel>(_mapper.ConfigurationProvider));
+namespace BacaratWeb.Models.Referentials
+{
+    public class ReferentielViewModel : IReferentielViewModel
+    {
+        private readonly IMemoryCache _cache;
+        private readonly IHttpContextAccessor _httpContext;
+        private readonly IMapper _mapper;
+        private readonly IReferentielService _service;
+        private readonly IRoleAccessUser _roleAccessUser;
+        private readonly IUtilisateurDirectionService _utilisateurDirectionService;
 
-public IEnumerable<StatutDocumentViewModel> StatutDocuments => GetStatutDocumentCollection().Result;
+        public ReferentielViewModel(IReferentielService service,
+            IHttpContextAccessor contextAccessor,
+            IMemoryCache cache,
+            IMapper mapper,
+            IHttpContextAccessor httpContext,
+            IConfiguration configuration,
+            IRoleAccessUser roleAccessUser,
+            IUtilisateurDirectionService utilisateurDirectionService)
+        {
+            _service = service;
+            ContextAccessor = contextAccessor;
+            _cache = cache;
+            _mapper = mapper;
+            _httpContext = httpContext;
+            Settings = configuration.Get<ApplicationSettings>();
+            expirationCash = Settings.ExpirationCash;
+            _roleAccessUser = roleAccessUser;
+            _utilisateurDirectionService = utilisateurDirectionService;
+        }
+
+        private ApplicationSettings Settings { get; }
+        private int expirationCash { get; }
+
+
+        private Func<Task<IEnumerable<AspNetUserViewModel>>> GetAspNetUserCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetAspNetUsers(),
+                x => x.ProjectTo<AspNetUserViewModel>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<CategorieCanalBdfViewModel>>> GetCategorieCanalBdfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieCanalBdf(),
+                x => x.ProjectTo<CategorieCanalBdfViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CategorieEtablissementDeclarantViewModel>>>
+            GetCategorieEtablissementDeclarantCollection => () => this.GetCachedReferentielsAsync(_httpContext, _cache,
+            expirationCash,
+            () => _service.GetCategorieEtablissementDeclarant(),
+            x => x.ProjectTo<CategorieEtablissementDeclarantViewModel>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<ReferentielImmediateActionsGdaViewModel>>>
+            GetReferentielImmediateActionsGdaCollection => () => this.GetCachedReferentielsAsync(_httpContext, _cache,
+            expirationCash,
+            () => _service.GetReferentielImmediateActionsGda(),
+            x => x.ProjectTo<ReferentielImmediateActionsGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<HistoriqueConnexionViewModel>>> GetHistoriqueConnexionCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetHistoriqueConnexions(),
+                x => x.ProjectTo<HistoriqueConnexionViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<ImpactViewModel>>> GetImpactCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetImpacts(),
+                x => x.ProjectTo<ImpactViewModel>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<RegimeSanctionGdaViewModel>>> GetRegimeSanctionGdaCollection => () =>
+          this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+              () => _service.GetRegimeSanctionGdas(),
+              x => x.ProjectTo<RegimeSanctionGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CategorieModeOperatoireViewModel>>> GetCategorieModeOperatoireCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieModeOperatoire(),
+                x => x.ProjectTo<CategorieModeOperatoireViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<MotifExemptionNotificationGdaViewModel>>> GetMotifExemptionNotificationGdaCollection =>
+           () => this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+               () => _service.GetMotifExemptionNotificationGdas(),
+               x => x.ProjectTo<MotifExemptionNotificationGdaViewModel>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<ScenarioNorkomViewModel>>> GetScenarioNorkomCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetScenarioNorkoms(),
+                x => x.ProjectTo<ScenarioNorkomViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<ScenarioLabViewModel>>> GetScenarioLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetScenarioLabs(),
+                x => x.ProjectTo<ScenarioLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetApplicationScenarioLabCollection => () =>
+        this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+            () => _service.GetApplicationScenarioLabs(),
+        x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SecteurEconomiqueLabViewModel>>> GetSecteurEconomiqueLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetSecteurEconomiqueLabs(),
+                x => x.ProjectTo<SecteurEconomiqueLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SecteurFraudeViewModel>>> GetSecteursCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetSecteurs(),
+                x => x.ProjectTo<SecteurFraudeViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SecteurGdaViewModel>>> GetSecteurGdasCollection => () =>
+          this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+              () => _service.GetSecteurGdas(),
+              x => x.ProjectTo<SecteurGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetSecteurLabsCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetSecteurLabs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CategorieTypePaiementViewModel>>> GetCategorieTypePaiemenCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieTypePaiements(),
+                x => x.ProjectTo<CategorieTypePaiementViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CategorieTypologieBdfViewModel>>> GetCategorieTypologieBdfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieTypologieBdf(),
+                x => x.ProjectTo<CategorieTypologieBdfViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypologieGdaViewModel>>> GetTypologieGdaCollection => () =>
+           this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+               () => _service.GetTypologieGda(),
+               x => x.ProjectTo<TypologieGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypeDegelViewModel>>> GetTypeDegelCollection => () =>
+           this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+               () => _service.GetTypeDegel(),
+               x => x.ProjectTo<TypeDegelViewModel>(_mapper.ConfigurationProvider));
+
+
+
+        private Func<Task<IEnumerable<ActiviteViewModel>>> GetActiviteCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetActivites(),
+                x => x.ProjectTo<ActiviteViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<AspNetRolesViewModel>>> GetAspNetRoleCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetAspNetRoles(),
+                x => x.ProjectTo<AspNetRolesViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CanalEntreeEnRelationViewModel>>> GetCanalsEntreeEnRelationCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCanalsEntreeEnRelation(),
+                x => x.ProjectTo<CanalEntreeEnRelationViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CategorieFraudeViewModel>>> GetCategorieCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieFraudes(),
+                x => x.ProjectTo<CategorieFraudeViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CategorieGDRViewModel>>> GetCategorieGDRCollection => () =>
+          this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+              () => _service.GetCategorieGDRs(),
+              x => x.ProjectTo<CategorieGDRViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<ApplicationAquisitionViewModel>>> GetApplicationAquisitionCollection => () =>
+          this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+              () => _service.GetApplicationAquisitions(),
+              x => x.ProjectTo<ApplicationAquisitionViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CinematiqueGDRViewModel>>> GetCinematiqueGDRCollection => () =>
+          this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+              () => _service.GetCinematiqueGDRs(),
+              x => x.ProjectTo<CinematiqueGDRViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CapaciteJuridiqueViewModel>>> GetCapaciteJuridiqueCollection => () =>
+          this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+              () => _service.GetCapaciteJuridiques(),
+              x => x.ProjectTo<CapaciteJuridiqueViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CategorieGdaViewModel>>> GetCategorieGdaCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieGdas(),
+                x => x.ProjectTo<CategorieGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetCategorieTracfinCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieTracfins(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CiviliteViewModel>>> GetCivilitesCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCivilites(),
+                x => x.ProjectTo<CiviliteViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetComplementVoieCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetComplementVoies(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<DeviseViewModel>>> GetDevisesCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetDevises(),
+                x => x.ProjectTo<DeviseViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetBunitsCollection => () =>
+          this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+              () => _service.GetBunits(),
+              x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<DirectionViewModel>>> GetDirectionCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetDirections(),
+                x => _mapper.Map<IEnumerable<DirectionViewModel>>(x));
+        private Func<Task<IEnumerable<DirectionViewModel>>> GetDdcDirectionCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetDdcDirections(),
+                x => _mapper.Map<IEnumerable<DirectionViewModel>>(x));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetDroitCompteCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetDroitComptes(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<EntiteViewModel>>> GetEntiteCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetEntities(),
+                x => x.ProjectTo<EntiteViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<EntiteLabViewModel>>> GetEntiteLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetEntiteLabs(),
+                x => x.ProjectTo<EntiteLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<EtatFraudeViewModel>>> GetEtatFraudeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetEtatFraude(),
+                x => x.ProjectTo<EtatFraudeViewModel>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetFormeJuridiqueCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetFormeJuridiques(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetIdentificationProfessionnellesCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetIdentificationProfessionnelles(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<LangueViewModel>>> GetLangueCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetLangues(),
+                x => x.ProjectTo<LangueViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeLienSupportCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeLienSupports(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeReferenceLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeReferenceLabs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<OrigineViewModel>>> GetOrigineCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetOrigineFraudes(),
+                x => x.ProjectTo<OrigineViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<OrigineGdaViewModel>>> GetOrigineGdaCollection => () =>
+           this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+               () => _service.GetOrigineGdas(),
+               x => x.ProjectTo<OrigineGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<OrigineLabViewModel>>> GetOrigineLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetOrigineLabs(),
+                x => x.ProjectTo<OrigineLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetOrigineLabUpdateFormCollection => () =>
+           this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+               () => _service.GetOrigineLabUpdateForms(),
+               x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetOrganismeLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetOrganismeLabs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<CategorieLabViewModel>>> GetCategorieLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieLabs(),
+                x => _mapper.Map<IEnumerable<CategorieLabViewModel>>(x));
+
+        private Func<Task<IEnumerable<CategorieGroupeLabViewModel>>> GetCategorieGroupeLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieGroupeLabs(),
+                x => x.ProjectTo<CategorieGroupeLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<OrigineGroupeLabViewModel>>> GetOrigineGroupeLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetOrigineGroupeLabs(),
+                x => x.ProjectTo<OrigineGroupeLabViewModel>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<SelectedItemPays>>> GetPaysCollection => () => this.GetCachedReferentielsAsync(
+            _httpContext, _cache, expirationCash,
+            () => _service.GetPays(),
+            x => x.ProjectTo<SelectedItemPays>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetGroupeOrigineCollection => () =>
+            this.GetCachedReferentielsAsync(
+                _httpContext, _cache, expirationCash,
+                () => _service.GetGroupeOrigineLabs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+		private Func<Task<IEnumerable<NatureDsViewModel>>> GetNaturesDsCollection => () =>
+			this.GetCachedReferentielsAsync(
+				_httpContext, _cache, expirationCash,
+				() => _service.GetNaturesDs(),
+				x => x.ProjectTo<NatureDsViewModel>(_mapper.ConfigurationProvider));
+
+		private Func<Task<IEnumerable<CategorieContributeurViewModel>>> GetCategoriesContributeursCollection => () =>
+			this.GetCachedReferentielsAsync(
+				_httpContext, _cache, expirationCash,
+				() => _service.GetCategoriesContributeurs(),
+				x => x.ProjectTo<CategorieContributeurViewModel>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<ContributeurViewModel>>> GetContributeursCollection => () =>
+            this.GetCachedReferentielsAsync(
+                _httpContext, _cache, expirationCash,
+                () => _service.GetContributeurs(),
+                x => x.ProjectTo<ContributeurViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetGroupeCategorieCollection => () =>
+            this.GetCachedReferentielsAsync(
+                _httpContext, _cache, expirationCash,
+                () => _service.GetGroupeCategorieLabs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetFonctionsLabCollection => () =>
+            this.GetCachedReferentielsAsync(
+                _httpContext, _cache, expirationCash,
+                () => _service.GetFonctionsLabs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<InformationRequestCloseReasonViewModel>>> GetInformationRequestCloseReasonCollection => () =>
+            this.GetCachedReferentielsAsync(
+                _httpContext, _cache, expirationCash,
+                () => _service.GetInformationRequestCloseReasons(),
+                x => x.ProjectTo<InformationRequestCloseReasonViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>>
+            GetPrincipalInstrumentFinancierCollection => () => this.GetCachedReferentielsAsync(_httpContext, _cache,
+            expirationCash,
+            () => _service.GetPrincipalInstrumentFinanciers(),
+            x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<ProduitViewModel>>> GetProduitCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetProduits(),
+                x => x.ProjectTo<ProduitViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<VoixRecouvrementViewModel>>> GetVoixRecouvrementCollection => () =>
+           this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+               () => _service.GetVoixRecouvrements(),
+               x => x.ProjectTo<VoixRecouvrementViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<ReferentielActionHorsCompteViewModel>>> GetReferentielActionHorsCompteCollection => () =>
+           this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+               () => _service.GetReferentielActionHorsComptes(),
+               x => x.ProjectTo<ReferentielActionHorsCompteViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetProfessionCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetProfessions(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<RoleClientViewModel>>> GetRolesClientCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetRolesClient(),
+                x => x.ProjectTo<RoleClientViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetSecteurProfessionnelCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetSecteurProfessionnels(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetSecteurProfessionnelAmfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetSecteurProfessionnelAmfs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetSexeCollection => () => this.GetCachedReferentielsAsync(
+            _httpContext, _cache, expirationCash,
+            () => _service.GetSexes(),
+            x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetSituationFamilialeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetSituationFamiliales(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutDossierFraudeViewModel>>> GetStatutDossierFraudeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutDossierFraudes(),
+                x => x.ProjectTo<StatutDossierFraudeViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutDossierGdaViewModel>>> GetStatutDossierGdaCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutDossierGdas(),
+                x => x.ProjectTo<StatutDossierGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutDossierLabViewModel>>> GetStatutDossierLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutDossierLabs(),
+                x => x.ProjectTo<StatutDossierLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutDemandeInformationLabViewModel>>> GetStatutDemandeInformationLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutDemandeInformationLabs(),
+                x => x.ProjectTo<StatutDemandeInformationLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypeGarantieViewModel>>> GetTypesGaranties => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypesGaranties(),
+                x => x.ProjectTo<TypeGarantieViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypeOperationViewModel>>> GetTypesOperations => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypesOperations(),
+                x => x.ProjectTo<TypeOperationViewModel>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<CriteresAlerteOrigineViewModel>>> GetCriteresAlerteOrigines => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCriteresAlerteOrigines(),
+                x => x.ProjectTo<CriteresAlerteOrigineViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<ModaliteFinancementViewModel>>> GetModaliteFinancements => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetModaliteFinancements(),
+                x => x.ProjectTo<ModaliteFinancementViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutDemandeInformationAvisSiViewModel>>> GetStatutDemandeInformationAvisSiCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutDemandeInformationAvisSis(),
+                x => x.ProjectTo<StatutDemandeInformationAvisSiViewModel>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<StatutDemandeInformationFraudeViewModel>>> GetStatutDemandeInformationFraudeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutDemandeInformationFraudes(),
+                x => x.ProjectTo<StatutDemandeInformationFraudeViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutDemandeInformationGdaViewModel>>> GetStatutDemandeInformationGdaCollection => () =>
+           this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+               () => _service.GetStatutDemandeInformationGdas(),
+               x => x.ProjectTo<StatutDemandeInformationGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutDemandeInformationViewModel>>> GetStatutDemandeInformationEscaladeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutDemandeInformationEscalades(),
+                x => x.ProjectTo<StatutDemandeInformationViewModel>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<StatutDemandeInformationSAvisViewModel>>> GetStatutDemandeInformationSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutDemandeInformationAviss(),
+                x => x.ProjectTo<StatutDemandeInformationSAvisViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetStatutOperationCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutOperations(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutPersonneFraudeViewModel>>> GetStatutPersonneFraudeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutPersonneFraude(),
+                x => x.ProjectTo<StatutPersonneFraudeViewModel>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<StatutPersonneGdaViewModel>>> GetStatutPersonneGdaCollection => () =>
+           this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+               () => _service.GetStatutPersonneGda(),
+               x => x.ProjectTo<StatutPersonneGdaViewModel>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeAdresseCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeAdresses(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeFonctionDirigeantCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeFonctionDirigeants(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeContratCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeContrats(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CategorieDocumentViewModel>>> GetCategorieDocumentCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieDocuments(),
+                x => x.ProjectTo<CategorieDocumentViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypeDocumentLabViewModel>>> GetTypeDocumentLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeDocumentLabs(),
+                x => x.ProjectTo<TypeDocumentLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeCompteCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeComptes(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeDeclarationTracFinCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeDeclarationTracFins(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeDocumentCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeDocuments(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeLienPersonneMoraleCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeLienPersonneMoraleMorales(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeLienPersonnePhysiqueCollection =>
+            () => this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeLienPersonnePhysiquePhysiques(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<SelectedItem>>> GetCategorieLienPersonnePhysiquePhysiquesCollection =>
+            () => this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieLienLab(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeLienPersonneMoralePhysiqueCollection =>
+            () => this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeLienPersonneMoralePhysiques(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeLienPersonnePhysiqueMoraleCollection =>
+            () => this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeLienPersonnePhysiqueMorales(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetInteretDroitVotesCollection =>
+            () => this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetInteretDroitVotesCollection(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<SelectedItem>>> GetEntiteGroupeTypesCollection =>
+            () => this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetEntiteGroupeTypesCollection(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeFondsCollection =>
+            () => this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeFondsCollection(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypePieceIdentiteCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypePieceIdentites(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypeClientFraudeViewModel>>> GetTypesClientFraudeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeClientFraudes(),
+                x => x.ProjectTo<TypeClientFraudeViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<ScenarioFraudeViewModel>>> GetScenarioFraudeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetScenarioFraudes(),
+                x => x.ProjectTo<ScenarioFraudeViewModel>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<RegimeJuridiqueGdaViewModel>>> GetRegimeJuridiqueGdaCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetRegimeJuridiqueGdas(),
+                x => x.ProjectTo<RegimeJuridiqueGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypeImplicationLabViewModel>>> GetTypesImplicationLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeImplicationLabs(),
+                x => x.ProjectTo<TypeImplicationLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<ProfessionalIdentificationLabViewModel>>> GetProfessionalIdentificationsLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetProfessionalIdentificationLabs(),
+                x => x.ProjectTo<ProfessionalIdentificationLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypeClientLabViewModel>>> GetTypesClientLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeClientLabs(),
+                x => x.ProjectTo<TypeClientLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypeRelationAffaireLabViewModel>>> GetTypesRelationAffaireLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeRelationAffaireLabs(),
+                x => x.ProjectTo<TypeRelationAffaireLabViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypeRelationAffaireFraudeViewModel>>> GetTypesRelationAffaireFraudeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeRelationAffaireFraudes(),
+                x => x.ProjectTo<TypeRelationAffaireFraudeViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypeRelationAffaireGdaViewModel>>> GetTypesRelationAffaireGdaCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeRelationAffaireGdas(),
+                x => x.ProjectTo<TypeRelationAffaireGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeVoieCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeVoies(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeVoieAmfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeVoies(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeListeCriblageCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeListeCriblages(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<UtilisateurViewModel>>> GetUtilisateurCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetUtilisateurs(),
+                x => _mapper.Map<IEnumerable<UtilisateurViewModel>>(x));
+
+        private Func<Task<IEnumerable<StatutEscaladeViewModel>>> GetStatutEscaladeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutEscalades(),
+                x => x.ProjectTo<StatutEscaladeViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutSAvisViewModel>>> GetStatutSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutAviss(),
+                x => x.ProjectTo<StatutSAvisViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutSAvisViewModel>>> GetStatutAvisImCollection => () =>
+          this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+              () => _service.GetStatutAvisIms(),
+              x => x.ProjectTo<StatutSAvisViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutAvisSiViewModel>>> GetStatutAvisSiCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutAvisSis(),
+                x => x.ProjectTo<StatutAvisSiViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CategorieMotifRejetChequeViewModel>>> GetCategorieMotifRejetChequeCollection =>
+            () => this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieMotifRejetCheque(),
+                x => x.ProjectTo<CategorieMotifRejetChequeViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CategorieTypeCollecteChequeViewModel>>>
+            GetCategorieTypeCollecteChequeCollection => () => this.GetCachedReferentielsAsync(_httpContext, _cache,
+            expirationCash,
+            () => _service.GetCategorieTypeCollecteCheques(),
+            x => x.ProjectTo<CategorieTypeCollecteChequeViewModel>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<ComplementMotifRejetChequeViewModel>>>
+            GetComplementMotifRejetChequeCollection => () => this.GetCachedReferentielsAsync(_httpContext, _cache,
+            expirationCash,
+            () => _service.GetComplementMotifRejetCheques(),
+            x => x.ProjectTo<ComplementMotifRejetChequeViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<DefaillanceViewModel>>> GetDefaillanceCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetDefaillances(),
+                x => _mapper
+                    .Map<List<DefaillanceViewModel>>(
+                        x));
+
+        private Func<Task<IEnumerable<DomaineViewModel>>> GetDomaineCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetDomaines(),
+                x => _mapper
+                    .Map<List<DomaineViewModel>>(x));
+
+        private Func<Task<IEnumerable<EvenementViewModel>>> GetEvenementCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetEvenements(),
+                x => _mapper.Map<List<EvenementViewModel>>(x));
+
+        private Func<Task<IEnumerable<ApplicationViewModel>>> GetApplicationCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetApplications(),
+                x => x.ProjectTo<ApplicationViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<EnvironnementViewModel>>> GetEnvironnementCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetEnvironnements(),
+                x => x.ProjectTo<EnvironnementViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<AutorisationPpfViewModel>>> GetAutorisationPpfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetAutorisationPpfs(),
+                x => x.ProjectTo<AutorisationPpfViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<BamCeilingViewModel>>> GetBamCeilingCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetBamCeilings(),
+                x => x.ProjectTo<BamCeilingViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutActionsGdaViewModel>>> GetStatutActionsGdaCollection => () =>
+           this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+               () => _service.GetStatutActionsGdas(),
+               x => x.ProjectTo<StatutActionsGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<StatutImmediateActionsGdaViewModel>>> GetStatutImmediateActionsGdaCollection => () =>
+          this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+              () => _service.GetStatutImmediateActionsGdas(),
+              x => x.ProjectTo<StatutImmediateActionsGdaViewModel>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<StatutOscGdaViewModel>>> GetStatutOscGdaCollection => () =>
+           this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+               () => _service.GetStatutOscGdas(),
+               x => x.ProjectTo<StatutOscGdaViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<DebitCreditOscViewModel>>> GetDebitCreditOscCollection => () =>
+         this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+             () => _service.GetDebitCreditOscs(),
+             x => x.ProjectTo<DebitCreditOscViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypesLiensViewModel>>> GetTypesLiensCollection => () =>
+      this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+          () => _service.GetTypesLiens(),
+          x => x.ProjectTo<TypesLiensViewModel>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<CouleurViewModel>>> GetCouleursCollection => () =>
+      this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+          () => _service.GetCouleurs(),
+          x => x.ProjectTo<CouleurViewModel>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<CategorieAvoirViewModel>>> GetCategoriesAvoirCollection => () =>
+      this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+          () => _service.GetCategoriesAvoir(),
+          x => x.ProjectTo<CategorieAvoirViewModel>(_mapper.ConfigurationProvider));
+        private Func<Task<IEnumerable<ZoneGeographiqueViewModel>>> GetZoneGeographiquesCollection => () =>
+      this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+          () => _service.GetZoneGeographiques(),
+          x => x.ProjectTo<ZoneGeographiqueViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypesActifsViewModel>>> GetTypesActifsCollection => () =>
+      this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+          () => _service.GetTypesActifs(),
+          x => x.ProjectTo<TypesActifsViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypologiesActifsViewModel>>> GetTypologiesActifsCollection => () =>
+      this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+          () => _service.GetTypologiesActifs(),
+          x => x.ProjectTo<TypologiesActifsViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<CcBlockedViewModel>>> GetCcBlockedCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCcBlocked(),
+                x => x.ProjectTo<CcBlockedViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SafetyInstructionsViewModel>>> GetSafetyInstructions => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetSafetyInstructions(),
+                x => x.ProjectTo<SafetyInstructionsViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetAvisLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetAvisLabs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetVisaLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetVisaLabs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeLegislationLabCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeLegislationLabs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<DefaillanceSAvisViewModel>>> GetDefaillanceSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetDefaillanceSAviss(),
+                x => _mapper
+                    .Map<List<DefaillanceSAvisViewModel>>(
+                        x));
+
+        private Func<Task<IEnumerable<DefaillanceAvisImViewModel>>> GetDefaillanceAvisImCollection => () =>
+         this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+             () => _service.GetDefaillanceAvisIms(),
+             x => _mapper
+                 .Map<List<DefaillanceAvisImViewModel>>(
+                     x));
+        private Func<Task<IEnumerable<IntermediaryAgreementNoticeViewModel>>> GetIntermediaryAgreementNoticeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetIntermediaryAgreementNotices(),
+                x => x.ProjectTo<IntermediaryAgreementNoticeViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<FinalAgreementNoticeViewModel>>> GetFinalAgreementNoticeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetFinalAgreementNotices(),
+                x => x.ProjectTo<FinalAgreementNoticeViewModel>(_mapper.ConfigurationProvider));
+
+
+
+        private Func<Task<IEnumerable<StatutDossierAmfViewModel>>> GetStatutDossierAmfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutDossierAmfs(),
+                x => x.ProjectTo<StatutDossierAmfViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTitreAuquelEntiteAgitAmfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTitreAuquelEntiteAgitAmfs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeActiviteAmfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeActiviteAmfs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeInstrumentFinancierAmfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeInstrumentFinancierAmfs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeInstrumentUsuellementNegocieAmfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeInstrumentUsuellementNegocieAmfs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetTypeProduitDeriveAmfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypeProduitDeriveAmfs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetStatutOrdreOuTransactionAmfCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetStatutOrdreOuTransactionAmfs(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetNatureSoupconFraudeFiscalesLabCollection => () =>
+        this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+            () => _service.GetNatureSoupconFraudeFiscalesLab(),
+            x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetNatureSoupconInfractionPinalesLabCollection => () =>
+        this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+            () => _service.GetNatureInfractionPenalesLab(),
+            x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<TypologieDemandeSAvisViewModel>>> GetTypologieDemandeSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypologieDemandeSAviss(),
+                x => _mapper
+                    .Map<List<TypologieDemandeSAvisViewModel>>(x));
+
+        private Func<Task<IEnumerable<CategorieSAvisViewModel>>> GetCategorieSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieSAviss(),
+                x => _mapper.Map<List<CategorieSAvisViewModel>>(x));
+
+        private Func<Task<IEnumerable<SousCategorieSAvisViewModel>>> GetSousCategorieSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetSousCategorieSAviss(),
+                x => _mapper.Map<List<SousCategorieSAvisViewModel>>(x));
+
+        private Func<Task<IEnumerable<DomaineSAvisViewModel>>> GetDomaineSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetDomaineSAviss(),
+                x => _mapper.Map<List<DomaineSAvisViewModel>>(x));
+
+        private Func<Task<IEnumerable<TypologieClientSAvisViewModel>>> GetTypologieClientSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypologieClientSAviss(),
+                x => _mapper.Map<List<TypologieClientSAvisViewModel>>(x));
+
+        private Func<Task<IEnumerable<CategorieOutilSAvisViewModel>>> GetCategorieOutilSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetCategorieOutilSAviss(),
+                x => _mapper.Map<List<CategorieOutilSAvisViewModel>>(x));
+
+        private Func<Task<IEnumerable<PrioriteSAvisViewModel>>> GetPrioriteSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetPrioriteSAviss(),
+                x => x.ProjectTo<PrioriteSAvisViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<ApplicationSAvisViewModel>>> GetApplicationSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetApplicationSAviss(),
+                x => x.ProjectTo<ApplicationSAvisViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<EnvironnementSAvisViewModel>>> GetEnvironnementSAvisCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetEnvironnementSAviss(),
+                x => x.ProjectTo<EnvironnementSAvisViewModel>(_mapper.ConfigurationProvider));
+
+
+        private Func<Task<IEnumerable<ApplicationAvisImViewModel>>> GetApplicationAvisImCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetApplicationAvisIms(),
+                x => x.ProjectTo<ApplicationAvisImViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<EnvironnementAvisImViewModel>>> GetEnvironnementAvisImCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetEnvironnementAvisIms(),
+                x => x.ProjectTo<EnvironnementAvisImViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<DefaillanceAvisSiViewModel>>> GetDefaillanceAvisSiCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetDefaillanceAvisSis(),
+                x => _mapper
+                    .Map<List<DefaillanceAvisSiViewModel>>(
+                        x));
+
+        private Func<Task<IEnumerable<TypologieDemandeViewModel>>> GetTypologieDemandeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetTypologieDemandes(),
+                x => _mapper
+                    .Map<List<TypologieDemandeViewModel>>(x));
+
+        private Func<Task<IEnumerable<QualificationDossierViewModel>>> GetQualificationDossierCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetQualificationDossiers(),
+                x => _mapper
+                    .Map<List<QualificationDossierViewModel>>(x));
+
+        private Func<Task<IEnumerable<QualificationDossierEscaladeViewModel>>> GetQualificationDossierEscaladeCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetQualificationDossierEscalades(),
+                x => _mapper
+                    .Map<List<QualificationDossierEscaladeViewModel>>(x));
+
+
+        private Func<Task<IEnumerable<DemandeDerogationViewModel>>> GetDemandeDerogationCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetDemandeDerogations(),
+                x => _mapper.Map<List<DemandeDerogationViewModel>>(x));
+
+        private Func<Task<IEnumerable<ApplicationAvisSiViewModel>>> GetApplicationAvisSiCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetApplicationAvisSis(),
+                x => x.ProjectTo<ApplicationAvisSiViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<EnvironnementAvisSiViewModel>>> GetEnvironnementAvisSiCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetEnvironnementAvisSis(),
+                x => x.ProjectTo<EnvironnementAvisSiViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<DecisionAvisSiViewModel>>> GetDecisionAvisSiCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetDecisionAvisSis(),
+                x => _mapper
+                    .Map<List<DecisionAvisSiViewModel>>(x));
+
+
+
+        private Func<Task<IEnumerable<SelectedItem>>> GetSensDemandesCollection => () =>
+            this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+                () => _service.GetSensDemandes(),
+                x => x.ProjectTo<SelectedItem>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<LienUsViewModel>>> GetLienUsCollection => () =>
+          this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+              () => _service.GetLienUss(),
+              x => x.ProjectTo<LienUsViewModel>(_mapper.ConfigurationProvider));
+
+        private Func<Task<IEnumerable<UsLinkNatureViewModel>>> GetUsLinkNatureCollection => () =>
+          this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+              () => _service.GetUsLinkNatures(),
+              x => x.ProjectTo<UsLinkNatureViewModel>(_mapper.ConfigurationProvider));
+
+
+
+        private Func<Task<IEnumerable<StatutUtilisateurViewModel>>> GetStatutUtilisateurCollection => () =>
+      this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash,
+      () => _service.GetStatutUtilisateurs(),
+       x => x.ProjectTo<StatutUtilisateurViewModel>(_mapper.ConfigurationProvider));
+
+
+        public IEnumerable<ActiviteViewModel> Activites => GetActiviteCollection().Result;
+        public IEnumerable<AspNetRolesViewModel> AspNetRoles => GetAspNetRoleCollection().Result;
+        public IEnumerable<AspNetUserViewModel> AspNetUsers => GetAspNetUserCollection().Result;
+        public IEnumerable<CategorieCanalBdfViewModel> CategorieCanalBdfs => GetCategorieCanalBdfCollection().Result;
+
+        public IEnumerable<CanalEntreeEnRelationViewModel> CanalsEntreeEnRelation =>
+            GetCanalsEntreeEnRelationCollection().Result;
+
+        public IEnumerable<CiviliteViewModel> Civilites => GetCivilitesCollection().Result;
+        public IHttpContextAccessor ContextAccessor { get; }
+        public IEnumerable<DirectionViewModel> Directions => GetDirectionCollection().Result;
+        public IEnumerable<DirectionViewModel> DdcDirections => _mapper.Map<IEnumerable<DirectionViewModel>>(_service.GetDdcDirections());
+        public IEnumerable<CategorieFraudeViewModel> Categories => GetCategorieCollection().Result;
+        public IEnumerable<CategorieGDRViewModel> CategorieGDRs => GetCategorieGDRCollection().Result;
+        public IEnumerable<CapaciteJuridiqueViewModel> CapaciteJuridiques => GetCapaciteJuridiqueCollection().Result;
+        public IEnumerable<ApplicationAquisitionViewModel> ApplicationAquisitions => GetApplicationAquisitionCollection().Result;
+        public IEnumerable<CinematiqueGDRViewModel> CinematiqueGDRs => GetCinematiqueGDRCollection().Result;
+        public IEnumerable<CategorieGdaViewModel> CategorieGdas => GetCategorieGdaCollection().Result;
+        public IEnumerable<EntiteViewModel> Entites => GetEntiteCollection().Result;
+
+        public IEnumerable<CategorieEtablissementDeclarantViewModel> CategorieEtablissementDeclarants =>
+            GetCategorieEtablissementDeclarantCollection().Result;
+        public IEnumerable<ReferentielImmediateActionsGdaViewModel> ReferentielImmediateActionsGdas =>
+            GetReferentielImmediateActionsGdaCollection().Result;
+
+        public IEnumerable<EtatFraudeViewModel> EtatFraudes => GetEtatFraudeCollection().Result;
+
+        public IEnumerable<HistoriqueConnexionViewModel> HistoriqueConnexions =>
+            GetHistoriqueConnexionCollection().Result;
+
+        public IEnumerable<ImpactViewModel> Impacts => GetImpactCollection().Result;
+        public IEnumerable<RegimeSanctionGdaViewModel> RegimeSanctionGdas => GetRegimeSanctionGdaCollection().Result;
+        public IEnumerable<LangueViewModel> Langues => GetLangueCollection().Result;
+        public IEnumerable<DefaillanceViewModel> Defaillances => GetDefaillanceCollection().Result;
+        public IEnumerable<DomaineViewModel> Domaines => GetDomaineCollection().Result;
+
+        public IEnumerable<CategorieModeOperatoireViewModel> CategorieModeOperatoires =>
+            GetCategorieModeOperatoireCollection().Result;
+
+
+        public IEnumerable<MotifExemptionNotificationGdaViewModel> MotifExemptionNotificationGdas =>
+            GetMotifExemptionNotificationGdaCollection().Result;
+
+        public IEnumerable<OrigineViewModel> Origines => GetOrigineCollection().Result;
+        public IEnumerable<ProduitViewModel> Produits => GetProduitCollection().Result;
+        public IEnumerable<VoixRecouvrementViewModel> VoixRecouvrements => GetVoixRecouvrementCollection().Result;
+        public IEnumerable<OrigineGdaViewModel> OrigineGdas => GetOrigineGdaCollection().Result;
+        public IEnumerable<ReferentielActionHorsCompteViewModel> ReferentielActionHorsComptes => GetReferentielActionHorsCompteCollection().Result;
+        public IEnumerable<SelectedItem> Professions => GetProfessionCollection().Result;
+        public IEnumerable<RoleClientViewModel> RolesClient => GetRolesClientCollection().Result;
+        public IEnumerable<ScenarioNorkomViewModel> ScenarioNorkoms => GetScenarioNorkomCollection().Result;
+        public IEnumerable<SecteurFraudeViewModel> Secteurs => GetSecteursCollection().Result;
+        public IEnumerable<SecteurGdaViewModel> SecteurGdas => GetSecteurGdasCollection().Result;
+
+        public IEnumerable<StatutDossierFraudeViewModel> StatutDossierFraudes =>
+            GetStatutDossierFraudeCollection().Result;
+
+        public IEnumerable<StatutPersonneFraudeViewModel> StatutPersonneFraudes =>
+            GetStatutPersonneFraudeCollection().Result;
+        public IEnumerable<StatutDossierGdaViewModel> StatutDossierGdas =>
+           GetStatutDossierGdaCollection().Result;
+
+        public IEnumerable<StatutPersonneGdaViewModel> StatutPersonneGdas =>
+            GetStatutPersonneGdaCollection().Result;
+
+        public IEnumerable<CategorieTypePaiementViewModel> CategorieTypePaiemens =>
+            GetCategorieTypePaiemenCollection().Result;
+
+        public IEnumerable<TypeClientFraudeViewModel> TypesClientFraudes => GetTypesClientFraudeCollection().Result;
+        public IEnumerable<ScenarioFraudeViewModel> ScenarioFraudes => GetScenarioFraudeCollection().Result;
+        public IEnumerable<RegimeJuridiqueGdaViewModel> RegimeJuridiqueGdas => GetRegimeJuridiqueGdaCollection().Result;
+
+        public IEnumerable<CategorieTypologieBdfViewModel> CategorieTypologieBdfs =>
+            GetCategorieTypologieBdfCollection().Result;
+
+        public IEnumerable<TypologieGdaViewModel> TypologieGdas =>
+            GetTypologieGdaCollection().Result;
+        public IEnumerable<TypeDegelViewModel> TypeDegels =>
+           GetTypeDegelCollection().Result;
+
+        public IEnumerable<UtilisateurViewModel> Utilisateurs => GetUtilisateurCollection().Result;
+        public IEnumerable<AutorisationPpfViewModel> AutorisationPpfs => GetAutorisationPpfCollection().Result;
+        public IEnumerable<BamCeilingViewModel> BamCeilings => GetBamCeilingCollection().Result;
+        public IEnumerable<StatutActionsGdaViewModel> StatutActionsGdas => GetStatutActionsGdaCollection().Result;
+        public IEnumerable<StatutImmediateActionsGdaViewModel> StatutImmediateActionsGdas => GetStatutImmediateActionsGdaCollection().Result;
+
+        public IEnumerable<StatutOscGdaViewModel> StatutOscGdas => GetStatutOscGdaCollection().Result;
+
+        public IEnumerable<DebitCreditOscViewModel> DebitCreditOscs => GetDebitCreditOscCollection().Result;
+        public IEnumerable<TypesLiensViewModel> TypesLiens => GetTypesLiensCollection().Result;
+        public IEnumerable<CouleurViewModel> Couleurs => GetCouleursCollection().Result;
+        public IEnumerable<CategorieAvoirViewModel> CategoriesAvoir => GetCategoriesAvoirCollection().Result;
+        public IEnumerable<ZoneGeographiqueViewModel> ZoneGeographiques => GetZoneGeographiquesCollection().Result;
+        public IEnumerable<TypesActifsViewModel> TypesActifs => GetTypesActifsCollection().Result;
+        public IEnumerable<TypologiesActifsViewModel> TypologiesActifs => GetTypologiesActifsCollection().Result;
+        public IEnumerable<CcBlockedViewModel> CcBlocked => GetCcBlockedCollection().Result;
+        public IEnumerable<SafetyInstructionsViewModel> SafetyInstructions => GetSafetyInstructions().Result;
+        public IEnumerable<CategorieMotifRejetChequeViewModel> CategorieMotifRejetCheques =>
+            GetCategorieMotifRejetChequeCollection().Result;
+
+        public IEnumerable<CategorieTypeCollecteChequeViewModel> CategorieTypeCollecteCheques =>
+            GetCategorieTypeCollecteChequeCollection().Result;
+
+        public IEnumerable<ComplementMotifRejetChequeViewModel> ComplementMotifRejetCheques =>
+            GetComplementMotifRejetChequeCollection().Result;
+
+        public IEnumerable<StatutEscaladeViewModel> StatutEscalades => GetStatutEscaladeCollection().Result;
+        public IEnumerable<StatutSAvisViewModel> StatutSAviss => GetStatutSAvisCollection().Result;
+        public IEnumerable<IntermediaryAgreementNoticeViewModel> IntermediaryAgreementNotices => GetIntermediaryAgreementNoticeCollection().Result;
+        public IEnumerable<FinalAgreementNoticeViewModel> FinalAgreementNotices => GetFinalAgreementNoticeCollection().Result;
+        public IEnumerable<StatutAvisSiViewModel> StatutAvisSis => GetStatutAvisSiCollection().Result;
+        public IEnumerable<EvenementViewModel> Evenements => GetEvenementCollection().Result;
+        public IEnumerable<ApplicationViewModel> Applications => GetApplicationCollection().Result;
+        public IEnumerable<EnvironnementViewModel> Environnements => GetEnvironnementCollection().Result;
+
+        public IEnumerable<TypeClientLabViewModel> TypesClientLabs => GetTypesClientLabCollection().Result;
+        public IEnumerable<TypeClientLabViewModel> GetTypeClientLabs(int directionId)
+        {
+            return _mapper.Map<IEnumerable<TypeClientLabViewModel>>
+                (_service.GetTypeClientLabs(directionId).ToList());
+        }
+        public IEnumerable<TypeImplicationLabViewModel> TypesImplicationLabs => GetTypesImplicationLabCollection().Result;
+
+        public IEnumerable<ProfessionalIdentificationLabViewModel> ProfessionalIdentificationsLabs => GetProfessionalIdentificationsLabCollection().Result;
+
+
+        public IEnumerable<SelectedItem> OrganismeLabs => GetOrganismeLabCollection().Result;
+
+        public IEnumerable<SelectedItem> PrincipalInstrumentFinanciers =>
+            GetPrincipalInstrumentFinancierCollection().Result;
+
+        public IEnumerable<SelectedItem> Sexes => GetSexeCollection().Result;
+        public IEnumerable<SelectedItem> SituationFamiliales => GetSituationFamilialeCollection().Result;
+        public IEnumerable<SelectedItem> StatutOperations => GetStatutOperationCollection().Result;
+        public IEnumerable<SelectedItem> TypeDeclarations => GetTypeDeclarationTracFinCollection().Result;
+        public IEnumerable<SelectedItem> TypesDocuments => GetTypeDocumentCollection().Result;
+        public IEnumerable<SelectedItem> CategorieTracfins => GetCategorieTracfinCollection().Result;
+        public IEnumerable<SelectedItem> TypeLienSupports => GetTypeLienSupportCollection().Result;
+        public IEnumerable<SelectedItem> TypeReferenceLabs => GetTypeReferenceLabCollection().Result;
+        public IEnumerable<SelectedItem> TypesComptes => GetTypeCompteCollection().Result;
+        public IEnumerable<DeviseViewModel> Devises => GetDevisesCollection().Result;
+        public IEnumerable<SelectedItem> Bunits => GetBunitsCollection().Result;
+        public IEnumerable<SelectedItem> DroitsComptes => GetDroitCompteCollection().Result;
+        public IEnumerable<EntiteLabViewModel> EntiteLabs => GetEntiteLabCollection().Result;
+        public IEnumerable<SelectedItem> FormeJuridiques => GetFormeJuridiqueCollection().Result;
+        public IEnumerable<SelectedItem> IdentificationProfessionnelles => GetIdentificationProfessionnellesCollection().Result;
+        public IEnumerable<SelectedItemPays> Pays => GetPaysCollection().Result;
+
+        public IEnumerable<SelectedItem> TypeLienPersonnePhysiquePhysiques =>
+            GetTypeLienPersonnePhysiqueCollection().Result;
+        public IEnumerable<SelectedItem> CategorieLienPersonnePhysiquePhysiques =>
+            GetCategorieLienPersonnePhysiquePhysiquesCollection().Result;
+
+        public IEnumerable<SelectedItem> TypeListeCriblages => GetTypeListeCriblageCollection().Result;
+        public IEnumerable<SelectedItem> TypeAdresses => GetTypeAdresseCollection().Result;
+        public IEnumerable<SelectedItem> TypeFonctionDirigeants => GetTypeFonctionDirigeantCollection().Result;
+        public IEnumerable<SelectedItem> TypeContrats => GetTypeContratCollection().Result;
+        public IEnumerable<CategorieDocumentViewModel> CategorieDocuments => GetCategorieDocumentCollection().Result;
+        public IEnumerable<TypeDocumentLabViewModel> TypeDocumentLabs => GetTypeDocumentLabCollection().Result;
+        public IEnumerable<SelectedItem> TypeLienPersonneMoraleMorales => GetTypeLienPersonneMoraleCollection().Result;
+        public IEnumerable<SelectedItem> TypePieceIdentites => GetTypePieceIdentiteCollection().Result;
+
+
+        public IEnumerable<SelectedItem> TypeLienPersonneMoralePhysiques =>
+            GetTypeLienPersonneMoralePhysiqueCollection().Result;
+
+        public IEnumerable<SelectedItem> TypeLienPersonnePhysiqueMorales =>
+            GetTypeLienPersonnePhysiqueMoraleCollection().Result;
+        public IEnumerable<SelectedItem> InteretDroitVotes =>
+            GetInteretDroitVotesCollection().Result;
+        public IEnumerable<SelectedItem> EntiteGroupeTypes =>
+            GetEntiteGroupeTypesCollection().Result;
+        public IEnumerable<SelectedItem> TypeFonds =>
+            GetTypeFondsCollection().Result;
+        public IEnumerable<SelectedItem> ComplementVoies => GetComplementVoieCollection().Result;
+        public IEnumerable<SelectedItem> GroupeCategorieLabs => GetGroupeCategorieCollection().Result;
+        public IEnumerable<CategorieLabViewModel> CategorieLabs => GetCategorieLabCollection().Result;
+        public IEnumerable<CategorieGroupeLabViewModel> CategorieGroupeLabs => GetCategorieGroupeLabCollection().Result;
+        public IEnumerable<SelectedItem> GroupeOrigineLabs => GetGroupeOrigineCollection().Result;
+        public IEnumerable<NatureDsViewModel> NaturesDs => GetNaturesDsCollection().Result;
+		public IEnumerable<CategorieContributeurViewModel> CategoriesContributeurs => GetCategoriesContributeursCollection().Result;
+        public IEnumerable<ContributeurViewModel> Contributeurs => GetContributeursCollection().Result;
+        public IEnumerable<OrigineLabViewModel> OrigineLabs => GetOrigineLabCollection().Result;
+        public IEnumerable<SelectedItem> OrigineLabUpdateForms => GetOrigineLabUpdateFormCollection().Result;
+        public IEnumerable<OrigineGroupeLabViewModel> OrigineGroupeLabs => GetOrigineGroupeLabCollection().Result;
+        public IEnumerable<SelectedItem> FonctionsLabs => GetFonctionsLabCollection().Result;
+        public IEnumerable<InformationRequestCloseReasonViewModel> InformationRequestCloseReasons => GetInformationRequestCloseReasonCollection().Result;
+        public IEnumerable<ScenarioLabViewModel> ScenarioLabs => GetScenarioLabCollection().Result;
+        public IEnumerable<SelectedItem> ApplicationScenarioLabs => GetApplicationScenarioLabCollection().Result;
+        public IEnumerable<SelectedItem> SecteurLabs => GetSecteurLabsCollection().Result;
+
+        public IEnumerable<SecteurEconomiqueLabViewModel> SecteurEconomiqueLabs =>
+            GetSecteurEconomiqueLabCollection().Result;
+
+        public IEnumerable<SelectedItem> SecteurProfessionnels => GetSecteurProfessionnelCollection().Result;
+        public IEnumerable<StatutDossierLabViewModel> StatutDossierLabs => GetStatutDossierLabCollection().Result;
+        public IEnumerable<StatutDemandeInformationLabViewModel> StatutDemandeInformationLabs => GetStatutDemandeInformationLabCollection().Result;
+        public IEnumerable<StatutDemandeInformationFraudeViewModel> StatutDemandeInformationFraudes => GetStatutDemandeInformationFraudeCollection().Result;
+        public IEnumerable<TypeGarantieViewModel> TypesGaranties => GetTypesGaranties().Result;
+        public IEnumerable<TypeOperationViewModel> TypesOperations => GetTypesOperations().Result;
+        public IEnumerable<CriteresAlerteOrigineViewModel> CriteresAlerteOrigines => GetCriteresAlerteOrigines().Result;
+        public IEnumerable<ModaliteFinancementViewModel> ModaliteFinancements => GetModaliteFinancements().Result;
+        public IEnumerable<StatutDemandeInformationGdaViewModel> StatutDemandeInformationGdas => GetStatutDemandeInformationGdaCollection().Result;
+        public IEnumerable<StatutDemandeInformationAvisSiViewModel> StatutDemandeInformationAvisSis => GetStatutDemandeInformationAvisSiCollection().Result;
+        public IEnumerable<StatutDemandeInformationViewModel> StatutDemandeInformationEscalades => GetStatutDemandeInformationEscaladeCollection().Result;
+        public IEnumerable<StatutDemandeInformationSAvisViewModel> StatutDemandeInformationAviss => GetStatutDemandeInformationSAvisCollection().Result;
+
+        public IEnumerable<SelectedItem> TypeVoies => GetTypeVoieCollection().Result;
+        public IEnumerable<SelectedItem> AvisLabs => GetAvisLabCollection().Result;
+        public IEnumerable<SelectedItem> VisaLabs => GetVisaLabCollection().Result;
+        public IEnumerable<SelectedItem> TypeLegislationLabs => GetTypeLegislationLabCollection().Result;
+        public IEnumerable<DefaillanceSAvisViewModel> DefaillanceSAviss => GetDefaillanceSAvisCollection().Result;
+        public IEnumerable<DefaillanceAvisImViewModel> DefaillanceAvisIms => GetDefaillanceAvisImCollection().Result;
+
+        public IEnumerable<TypologieDemandeSAvisViewModel> TypologieDemandeSAviss => GetTypologieDemandeSAvisCollection().Result;
+
+        public IEnumerable<CategorieSAvisViewModel> CategorieSAviss => GetCategorieSAvisCollection().Result;
+        public IEnumerable<CategorieOutilSAvisViewModel> CategorieOutilSAviss => GetCategorieOutilSAvisCollection().Result;
+        public IEnumerable<SousCategorieSAvisViewModel> SousCategorieSAviss => GetSousCategorieSAvisCollection().Result;
+        public IEnumerable<PrioriteSAvisViewModel> PrioriteSAviss => GetPrioriteSAvisCollection().Result;
+        public IEnumerable<DomaineSAvisViewModel> DomaineSAviss => GetDomaineSAvisCollection().Result;
+
+        public IEnumerable<TypologieClientSAvisViewModel> TypologieClientSAviss => GetTypologieClientSAvisCollection().Result;
+
+
+        public IEnumerable<ApplicationSAvisViewModel> ApplicationSAviss => GetApplicationSAvisCollection().Result;
+        public IEnumerable<EnvironnementSAvisViewModel> EnvironnementSAviss => GetEnvironnementSAvisCollection().Result;
+
+        public IEnumerable<ApplicationAvisImViewModel> ApplicationAvisIms => GetApplicationAvisImCollection().Result;
+        public IEnumerable<EnvironnementAvisImViewModel> EnvironnementAvisIms => GetEnvironnementAvisImCollection().Result;
+
+        public IEnumerable<DefaillanceAvisSiViewModel> DefaillanceAvisSis => GetDefaillanceAvisSiCollection().Result;
+        public IEnumerable<TypologieDemandeViewModel> TypologieDemandes => GetTypologieDemandeCollection().Result;
+
+        public IEnumerable<QualificationDossierViewModel> QualificationDossiers =>
+            GetQualificationDossierCollection().Result;
+
+        public IEnumerable<QualificationDossierEscaladeViewModel> QualificationDossierEscalades =>
+            GetQualificationDossierEscaladeCollection().Result;
+
+        public IEnumerable<DemandeDerogationViewModel> DemandeDerogations => GetDemandeDerogationCollection().Result;
+        public IEnumerable<ApplicationAvisSiViewModel> ApplicationAvisSis => GetApplicationAvisSiCollection().Result;
+
+        public IEnumerable<EnvironnementAvisSiViewModel> EnvironnementAvisSis =>
+            GetEnvironnementAvisSiCollection().Result;
+
+        public IEnumerable<DecisionAvisSiViewModel> DecisionAvisSis => GetDecisionAvisSiCollection().Result;
+
+        public IEnumerable<SelectedItem> SecteurProfessionnelAmds => GetSecteurProfessionnelAmfCollection().Result;
+
+        public IEnumerable<StatutDossierAmfViewModel> StatutDossierAmfs => GetStatutDossierAmfCollection().Result;
+
+        public IEnumerable<SelectedItem> TypeVoieAmfs => GetTypeVoieAmfCollection().Result;
+
+        public IEnumerable<SelectedItem> TitreAuquelEntiteAgitAmfs => GetTitreAuquelEntiteAgitAmfCollection().Result;
+
+        public IEnumerable<SelectedItem> TypeActiviteAmfs => GetTypeActiviteAmfCollection().Result;
+
+        public IEnumerable<SelectedItem> TypeInstrumentFinancierAmfs =>
+            GetTypeInstrumentFinancierAmfCollection().Result;
+
+        public IEnumerable<SelectedItem> TypeInstrumentUsuellementNegocieAmfs =>
+            GetTypeInstrumentUsuellementNegocieAmfCollection().Result;
+
+        public IEnumerable<SelectedItem> TypeProduitDeriveAmfs => GetTypeProduitDeriveAmfCollection().Result;
+
+        public IEnumerable<SelectedItem> SensDemandes => GetSensDemandesCollection().Result;
+
+        public IEnumerable<SelectedItem> StatutOrdreOuTransactionAmfs =>
+            GetStatutOrdreOuTransactionAmfCollection().Result;
+
+        public IEnumerable<SelectedItem> NatureSoupconFraudeFiscales => GetNatureSoupconFraudeFiscalesLabCollection().Result;
+        public IEnumerable<SelectedItem> NatureSoupconInfractionPinales => GetNatureSoupconInfractionPinalesLabCollection().Result;
+
+        public IEnumerable<TypeRelationAffaireLabViewModel> TypeRelationAffaireLabs =>
+            GetTypesRelationAffaireLabCollection().Result;
+        public IEnumerable<TypeRelationAffaireFraudeViewModel> TypeRelationAffaireFraudes =>
+            GetTypesRelationAffaireFraudeCollection().Result;
+        public IEnumerable<TypeRelationAffaireGdaViewModel> TypeRelationAffaireGdas =>
+           GetTypesRelationAffaireGdaCollection().Result;
+
+        public Func<IEnumerable<TViewModel>> GetCachedProjections<TEntity, TViewModel>(
+            Func<IQueryable<TEntity>> getReferentielFunc) where TEntity : class
+        {
+            return () => this.GetCachedReferentielsAsync(_httpContext, _cache, expirationCash, getReferentielFunc,
+                x => x.ProjectTo<TViewModel>(_mapper.ConfigurationProvider)).Result;
+        }
+
+        public IEnumerable<LienUsViewModel> LienUss => GetLienUsCollection().Result;
+        public IEnumerable<UsLinkNatureViewModel> UsLinkNatures => GetUsLinkNatureCollection().Result;
+        public IEnumerable<TypeFormulaireViewModel> TypeFormulaires => _mapper.Map<IEnumerable<TypeFormulaireViewModel>>(_service.GetTypeFormulaires());
+        public IEnumerable<TypeFormulaireViewModel> TypeFormulairesTotus => _mapper.Map<IEnumerable<TypeFormulaireViewModel>>(_service.GetTypeFormulairesTotus());
+        public IEnumerable<TypeFormulaireViewModel> TypeFormulairesNotTotus => _mapper.Map<IEnumerable<TypeFormulaireViewModel>>(_service.GetTypeFormulairesNotTotus());
+
+        public IEnumerable<StatutUtilisateurViewModel> StatutUtilisateurs => GetStatutUtilisateurCollection().Result;
+        public IEnumerable<CarnetAdresseViewModel> CarnetAdresses => _mapper.Map<IEnumerable<CarnetAdresseViewModel>>(_service.GetCarnetAdresses());
+        public IEnumerable<ModeEnvoieTracfinViewModel> ModeEnvoieTracfins => _mapper.Map<IEnumerable<ModeEnvoieTracfinViewModel>>(_service.GetModeEnvoieTracfin());
+        public IEnumerable<ConfigurationViewModel> ConfigurationsValues => _mapper.Map<List<ConfigurationViewModel>>(_service.GetConfigurations().ToList());
+        public IEnumerable<PpeTypeViewModel> PpeTypeList => _mapper.Map<IEnumerable<PpeTypeViewModel>>(_service.GetPpeTypes());
+
+
+        public IEnumerable<MotifExemptionNotificationViewModel> MotifExemptionNotifications => _mapper.Map<IEnumerable<MotifExemptionNotificationViewModel>>(_service.GetMotifExemptionNotifications());
+
+        public IEnumerable<MotifExemptionNotificationViewModel> MotifExemptionNotificationsFraude =>
+            _mapper.Map<IEnumerable<MotifExemptionNotificationViewModel>>(_service.GetMotifExemptionNotificationsFraude());
+
+        public IEnumerable<DirectionViewModel> GetWriteAuthorizedDirections(int userId, ActiviteModule activite)
+        {
+            var authorizedWriteDirections = _utilisateurDirectionService
+                .GetWriteAuthorizedDirections(userId, (int)activite)
+                .AsEnumerable();
+            
+            return _mapper.Map<IEnumerable<DirectionViewModel>>(authorizedWriteDirections);
+        }
+    }
+}
