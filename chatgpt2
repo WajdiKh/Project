@@ -1,2 +1,7 @@
-- On va pas développer un écran de paramétrage pour le moment. il faudrait juste un script sql. 
-- 
+- Pour les viewmodels demandés tu les trouveras tous dans github
+- On va pas développer un écran de paramétrage pour le moment.Il faudrait que tu créés le script sql de création de la table de paramétrage + insertion
+- Tu trouveras dans la captures d'écrans les types de document concernés (types sélectionnés) 
+- Si besoin tu trouveras l'enum qui contient les types de document lab dans github (TypeDocumentLabEnum.cs) 
+- Comme d'habitude il me faudrait le script pour l'ajout/update de traductions
+- réponse dans un seul bloc pour que je puisse le copier 
+- pas de régressions
