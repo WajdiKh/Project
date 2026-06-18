@@ -12,5 +12,6 @@ lors du même contrôle que les utililisateurs sont habilité au module Transfer
       Ajout, Partage, Historique
       * Dans le popup d'Ajout quand l'utilisateur clique sur le bouton "Enregistrer", le document doit avoir plutôt le statut 
         "Inactif" (ajouter ce statut si nécessaire et me fournir le script sql) et pour la date d'expiration 
-        ce sera le jour d'après avec l'heure = minuit
+        ce sera le jour d'après avec l'heure = minuit (UTC)
+     *
         
