@@ -1,7 +1,705 @@
-- Pour les viewmodels demandés tu les trouveras tous dans github
-- On va pas développer un écran de paramétrage pour le moment.Il faudrait que tu créés le script sql de création de la table de paramétrage + insertion
-- Tu trouveras dans la captures d'écrans les types de document concernés (types sélectionnés) 
-- Si besoin tu trouveras l'enum qui contient les types de document lab dans github (TypeDocumentLabEnum.cs) 
-- Comme d'habitude il me faudrait le script pour l'ajout/update de traductions
-- réponse dans un seul bloc pour que je puisse le copier 
-- pas de régressions
+===============================================================================
+ÉVOLUTION LAB
+RECHERCHE ET TÉLÉCHARGEMENT DES PIÈCES D'IDENTITÉ INTER-DIRECTIONS
+===============================================================================
+
+OBJECTIF
+===============================================================================
+
+Permettre à PREDICA de rechercher et télécharger des pièces d'identité
+présentes dans les dossiers LCL.
+
+La fonctionnalité est disponible depuis les écrans de création/modification
+de dossier Lab.
+
+Aucune régression sur :
+- création DS
+- modification DS
+- gestion PP
+- gestion PM
+- gestion PJ existantes
+- règles IntegreeDs
+- changement de direction
+- téléchargement existant des PJ
+
+
+===============================================================================
+RÈGLES MÉTIER VALIDÉES
+===============================================================================
+
+Direction source :
+- PREDICA
+
+Direction cible :
+- LCL
+
+Types documents concernés :
+
+TA2 = Carte nationale d'identité
+TA3 = Passeport
+TA4 = Livret de famille
+TA5 = Titre de séjour
+TA6 = Kbis
+TA7 = Statuts
+TA8 = Autre document
+TA9 = Permis de conduire
+
+Condition affichage icône :
+
+ATTENTION
+
+On ne regarde PAS si IntegreeDs est cochée.
+
+On reprend EXACTEMENT la même condition d'affichage que la checkbox
+IntegreeDs.
+
+Si IntegreeDs est affichée :
+    -> l'icône peut être affichée
+
+Si IntegreeDs n'est pas affichée :
+    -> l'icône ne doit pas être affichée
+
+ET
+
+La direction sélectionnée dans :
+
+    #DirectionId
+
+doit avoir au moins un accès actif :
+
+    AutoriserRecherche = 1
+    IsActive = 1
+
+dans :
+
+    [Commun].[AccesPieceJointesDirection]
+
+
+===============================================================================
+BASE DE DONNÉES
+===============================================================================
+
+Nouvelle table :
+
+[Commun].[AccesPieceJointesDirection]
+
+Colonnes :
+
+- Id
+- DirectionSourceId
+- DirectionCibleId
+- TypeDocumentLabId
+- AutoriserRecherche
+- AutoriserTelechargement
+- DateCreation
+- DateModification
+- CreateurId
+- ModificateurId
+- IsActive
+
+Clés étrangères :
+
+DirectionSourceId
+    -> Commun.Direction.Id
+
+DirectionCibleId
+    -> Commun.Direction.Id
+
+TypeDocumentLabId
+    -> Lab.TypeDocumentLab.Id
+
+
+===============================================================================
+NOUVELLE ENTITÉ EF
+===============================================================================
+
+Créer :
+
+Entities/Commun/AccesPieceJointesDirection.cs
+
+avec :
+
+- Id
+- DirectionSourceId
+- DirectionCibleId
+- TypeDocumentLabId
+- AutoriserRecherche
+- AutoriserTelechargement
+- DateCreation
+- DateModification
+- CreateurId
+- ModificateurId
+- IsActive
+
+Navigation :
+
+- DirectionSource
+- DirectionCible
+- TypeDocumentLab
+
+
+===============================================================================
+BACARATWEBCONTEXT
+===============================================================================
+
+Ajouter :
+
+public DbSet<AccesPieceJointesDirection> AccesPieceJointesDirections { get; set; }
+
+
+===============================================================================
+SERVICE
+===============================================================================
+
+Créer :
+
+IAccesPieceJointesDirectionService
+
+AccesPieceJointesDirectionService
+
+Méthodes :
+
+Task<bool> HasRechercheAccessAsync(
+    int directionSourceId,
+    CancellationToken token = default);
+
+Task<List<int>> GetDirectionsCiblesRechercheAsync(
+    int directionSourceId,
+    CancellationToken token = default);
+
+Task<List<int>> GetTypeDocumentsAutorisesAsync(
+    int directionSourceId,
+    CancellationToken token = default);
+
+Task<bool> CanDownloadAsync(
+    int directionSourceId,
+    int directionCibleId,
+    int typeDocumentLabId,
+    CancellationToken token = default);
+
+
+===============================================================================
+CONTROLLER LAB
+===============================================================================
+
+NOUVELLES ACTIONS
+===============================================================================
+
+1.
+
+HasAccesRecherchePiecesIdentite
+
+Retour :
+
+{
+    hasAccess : true|false
+}
+
+Paramètre :
+
+directionId
+
+Utilisé lors :
+- chargement écran
+- changement #DirectionId
+
+
+-------------------------------------------------------------------------------
+
+2.
+
+SearchPiecesIdentitePersonnePhysique
+
+Paramètres :
+
+directionId
+personnePhysiqueId
+
+Traitement :
+
+- récupérer direction source depuis directionId
+
+- récupérer directions cibles autorisées
+
+- récupérer types autorisés
+
+- récupérer personne physique courante
+
+- rechercher dans LCL :
+
+Nom
+Prénom
+DateNaissance
+
+- retourner résultats
+
+
+-------------------------------------------------------------------------------
+
+3.
+
+SearchPiecesIdentitePersonneMorale
+
+Paramètres :
+
+directionId
+personneMoraleId
+
+Traitement :
+
+- récupérer direction source
+
+- récupérer directions cibles
+
+- récupérer types autorisés
+
+- rechercher :
+
+RaisonSociale
+NumeroImmatriculation
+
+- retourner résultats
+
+
+-------------------------------------------------------------------------------
+
+4.
+
+DownloadPiecesIdentiteZip
+
+Paramètres :
+
+directionId
+personneId
+isPersonneMorale
+
+Traitement :
+
+- recalcul complet des droits
+
+- récupérer PJ autorisées
+
+- générer ZIP mémoire
+
+- téléchargement
+
+
+===============================================================================
+VIEWMODEL POPUP
+===============================================================================
+
+Créer :
+
+PieceIdentiteSearchResultViewModel
+
+Propriétés :
+
+PersonneId
+
+Nom
+Prenom
+DateNaissance
+
+RaisonSociale
+NumeroImmatriculation
+
+CodeDossier
+
+DirectionId
+DirectionName
+
+DocumentId
+
+TypeDocumentLabId
+
+DocumentName
+
+
+===============================================================================
+MAPPING
+===============================================================================
+
+LabMappingProfile
+
+Ajouter :
+
+CreateMap<... , PieceIdentiteSearchResultViewModel>()
+
+uniquement si nécessaire.
+
+Réutiliser les mappings existants autant que possible.
+
+
+===============================================================================
+PARTIAL PERSONNE PHYSIQUE
+===============================================================================
+
+Fichier :
+
+_PartialPersonnePhysiqueLab.cshtml
+
+Ajouter une icône :
+
+<i class="bi bi-person-vcard"></i>
+
+ou
+
+<i class="bi bi-file-earmark-person"></i>
+
+à côté des icônes existantes.
+
+Condition d'affichage :
+
+EXACTEMENT la même que IntegreeDs
+
++
+
+canSearchIdentityDocuments == true
+
+
+Bouton :
+
+onclick :
+
+showIdentityDocumentsPP(index)
+
+
+===============================================================================
+PARTIAL PERSONNE MORALE
+===============================================================================
+
+Même principe.
+
+onclick :
+
+showIdentityDocumentsPM(index)
+
+
+===============================================================================
+JAVASCRIPT
+===============================================================================
+
+Fichier :
+
+dossierlab.js
+
+
+===============================================================================
+SECTION NOUVELLE
+===============================================================================
+
+#region Pieces Identite
+
+
+-------------------------------------------------------------------------------
+1.
+Chargement droits
+-------------------------------------------------------------------------------
+
+function loadIdentityDocumentAccess()
+{
+    const directionId =
+        $("#DirectionId")
+            .dxSelectBox("instance")
+            .option("value");
+
+    if (!directionId)
+    {
+        window.canSearchIdentityDocuments = false;
+        refreshIdentityIcons();
+        return;
+    }
+
+    $.get(
+        urlHasAccesRecherchePiecesIdentite,
+        { directionId },
+        function(result)
+        {
+            window.canSearchIdentityDocuments = result.hasAccess;
+            refreshIdentityIcons();
+        });
+}
+
+
+-------------------------------------------------------------------------------
+2.
+Refresh icônes
+-------------------------------------------------------------------------------
+
+function refreshIdentityIcons()
+{
+    // reprendre la même logique d'affichage
+    // utilisée pour IntegreeDs
+
+    // ajouter :
+    // window.canSearchIdentityDocuments
+}
+
+
+-------------------------------------------------------------------------------
+3.
+Direction changed
+-------------------------------------------------------------------------------
+
+Dans :
+
+directionOnValueChangedCreateUpdateDossierLab(...)
+
+ajouter :
+
+loadIdentityDocumentAccess();
+
+
+-------------------------------------------------------------------------------
+4.
+Recherche PP
+-------------------------------------------------------------------------------
+
+function showIdentityDocumentsPP(index)
+{
+    ...
+}
+
+
+-------------------------------------------------------------------------------
+5.
+Recherche PM
+-------------------------------------------------------------------------------
+
+function showIdentityDocumentsPM(index)
+{
+    ...
+}
+
+
+-------------------------------------------------------------------------------
+6.
+Popup DevExtreme
+-------------------------------------------------------------------------------
+
+dxPopup
+
+Titre :
+
+Pièces d'identité
+
+
+Contenu :
+
+dxDataGrid
+
+
+PP :
+
+Nom
+Prénom
+Date naissance
+N° dossier
+Direction
+Pièce d'identité
+
+
+PM :
+
+Raison sociale
+N° immatriculation
+N° dossier
+Direction
+Pièce d'identité
+
+
+-------------------------------------------------------------------------------
+7.
+Téléchargement
+-------------------------------------------------------------------------------
+
+function downloadIdentityDocuments(...)
+{
+    window.location =
+        urlDownloadPiecesIdentiteZip
+        + '?...';
+}
+
+
+#endregion
+
+
+===============================================================================
+RECHERCHE PP
+===============================================================================
+
+Critères :
+
+Nom
+Prénom
+DateNaissance
+
+Direction :
+
+LCL uniquement
+via paramétrage
+
+Documents :
+
+TA2
+TA3
+TA4
+TA5
+TA6
+TA7
+TA8
+TA9
+
+
+===============================================================================
+RECHERCHE PM
+===============================================================================
+
+Critères :
+
+RaisonSociale
+NumeroImmatriculation
+
+Direction :
+
+LCL uniquement
+
+Documents :
+
+TA2
+TA3
+TA4
+TA5
+TA6
+TA7
+TA8
+TA9
+
+
+===============================================================================
+TÉLÉCHARGEMENT ZIP
+===============================================================================
+
+Créer ZIP mémoire.
+
+Nom :
+
+PiecesIdentite_{CodeDossier}.zip
+
+Contenu :
+
+Tous les DocumentLab correspondant :
+
+DocumentDossierLab.PersonneAssocieId
+
+et
+
+TypeDocumentLab autorisé
+
+
+===============================================================================
+CONTRÔLES SERVEUR
+===============================================================================
+
+OBLIGATOIRES
+
+Même si le JS masque l'icône :
+
+1.
+Direction source autorisée
+
+2.
+Direction cible autorisée
+
+3.
+Type document autorisé
+
+4.
+Ligne active
+
+5.
+AutoriserRecherche
+
+6.
+AutoriserTelechargement
+
+Sinon :
+
+403 Forbidden
+
+
+===============================================================================
+TRADUCTIONS À AJOUTER
+===============================================================================
+
+Lab.IdentityDocuments.Title
+Lab.IdentityDocuments.Search
+Lab.IdentityDocuments.Download
+Lab.IdentityDocuments.NoResult
+Lab.IdentityDocuments.SearchUnauthorized
+Lab.IdentityDocuments.DownloadUnauthorized
+Lab.IdentityDocuments.Direction
+Lab.IdentityDocuments.CaseNumber
+Lab.IdentityDocuments.IdentityDocument
+Lab.IdentityDocuments.CompanyName
+Lab.IdentityDocuments.RegistrationNumber
+Lab.IdentityDocuments.DateOfBirth
+Lab.IdentityDocuments.ErrorSearch
+Lab.IdentityDocuments.ErrorDownload
+Lab.IdentityDocuments.ConfigurationNotFound
+
+
+===============================================================================
+SCRIPT SQL D'INITIALISATION
+===============================================================================
+
+DirectionSource :
+
+SELECT Id
+FROM Commun.Direction
+WHERE Nom = 'PREDICA'
+
+DirectionCible :
+
+SELECT Id
+FROM Commun.Direction
+WHERE Nom = 'LCL'
+
+Types :
+
+TA2
+TA3
+TA4
+TA5
+TA6
+TA7
+TA8
+TA9
+
+Créer une ligne par couple :
+
+PREDICA -> LCL -> TypeDocument
+
+avec :
+
+AutoriserRecherche = 1
+AutoriserTelechargement = 1
+IsActive = 1
+
+
+===============================================================================
+POINTS DE NON RÉGRESSION
+===============================================================================
+
+Ne pas modifier :
+
+- logique IntegreeDs
+- logique PP existante
+- logique PM existante
+- téléchargement PJ existant
+- gestion DocumentLab existante
+- ServiceLabController existant hors nouvelles actions
+- comportement DirectionId existant
+
+Toute la fonctionnalité doit être ajoutée par extension du code existant.
+===============================================================================
