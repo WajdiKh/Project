@@ -1,22 +1,24 @@
-============================================================
-BLOC V1 — ACCES PIÈCES JOINTES IDENTIFICATION LAB
-============================================================
+Je vais corriger la version précédente : il ne faut plus laisser les recherches en squelette.
 
-À faire dans cet ordre :
+À faire maintenant :
 
-1) Exécuter le script SQL ci-dessous
-2) Ajouter l'entité EF AccesPiecesJointesDirection
-3) Ajouter le DbSet dans BacaratWebContext
-4) Ajouter le service IAccesPiecesJointesDirectionService
-5) Ajouter AccesPiecesJointesDirectionService
-6) Ajouter les ViewModels de résultat
-7) Ajouter les actions dans ServiceLabController
-8) Ajouter les fonctions JS dans dossierlab.js
-9) Ajouter l'icône dans les partials PP/PM à côté des autres icônes
-10) Tester sans modifier la logique existante IntegreeDs
+1. Créer la table [Commun].[AccesPiecesJointesDirection].
+2. Ajouter l'entité EF.
+3. Ajouter le DbSet.
+4. Ajouter un service dédié avec les vraies requêtes.
+5. Ajouter les actions dans ServiceLabController.
+6. Ajouter le JS.
+7. Ajouter l'icône dans les partials PP/PM avec la même condition d'affichage que IntegreeDs.
+
+Point important :
+- on ne regarde PAS si IntegreeDs est cochée.
+- on reprend uniquement la condition qui fait que le bloc IntegreeDs est affiché.
+- Direction source = valeur de #DirectionId.
+- Direction cible initiale = LCL.
+- Types document = TA2 à TA9.
 
 ============================================================
-1. SCRIPT SQL — TABLE + INDEX + INSERT PREDICA -> LCL
+1. SQL TABLE + INSERT PREDICA -> LCL
 ============================================================
 
 USE [BacaratWeb]
@@ -27,42 +29,33 @@ BEGIN
     CREATE TABLE [Commun].[AccesPiecesJointesDirection]
     (
         [Id] INT IDENTITY(1,1) NOT NULL,
-
         [DirectionSourceId] INT NOT NULL,
         [DirectionCibleId] INT NOT NULL,
         [TypeDocumentLabId] INT NOT NULL,
-
         [AutoriserRecherche] BIT NOT NULL CONSTRAINT [DF_AccesPiecesJointesDirection_AutoriserRecherche] DEFAULT(0),
         [AutoriserTelechargement] BIT NOT NULL CONSTRAINT [DF_AccesPiecesJointesDirection_AutoriserTelechargement] DEFAULT(0),
-
         [DateCreation] DATETIMEOFFSET(7) NOT NULL CONSTRAINT [DF_AccesPiecesJointesDirection_DateCreation] DEFAULT(SYSDATETIMEOFFSET()),
         [DateModification] DATETIMEOFFSET(7) NULL,
         [CreateurId] INT NULL,
         [ModificateurId] INT NULL,
         [IsActive] BIT NOT NULL CONSTRAINT [DF_AccesPiecesJointesDirection_IsActive] DEFAULT(1),
 
-        CONSTRAINT [PK_AccesPiecesJointesDirection]
-            PRIMARY KEY CLUSTERED ([Id] ASC),
+        CONSTRAINT [PK_AccesPiecesJointesDirection] PRIMARY KEY CLUSTERED ([Id] ASC),
 
         CONSTRAINT [FK_AccesPiecesJointesDirection_Direction_Source]
-            FOREIGN KEY ([DirectionSourceId])
-            REFERENCES [Commun].[Direction]([Id]),
+            FOREIGN KEY ([DirectionSourceId]) REFERENCES [Commun].[Direction]([Id]),
 
         CONSTRAINT [FK_AccesPiecesJointesDirection_Direction_Cible]
-            FOREIGN KEY ([DirectionCibleId])
-            REFERENCES [Commun].[Direction]([Id]),
+            FOREIGN KEY ([DirectionCibleId]) REFERENCES [Commun].[Direction]([Id]),
 
         CONSTRAINT [FK_AccesPiecesJointesDirection_TypeDocumentLab]
-            FOREIGN KEY ([TypeDocumentLabId])
-            REFERENCES [Lab].[TypeDocumentLab]([Id]),
+            FOREIGN KEY ([TypeDocumentLabId]) REFERENCES [Lab].[TypeDocumentLab]([Id]),
 
         CONSTRAINT [FK_AccesPiecesJointesDirection_Utilisateur_Createur]
-            FOREIGN KEY ([CreateurId])
-            REFERENCES [Commun].[Utilisateur]([Id]),
+            FOREIGN KEY ([CreateurId]) REFERENCES [Commun].[Utilisateur]([Id]),
 
         CONSTRAINT [FK_AccesPiecesJointesDirection_Utilisateur_Modificateur]
-            FOREIGN KEY ([ModificateurId])
-            REFERENCES [Commun].[Utilisateur]([Id]),
+            FOREIGN KEY ([ModificateurId]) REFERENCES [Commun].[Utilisateur]([Id]),
 
         CONSTRAINT [CK_AccesPiecesJointesDirection_DirectionsDifferentes]
             CHECK ([DirectionSourceId] <> [DirectionCibleId])
@@ -71,8 +64,7 @@ END
 GO
 
 IF NOT EXISTS (
-    SELECT 1
-    FROM sys.indexes
+    SELECT 1 FROM sys.indexes
     WHERE name = 'UX_AccesPiecesJointesDirection_Source_Cible_TypeDocument'
       AND object_id = OBJECT_ID('[Commun].[AccesPiecesJointesDirection]')
 )
@@ -88,8 +80,7 @@ END
 GO
 
 IF NOT EXISTS (
-    SELECT 1
-    FROM sys.indexes
+    SELECT 1 FROM sys.indexes
     WHERE name = 'IX_AccesPiecesJointesDirection_Source_Recherche_Active'
       AND object_id = OBJECT_ID('[Commun].[AccesPiecesJointesDirection]')
 )
@@ -111,8 +102,7 @@ END
 GO
 
 IF NOT EXISTS (
-    SELECT 1
-    FROM sys.indexes
+    SELECT 1 FROM sys.indexes
     WHERE name = 'IX_AccesPiecesJointesDirection_Source_Cible_Telechargement_Active'
       AND object_id = OBJECT_ID('[Commun].[AccesPiecesJointesDirection]')
 )
@@ -147,10 +137,10 @@ WHERE Nom = 'LCL'
    OR Abreviation = 'LCL';
 
 IF @DirectionSourceId IS NULL
-    THROW 50001, 'Direction source PREDICA introuvable dans Commun.Direction.', 1;
+    THROW 50001, 'Direction source PREDICA introuvable.', 1;
 
 IF @DirectionCibleId IS NULL
-    THROW 50002, 'Direction cible LCL introuvable dans Commun.Direction.', 1;
+    THROW 50002, 'Direction cible LCL introuvable.', 1;
 
 DECLARE @Types TABLE(Code NVARCHAR(50));
 
@@ -224,7 +214,7 @@ WHEN NOT MATCHED BY TARGET THEN
 GO
 
 ============================================================
-2. SCRIPT SQL — TRADUCTIONS
+2. SQL TRADUCTIONS
 ============================================================
 
 USE [BacaratWeb]
@@ -242,7 +232,6 @@ VALUES
 (N'Lab.PiecesIdentite.Title', 'Pièces d''identité', 'Identity documents'),
 (N'Lab.PiecesIdentite.Search', 'Rechercher les pièces d''identité', 'Search identity documents'),
 (N'Lab.PiecesIdentite.Download', 'Télécharger', 'Download'),
-(N'Lab.PiecesIdentite.DownloadZip', 'Télécharger les pièces d''identité', 'Download identity documents'),
 (N'Lab.PiecesIdentite.NoResult', 'Aucune pièce d''identité trouvée.', 'No identity document found.'),
 (N'Lab.PiecesIdentite.SearchUnauthorized', 'Vous n''êtes pas autorisé à rechercher les pièces d''identité.', 'You are not authorized to search identity documents.'),
 (N'Lab.PiecesIdentite.DownloadUnauthorized', 'Vous n''êtes pas autorisé à télécharger ces pièces d''identité.', 'You are not authorized to download these identity documents.'),
@@ -257,7 +246,6 @@ VALUES
 (N'Lab.PiecesIdentite.ColumnPieceIdentite', 'Pièce d''identité', 'Identity document'),
 (N'Lab.PiecesIdentite.ErrorSearch', 'Une erreur est survenue lors de la recherche des pièces d''identité.', 'An error occurred while searching for identity documents.'),
 (N'Lab.PiecesIdentite.ErrorDownload', 'Une erreur est survenue lors du téléchargement des pièces d''identité.', 'An error occurred while downloading identity documents.'),
-(N'Lab.PiecesIdentite.ConfigurationNotFound', 'Aucun accès aux pièces d''identité n''est configuré pour cette direction.', 'No identity document access is configured for this department.'),
 (N'Lab.PiecesIdentite.IconTooltip', 'Rechercher les pièces d''identité', 'Search identity documents');
 
 MERGE [Commun].[Traduction] AS target
@@ -283,13 +271,13 @@ WHEN NOT MATCHED BY TARGET THEN
 GO
 
 ============================================================
-3. ENTITÉ EF — AccesPiecesJointesDirection.cs
+3. ENTITÉ EF
+Fichier : AccesPiecesJointesDirection.cs
 ============================================================
 
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using BacaratWeb.Entities.Commun;
 using BacaratWeb.Entities.Lab;
 
 namespace BacaratWeb.Entities.Commun
@@ -338,7 +326,8 @@ namespace BacaratWeb.Entities.Commun
 }
 
 ============================================================
-4. BacaratWebContext.cs
+4. DB CONTEXT
+Fichier : BacaratWebContext.cs
 ============================================================
 
 Ajouter :
@@ -346,144 +335,8 @@ Ajouter :
 public DbSet<AccesPiecesJointesDirection> AccesPiecesJointesDirections { get; set; }
 
 ============================================================
-5. SERVICE — IAccesPiecesJointesDirectionService.cs
-============================================================
-
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace BacaratWeb.Services.Lab.Interfaces
-{
-    public interface IAccesPiecesJointesDirectionService
-    {
-        Task<bool> HasRechercheAccessAsync(
-            int directionSourceId,
-            CancellationToken token = default);
-
-        Task<List<int>> GetDirectionsCiblesRechercheAsync(
-            int directionSourceId,
-            CancellationToken token = default);
-
-        Task<List<int>> GetTypesDocumentsRechercheAsync(
-            int directionSourceId,
-            int directionCibleId,
-            CancellationToken token = default);
-
-        Task<List<int>> GetTypesDocumentsTelechargementAsync(
-            int directionSourceId,
-            int directionCibleId,
-            CancellationToken token = default);
-
-        Task<bool> CanDownloadAsync(
-            int directionSourceId,
-            int directionCibleId,
-            int typeDocumentLabId,
-            CancellationToken token = default);
-    }
-}
-
-============================================================
-6. SERVICE — AccesPiecesJointesDirectionService.cs
-============================================================
-
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using BacaratWeb.Model.Entities;
-using BacaratWeb.Services.Lab.Interfaces;
-using Microsoft.EntityFrameworkCore;
-
-namespace BacaratWeb.Services.Lab
-{
-    public class AccesPiecesJointesDirectionService : IAccesPiecesJointesDirectionService
-    {
-        private readonly BacaratWebContext _context;
-
-        public AccesPiecesJointesDirectionService(BacaratWebContext context)
-        {
-            _context = context;
-        }
-
-        public async Task<bool> HasRechercheAccessAsync(
-            int directionSourceId,
-            CancellationToken token = default)
-        {
-            return await _context.AccesPiecesJointesDirections
-                .AnyAsync(x =>
-                    x.DirectionSourceId == directionSourceId &&
-                    x.AutoriserRecherche &&
-                    x.IsActive,
-                    token);
-        }
-
-        public async Task<List<int>> GetDirectionsCiblesRechercheAsync(
-            int directionSourceId,
-            CancellationToken token = default)
-        {
-            return await _context.AccesPiecesJointesDirections
-                .Where(x =>
-                    x.DirectionSourceId == directionSourceId &&
-                    x.AutoriserRecherche &&
-                    x.IsActive)
-                .Select(x => x.DirectionCibleId)
-                .Distinct()
-                .ToListAsync(token);
-        }
-
-        public async Task<List<int>> GetTypesDocumentsRechercheAsync(
-            int directionSourceId,
-            int directionCibleId,
-            CancellationToken token = default)
-        {
-            return await _context.AccesPiecesJointesDirections
-                .Where(x =>
-                    x.DirectionSourceId == directionSourceId &&
-                    x.DirectionCibleId == directionCibleId &&
-                    x.AutoriserRecherche &&
-                    x.IsActive)
-                .Select(x => x.TypeDocumentLabId)
-                .Distinct()
-                .ToListAsync(token);
-        }
-
-        public async Task<List<int>> GetTypesDocumentsTelechargementAsync(
-            int directionSourceId,
-            int directionCibleId,
-            CancellationToken token = default)
-        {
-            return await _context.AccesPiecesJointesDirections
-                .Where(x =>
-                    x.DirectionSourceId == directionSourceId &&
-                    x.DirectionCibleId == directionCibleId &&
-                    x.AutoriserTelechargement &&
-                    x.IsActive)
-                .Select(x => x.TypeDocumentLabId)
-                .Distinct()
-                .ToListAsync(token);
-        }
-
-        public async Task<bool> CanDownloadAsync(
-            int directionSourceId,
-            int directionCibleId,
-            int typeDocumentLabId,
-            CancellationToken token = default)
-        {
-            return await _context.AccesPiecesJointesDirections
-                .AnyAsync(x =>
-                    x.DirectionSourceId == directionSourceId &&
-                    x.DirectionCibleId == directionCibleId &&
-                    x.TypeDocumentLabId == typeDocumentLabId &&
-                    x.AutoriserTelechargement &&
-                    x.IsActive,
-                    token);
-        }
-    }
-}
-
-============================================================
-7. VIEWMODEL — PieceIdentiteSearchResultViewModel.cs
+5. VIEWMODEL RESULTAT POPUP
+Fichier : PieceIdentiteSearchResultViewModel.cs
 ============================================================
 
 using System;
@@ -495,7 +348,7 @@ namespace BacaratWeb.ViewModel.Lab
     {
         public int DossierLabId { get; set; }
 
-        public int PersonneId { get; set; }
+        public Guid PersonneId { get; set; }
 
         public bool IsPersonneMorale { get; set; }
 
@@ -503,7 +356,7 @@ namespace BacaratWeb.ViewModel.Lab
 
         public string Prenom { get; set; }
 
-        public DateTime? DateNaissance { get; set; }
+        public DateTimeOffset? DateNaissance { get; set; }
 
         public string RaisonSociale { get; set; }
 
@@ -520,12 +373,312 @@ namespace BacaratWeb.ViewModel.Lab
 }
 
 ============================================================
-8. ServiceLabController.cs — AJOUTER LES DÉPENDANCES
+6. SERVICE INTERFACE
+Fichier : IAccesPiecesJointesDirectionService.cs
+============================================================
+
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using BacaratWeb.ViewModel.Lab;
+
+namespace BacaratWeb.Services.Lab.Interfaces
+{
+    public interface IAccesPiecesJointesDirectionService
+    {
+        Task<bool> HasRechercheAccessAsync(
+            int directionSourceId,
+            CancellationToken token = default);
+
+        Task<List<PieceIdentiteSearchResultViewModel>> SearchPersonnePhysiqueAsync(
+            int directionSourceId,
+            Guid personneId,
+            CancellationToken token = default);
+
+        Task<List<PieceIdentiteSearchResultViewModel>> SearchPersonneMoraleAsync(
+            int directionSourceId,
+            Guid personneId,
+            CancellationToken token = default);
+
+        Task<byte[]> BuildPiecesIdentiteZipAsync(
+            int directionSourceId,
+            int dossierLabId,
+            Guid personneId,
+            bool isPersonneMorale,
+            CancellationToken token = default);
+    }
+}
+
+============================================================
+7. SERVICE IMPLEMENTATION
+Fichier : AccesPiecesJointesDirectionService.cs
+============================================================
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using BacaratWeb.Model.Entities;
+using BacaratWeb.Services.Lab.Interfaces;
+using BacaratWeb.ViewModel.Lab;
+using Microsoft.EntityFrameworkCore;
+
+namespace BacaratWeb.Services.Lab
+{
+    public class AccesPiecesJointesDirectionService : IAccesPiecesJointesDirectionService
+    {
+        private readonly BacaratWebContext _context;
+
+        public AccesPiecesJointesDirectionService(BacaratWebContext context)
+        {
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+        }
+
+        public async Task<bool> HasRechercheAccessAsync(
+            int directionSourceId,
+            CancellationToken token = default)
+        {
+            return await _context.AccesPiecesJointesDirections
+                .AnyAsync(x =>
+                    x.DirectionSourceId == directionSourceId &&
+                    x.AutoriserRecherche &&
+                    x.IsActive,
+                    token);
+        }
+
+        public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPersonnePhysiqueAsync(
+            int directionSourceId,
+            Guid personneId,
+            CancellationToken token = default)
+        {
+            var personneSource = await _context.PersonnePhysiqueLabs
+                .FirstOrDefaultAsync(x => x.IdPersonne == personneId, token);
+
+            if (personneSource == null)
+                return new List<PieceIdentiteSearchResultViewModel>();
+
+            var accesses = await GetRechercheAccessesAsync(directionSourceId, token);
+
+            if (!accesses.Any())
+                return new List<PieceIdentiteSearchResultViewModel>();
+
+            var directionCibleIds = accesses
+                .Select(x => x.DirectionCibleId)
+                .Distinct()
+                .ToList();
+
+            var typeDocumentIds = accesses
+                .Select(x => x.TypeDocumentLabId)
+                .Distinct()
+                .ToList();
+
+            return await _context.DossierLabPersonnePhysiques
+                .AsNoTracking()
+                .Include(x => x.DossierLab)
+                    .ThenInclude(x => x.Direction)
+                .Include(x => x.PersonnePhysiqueLab)
+                .Where(x =>
+                    x.PersonnePhysiqueLab.IdPersonne.HasValue &&
+                    x.DossierLab != null &&
+                    directionCibleIds.Contains(x.DossierLab.DirectionId) &&
+                    x.PersonnePhysiqueLab.NomNaissance == personneSource.NomNaissance &&
+                    x.PersonnePhysiqueLab.Prenoms == personneSource.Prenoms &&
+                    x.PersonnePhysiqueLab.DateNaissance == personneSource.DateNaissance &&
+                    _context.DocumentDossierLabs.Any(d =>
+                        d.DossierLabId == x.DossierLabId &&
+                        d.PersonneAssocieId == x.PersonnePhysiqueLab.IdPersonne &&
+                        d.TypeDocumentLabId.HasValue &&
+                        typeDocumentIds.Contains(d.TypeDocumentLabId.Value) &&
+                        !d.IsDeleted))
+                .Select(x => new PieceIdentiteSearchResultViewModel
+                {
+                    DossierLabId = x.DossierLabId,
+                    PersonneId = x.PersonnePhysiqueLab.IdPersonne.Value,
+                    IsPersonneMorale = false,
+                    Nom = x.PersonnePhysiqueLab.NomNaissance,
+                    Prenom = x.PersonnePhysiqueLab.Prenoms,
+                    DateNaissance = x.PersonnePhysiqueLab.DateNaissance,
+                    CodeDossier = x.DossierLab.CodeUnique,
+                    DirectionId = x.DossierLab.DirectionId,
+                    DirectionName = x.DossierLab.Direction != null ? x.DossierLab.Direction.Nom : string.Empty,
+                    NombrePiecesIdentite = _context.DocumentDossierLabs.Count(d =>
+                        d.DossierLabId == x.DossierLabId &&
+                        d.PersonneAssocieId == x.PersonnePhysiqueLab.IdPersonne &&
+                        d.TypeDocumentLabId.HasValue &&
+                        typeDocumentIds.Contains(d.TypeDocumentLabId.Value) &&
+                        !d.IsDeleted)
+                })
+                .ToListAsync(token);
+        }
+
+        public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPersonneMoraleAsync(
+            int directionSourceId,
+            Guid personneId,
+            CancellationToken token = default)
+        {
+            var personneSource = await _context.PersonneMoraleLabs
+                .FirstOrDefaultAsync(x => x.IdPersonne == personneId, token);
+
+            if (personneSource == null)
+                return new List<PieceIdentiteSearchResultViewModel>();
+
+            var accesses = await GetRechercheAccessesAsync(directionSourceId, token);
+
+            if (!accesses.Any())
+                return new List<PieceIdentiteSearchResultViewModel>();
+
+            var directionCibleIds = accesses
+                .Select(x => x.DirectionCibleId)
+                .Distinct()
+                .ToList();
+
+            var typeDocumentIds = accesses
+                .Select(x => x.TypeDocumentLabId)
+                .Distinct()
+                .ToList();
+
+            return await _context.DossierLabPersonneMorales
+                .AsNoTracking()
+                .Include(x => x.DossierLab)
+                    .ThenInclude(x => x.Direction)
+                .Include(x => x.PersonneMoraleLab)
+                .Where(x =>
+                    x.PersonneMoraleLab.IdPersonne.HasValue &&
+                    x.DossierLab != null &&
+                    directionCibleIds.Contains(x.DossierLab.DirectionId) &&
+                    x.PersonneMoraleLab.RaisonSociale == personneSource.RaisonSociale &&
+                    x.PersonneMoraleLab.NumeroImmatriculation == personneSource.NumeroImmatriculation &&
+                    _context.DocumentDossierLabs.Any(d =>
+                        d.DossierLabId == x.DossierLabId &&
+                        d.PersonneAssocieId == x.PersonneMoraleLab.IdPersonne &&
+                        d.TypeDocumentLabId.HasValue &&
+                        typeDocumentIds.Contains(d.TypeDocumentLabId.Value) &&
+                        !d.IsDeleted))
+                .Select(x => new PieceIdentiteSearchResultViewModel
+                {
+                    DossierLabId = x.DossierLabId,
+                    PersonneId = x.PersonneMoraleLab.IdPersonne.Value,
+                    IsPersonneMorale = true,
+                    RaisonSociale = x.PersonneMoraleLab.RaisonSociale,
+                    NumeroImmatriculation = x.PersonneMoraleLab.NumeroImmatriculation,
+                    CodeDossier = x.DossierLab.CodeUnique,
+                    DirectionId = x.DossierLab.DirectionId,
+                    DirectionName = x.DossierLab.Direction != null ? x.DossierLab.Direction.Nom : string.Empty,
+                    NombrePiecesIdentite = _context.DocumentDossierLabs.Count(d =>
+                        d.DossierLabId == x.DossierLabId &&
+                        d.PersonneAssocieId == x.PersonneMoraleLab.IdPersonne &&
+                        d.TypeDocumentLabId.HasValue &&
+                        typeDocumentIds.Contains(d.TypeDocumentLabId.Value) &&
+                        !d.IsDeleted)
+                })
+                .ToListAsync(token);
+        }
+
+        public async Task<byte[]> BuildPiecesIdentiteZipAsync(
+            int directionSourceId,
+            int dossierLabId,
+            Guid personneId,
+            bool isPersonneMorale,
+            CancellationToken token = default)
+        {
+            var dossier = await _context.DossierLabs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == dossierLabId, token);
+
+            if (dossier == null)
+                return Array.Empty<byte>();
+
+            var typeDocumentIds = await _context.AccesPiecesJointesDirections
+                .Where(x =>
+                    x.DirectionSourceId == directionSourceId &&
+                    x.DirectionCibleId == dossier.DirectionId &&
+                    x.AutoriserTelechargement &&
+                    x.IsActive)
+                .Select(x => x.TypeDocumentLabId)
+                .Distinct()
+                .ToListAsync(token);
+
+            if (!typeDocumentIds.Any())
+                return Array.Empty<byte>();
+
+            var documents = await _context.DocumentDossierLabs
+                .AsNoTracking()
+                .Include(x => x.DocumentLab)
+                .Where(x =>
+                    x.DossierLabId == dossierLabId &&
+                    x.PersonneAssocieId == personneId &&
+                    x.TypeDocumentLabId.HasValue &&
+                    typeDocumentIds.Contains(x.TypeDocumentLabId.Value) &&
+                    !x.IsDeleted &&
+                    x.DocumentLab != null)
+                .ToListAsync(token);
+
+            if (!documents.Any())
+                return Array.Empty<byte>();
+
+            using var memoryStream = new MemoryStream();
+
+            using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true))
+            {
+                foreach (var document in documents)
+                {
+                    var fileName = !string.IsNullOrWhiteSpace(document.FileName)
+                        ? document.FileName
+                        : document.DocumentLab.Name;
+
+                    var safeFileName = SanitizeZipEntryName(fileName);
+
+                    var entry = archive.CreateEntry(safeFileName, CompressionLevel.Fastest);
+
+                    using var entryStream = entry.Open();
+
+                    await entryStream.WriteAsync(
+                        document.DocumentLab.FileContent,
+                        0,
+                        document.DocumentLab.FileContent.Length,
+                        token);
+                }
+            }
+
+            return memoryStream.ToArray();
+        }
+
+        private async Task<List<AccesPiecesJointesDirection>> GetRechercheAccessesAsync(
+            int directionSourceId,
+            CancellationToken token)
+        {
+            return await _context.AccesPiecesJointesDirections
+                .AsNoTracking()
+                .Where(x =>
+                    x.DirectionSourceId == directionSourceId &&
+                    x.AutoriserRecherche &&
+                    x.IsActive)
+                .ToListAsync(token);
+        }
+
+        private static string SanitizeZipEntryName(string fileName)
+        {
+            var invalidChars = Path.GetInvalidFileNameChars();
+
+            foreach (var invalidChar in invalidChars)
+                fileName = fileName.Replace(invalidChar, '_');
+
+            return fileName;
+        }
+    }
+}
+
+============================================================
+8. ServiceLabController.cs
+À AJOUTER
 ============================================================
 
 Ajouter le using :
 
-using System.IO.Compression;
 using BacaratWeb.Services.Lab.Interfaces;
 using BacaratWeb.ViewModel.Lab;
 
@@ -533,18 +686,16 @@ Ajouter le champ :
 
 private readonly IAccesPiecesJointesDirectionService _accesPiecesJointesDirectionService;
 
-Ajouter au constructeur :
+Ajouter dans le constructeur :
 
 IAccesPiecesJointesDirectionService accesPiecesJointesDirectionService
 
-Puis :
+Puis dans le corps :
 
 _accesPiecesJointesDirectionService = accesPiecesJointesDirectionService
     ?? throw new ArgumentNullException(nameof(accesPiecesJointesDirectionService));
 
-============================================================
-9. ServiceLabController.cs — ACTION ACCÈS RECHERCHE
-============================================================
+Ajouter les actions :
 
 [HttpGet]
 public async Task<IActionResult> HasAccesRecherchePiecesIdentite(
@@ -560,14 +711,10 @@ public async Task<IActionResult> HasAccesRecherchePiecesIdentite(
     return Json(new { hasAccess });
 }
 
-============================================================
-10. ServiceLabController.cs — RECHERCHE PP
-============================================================
-
 [HttpGet]
 public async Task<IActionResult> SearchPiecesIdentitePersonnePhysique(
     int directionId,
-    int personneId,
+    Guid personneId,
     CancellationToken token = default)
 {
     if (directionId <= 0)
@@ -577,32 +724,22 @@ public async Task<IActionResult> SearchPiecesIdentitePersonnePhysique(
         .HasRechercheAccessAsync(directionId, token);
 
     if (!hasAccess)
-        return StatusCode(StatusCodes.Status403Forbidden, _translator.Common["Lab.PiecesIdentite.SearchUnauthorized"]);
+    {
+        return StatusCode(
+            StatusCodes.Status403Forbidden,
+            _translator.Common["Lab.PiecesIdentite.SearchUnauthorized"]);
+    }
 
-    /*
-        À brancher sur les services existants PP/PJ.
-        Logique attendue :
-
-        1. récupérer la PP source par personneId
-        2. récupérer directions cibles autorisées
-        3. rechercher les dossiers LCL avec même Nom/Prenom/DateNaissance
-        4. ne garder que les dossiers ayant au moins une PJ dont TypeDocumentLabId est autorisé
-        5. retourner PieceIdentiteSearchResultViewModel
-    */
-
-    var results = new List<PieceIdentiteSearchResultViewModel>();
+    var results = await _accesPiecesJointesDirectionService
+        .SearchPersonnePhysiqueAsync(directionId, personneId, token);
 
     return Json(results);
 }
-
-============================================================
-11. ServiceLabController.cs — RECHERCHE PM
-============================================================
 
 [HttpGet]
 public async Task<IActionResult> SearchPiecesIdentitePersonneMorale(
     int directionId,
-    int personneId,
+    Guid personneId,
     CancellationToken token = default)
 {
     if (directionId <= 0)
@@ -612,86 +749,54 @@ public async Task<IActionResult> SearchPiecesIdentitePersonneMorale(
         .HasRechercheAccessAsync(directionId, token);
 
     if (!hasAccess)
-        return StatusCode(StatusCodes.Status403Forbidden, _translator.Common["Lab.PiecesIdentite.SearchUnauthorized"]);
+    {
+        return StatusCode(
+            StatusCodes.Status403Forbidden,
+            _translator.Common["Lab.PiecesIdentite.SearchUnauthorized"]);
+    }
 
-    /*
-        À brancher sur les services existants PM/PJ.
-        Logique attendue :
-
-        1. récupérer la PM source par personneId
-        2. récupérer directions cibles autorisées
-        3. rechercher les dossiers LCL avec même RaisonSociale / NumeroImmatriculation
-        4. filtrer PJ autorisées
-        5. retourner PieceIdentiteSearchResultViewModel
-    */
-
-    var results = new List<PieceIdentiteSearchResultViewModel>();
+    var results = await _accesPiecesJointesDirectionService
+        .SearchPersonneMoraleAsync(directionId, personneId, token);
 
     return Json(results);
 }
-
-============================================================
-12. ServiceLabController.cs — DOWNLOAD ZIP
-============================================================
 
 [HttpGet]
 public async Task<IActionResult> DownloadPiecesIdentiteZip(
     int directionId,
     int dossierLabId,
-    int personneId,
+    Guid personneId,
     bool isPersonneMorale,
     CancellationToken token = default)
 {
     if (directionId <= 0)
         return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
 
-    /*
-        À brancher sur le modèle exact DocumentDossierLab :
-        - récupérer dossier cible
-        - récupérer sa DirectionId
-        - récupérer les types autorisés au téléchargement
-        - récupérer les DocumentDossierLab liés à PersonneAssocieId = personneId
-        - filtrer TypeDocumentLabId autorisés
-        - zip des DocumentLab.FileContent
-    */
+    var zipContent = await _accesPiecesJointesDirectionService
+        .BuildPiecesIdentiteZipAsync(
+            directionId,
+            dossierLabId,
+            personneId,
+            isPersonneMorale,
+            token);
 
-    var files = new List<(string FileName, byte[] Content)>();
-
-    if (!files.Any())
+    if (zipContent == null || zipContent.Length == 0)
         return BadRequest(_translator.Common["Lab.PiecesIdentite.NoResult"]);
-
-    using var memoryStream = new MemoryStream();
-
-    using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true))
-    {
-        foreach (var file in files)
-        {
-            var entry = archive.CreateEntry(file.FileName, CompressionLevel.Fastest);
-
-            using var entryStream = entry.Open();
-
-            await entryStream.WriteAsync(file.Content, 0, file.Content.Length, token);
-        }
-    }
-
-    memoryStream.Position = 0;
 
     var zipName = $"PiecesIdentite_{DateTime.Now:yyyyMMddHHmmss}.zip";
 
-    return File(memoryStream.ToArray(), "application/zip", zipName);
+    return File(
+        zipContent,
+        "application/zip",
+        zipName);
 }
 
 ============================================================
-13. dossierlab.js — VARIABLES
+9. dossierlab.js
+À AJOUTER
 ============================================================
-
-Ajouter en haut du fichier :
 
 var canSearchPiecesIdentite = false;
-
-============================================================
-14. dossierlab.js — CHARGEMENT ACCÈS
-============================================================
 
 function getSelectedDirectionId() {
     var direction = $("#DirectionId").dxSelectBox("instance");
@@ -740,18 +845,6 @@ function refreshPiecesIdentiteButtonsVisibility() {
     });
 }
 
-============================================================
-15. dossierlab.js — À AJOUTER DANS directionOnValueChangedCreateUpdateDossierLab
-============================================================
-
-Ajouter à la fin de la fonction existante :
-
-refreshPiecesIdentiteAccess();
-
-============================================================
-16. dossierlab.js — RECHERCHE PP
-============================================================
-
 function searchPiecesIdentitePersonnePhysique(index) {
     var directionId = getSelectedDirectionId();
     var personneId = $("#PersonnePhysiqueLabIdPersonne" + index).val();
@@ -775,10 +868,6 @@ function searchPiecesIdentitePersonnePhysique(index) {
         DevExpress.ui.notify(xhr.responseText || _labPiecesIdentiteErrorSearch, "error", 5000);
     });
 }
-
-============================================================
-17. dossierlab.js — RECHERCHE PM
-============================================================
 
 function searchPiecesIdentitePersonneMorale(index) {
     var directionId = getSelectedDirectionId();
@@ -804,19 +893,13 @@ function searchPiecesIdentitePersonneMorale(index) {
     });
 }
 
-============================================================
-18. dossierlab.js — POPUP
-============================================================
-
 function showPiecesIdentitePopup(data, isPersonneMorale) {
     if (!data || data.length === 0) {
         DevExpress.ui.notify(_labPiecesIdentiteNoResult, "info", 3000);
         return;
     }
 
-    var $popup = $("#piecesIdentitePopup");
-
-    if ($popup.length === 0) {
+    if ($("#piecesIdentitePopup").length === 0) {
         $("body").append('<div id="piecesIdentitePopup"></div>');
     }
 
@@ -854,9 +937,10 @@ function getPiecesIdentiteColumns(isPersonneMorale) {
 
     columns.push({ dataField: "CodeDossier", caption: _labPiecesIdentiteColumnCodeDossier });
     columns.push({ dataField: "DirectionName", caption: _labPiecesIdentiteColumnDirection });
+    columns.push({ dataField: "NombrePiecesIdentite", caption: _labPiecesIdentiteColumnPieceIdentite });
 
     columns.push({
-        caption: _labPiecesIdentiteColumnPieceIdentite,
+        caption: _labPiecesIdentiteDownload,
         alignment: "center",
         cellTemplate: function (container, options) {
             $("<div>").dxButton({
@@ -891,8 +975,17 @@ function downloadPiecesIdentite(row) {
         "&isPersonneMorale=" + encodeURIComponent(row.IsPersonneMorale);
 }
 
+À ajouter à la fin de directionOnValueChangedCreateUpdateDossierLab :
+
+refreshPiecesIdentiteAccess();
+
+À appeler aussi après chargement des partials PP/PM :
+
+refreshPiecesIdentiteAccess();
+
 ============================================================
-19. _ViewStart.cshtml OU VUE PRINCIPALE — VARIABLES JS TRADUCTIONS
+10. VARIABLES JS TRADUCTIONS
+À ajouter dans la vue principale ou _ViewStart Lab
 ============================================================
 
 <script>
@@ -913,17 +1006,11 @@ function downloadPiecesIdentite(row) {
 </script>
 
 ============================================================
-20. _PartialPersonnePhysiqueLab.cshtml — AJOUT ICÔNE
+11. PARTIAL PP
+Fichier : _PartialPersonnePhysiqueLab.cshtml
 ============================================================
 
-À ajouter à côté des boutons existants search / trash / card.
-
-IMPORTANT :
-- réutiliser exactement la même condition d'affichage que IntegreeDs
-- ne pas vérifier si la checkbox est cochée
-- l'attribut data-can-display-integree-ds doit contenir le résultat de cette condition
-
-Exemple à adapter avec la condition exacte existante :
+À côté des boutons existants search / trash / card, ajouter :
 
 @(Html.DevExtreme().Button()
     .Icon("card")
@@ -942,11 +1029,17 @@ Exemple à adapter avec la condition exacte existante :
     </text>)
 )
 
+Attention :
+la valeur data-can-display-integree-ds doit être true uniquement si on est dans le même bloc/condition Razor qui affiche IntegreeDs.
+
+Si IntegreeDs est affiché sans if autour, alors true est correct.
+
 ============================================================
-21. _PartialPersonneMoraleLab.cshtml — AJOUT ICÔNE
+12. PARTIAL PM
+Fichier : _PartialPersonneMoraleLab.cshtml
 ============================================================
 
-À ajouter à côté des boutons existants.
+À côté des boutons existants, ajouter :
 
 @(Html.DevExtreme().Button()
     .Icon("card")
@@ -966,31 +1059,23 @@ Exemple à adapter avec la condition exacte existante :
 )
 
 ============================================================
-22. À NE PAS FAIRE
+13. DI / STARTUP
 ============================================================
 
-Ne pas conditionner l'icône sur :
-PersonnePhysiqueLabIsDeclarationTracfin.checked
+Ajouter :
 
-Ne pas conditionner l'icône sur :
-DossierLabPersonneMoralesIsDeclarationTracfin.checked
+services.AddScoped<IAccesPiecesJointesDirectionService, AccesPiecesJointesDirectionService>();
+
+============================================================
+14. NON-RÉGRESSION
+============================================================
 
 Ne pas modifier :
-- la logique existante IntegreeDs
-- la suppression PP/PM
-- la recherche tiers existante
-- le téléchargement PJ existant
-- les handlers existants de #DirectionId
+- la checkbox IntegreeDs
+- sa valeur cochée/décochée
+- les handlers existants de la checkbox
+- les boutons search/trash/card existants
+- les téléchargements PJ existants
+- la logique de changement de direction
 
-============================================================
-23. POINT À TERMINER PROPREMENT DANS LE CONTRÔLEUR
-============================================================
-
-Les actions SearchPiecesIdentitePersonnePhysique / SearchPiecesIdentitePersonneMorale / DownloadPiecesIdentiteZip ci-dessus sont volontairement données avec le squelette sécurisé.
-
-Il reste à brancher les requêtes sur les vrais services existants :
-- PersonnePhysiqueLabService
-- PersonneMoraleLabService
-- LabAttachmentService
-
-C’est la seule partie où je veux éviter de te donner une requête approximative sur les relations exactes du modèle.
+La nouvelle fonctionnalité est ajoutée à côté.
