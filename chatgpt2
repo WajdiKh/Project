@@ -1458,3 +1458,143 @@ public async Task<IActionResult> DownloadPiecesIdentiteZip(
         "application/zip",
         $"PiecesIdentite_{DateTime.Now:yyyyMMddHHmmss}.zip");
 }
+// ==========================================================
+// 1. ILabAttachmentService
+// Remplacer IEnumerable<int> par IReadOnlyCollection<int>
+// ==========================================================
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
+    PersonnePhysiqueLab personneSource,
+    IReadOnlyCollection<int> directionsCibles,
+    IReadOnlyCollection<int> typeDocumentIds,
+    CancellationToken token = default);
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
+    PersonneMoraleLab personneSource,
+    IReadOnlyCollection<int> directionsCibles,
+    IReadOnlyCollection<int> typeDocumentIds,
+    CancellationToken token = default);
+
+Task<byte[]> BuildPiecesIdentiteZipAsync(
+    int dossierLabId,
+    Guid personneId,
+    IReadOnlyCollection<int> typeDocumentIds,
+    CancellationToken token = default);
+
+
+// ==========================================================
+// 2. LabAttachmentService
+// Supprimer les ToList() inutiles
+// ==========================================================
+
+public async Task<List<PieceIdentiteSearchResultViewModel>>
+    SearchPiecesIdentitePersonnePhysiqueAsync(
+        PersonnePhysiqueLab personneSource,
+        IReadOnlyCollection<int> directionsCibles,
+        IReadOnlyCollection<int> typeDocumentIds,
+        CancellationToken token = default)
+{
+    return await _context.DossierLabPersonnePhysiques
+        .AsNoTracking()
+        .Where(x =>
+            x.PersonnePhysiqueLab.IdPersonne.HasValue
+            && directionsCibles.Contains(x.DossierLab.DirectionId)
+            && x.PersonnePhysiqueLab.NomNaissance == personneSource.NomNaissance
+            && x.PersonnePhysiqueLab.Prenoms == personneSource.Prenoms
+            && x.PersonnePhysiqueLab.DateNaissance == personneSource.DateNaissance
+            && _context.DocumentDossierLabs.Any(d =>
+                d.DossierLabId == x.DossierLabId
+                && d.PersonneAssocieId == x.PersonnePhysiqueLab.IdPersonne
+                && d.TypeDocumentLabId.HasValue
+                && typeDocumentIds.Contains(d.TypeDocumentLabId.Value)
+                && !d.IsDeleted))
+        .Select(x => new PieceIdentiteSearchResultViewModel
+        {
+            DossierLabId = x.DossierLabId,
+            PersonneId = x.PersonnePhysiqueLab.IdPersonne.Value,
+            IsPersonneMorale = false,
+            Nom = x.PersonnePhysiqueLab.NomNaissance,
+            Prenom = x.PersonnePhysiqueLab.Prenoms,
+            DateNaissance = x.PersonnePhysiqueLab.DateNaissance,
+            CodeDossier = x.DossierLab.CodeUnique,
+            DirectionId = x.DossierLab.DirectionId,
+            DirectionName = x.DossierLab.Direction.Nom
+        })
+        .ToListAsync(token);
+}
+
+public async Task<List<PieceIdentiteSearchResultViewModel>>
+    SearchPiecesIdentitePersonneMoraleAsync(
+        PersonneMoraleLab personneSource,
+        IReadOnlyCollection<int> directionsCibles,
+        IReadOnlyCollection<int> typeDocumentIds,
+        CancellationToken token = default)
+{
+    return await _context.DossierLabPersonneMorales
+        .AsNoTracking()
+        .Where(x =>
+            x.PersonneMoraleLab.IdPersonne.HasValue
+            && directionsCibles.Contains(x.DossierLab.DirectionId)
+            && x.PersonneMoraleLab.RaisonSociale == personneSource.RaisonSociale
+            && x.PersonneMoraleLab.NumeroImmatriculation == personneSource.NumeroImmatriculation
+            && _context.DocumentDossierLabs.Any(d =>
+                d.DossierLabId == x.DossierLabId
+                && d.PersonneAssocieId == x.PersonneMoraleLab.IdPersonne
+                && d.TypeDocumentLabId.HasValue
+                && typeDocumentIds.Contains(d.TypeDocumentLabId.Value)
+                && !d.IsDeleted))
+        .Select(x => new PieceIdentiteSearchResultViewModel
+        {
+            DossierLabId = x.DossierLabId,
+            PersonneId = x.PersonneMoraleLab.IdPersonne.Value,
+            IsPersonneMorale = true,
+            RaisonSociale = x.PersonneMoraleLab.RaisonSociale,
+            NumeroImmatriculation = x.PersonneMoraleLab.NumeroImmatriculation,
+            CodeDossier = x.DossierLab.CodeUnique,
+            DirectionId = x.DossierLab.DirectionId,
+            DirectionName = x.DossierLab.Direction.Nom
+        })
+        .ToListAsync(token);
+}
+
+public async Task<byte[]> BuildPiecesIdentiteZipAsync(
+    int dossierLabId,
+    Guid personneId,
+    IReadOnlyCollection<int> typeDocumentIds,
+    CancellationToken token = default)
+{
+    var documents = await _context.DocumentDossierLabs
+        .Where(x =>
+            x.DossierLabId == dossierLabId
+            && x.PersonneAssocieId == personneId
+            && x.TypeDocumentLabId.HasValue
+            && typeDocumentIds.Contains(x.TypeDocumentLabId.Value)
+            && !x.IsDeleted)
+        .Include(x => x.DocumentLab)
+        .ToListAsync(token);
+
+    if (!documents.Any())
+        return Array.Empty<byte>();
+
+    using var memoryStream = new MemoryStream();
+
+    using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true))
+    {
+        foreach (var document in documents)
+        {
+            var entry = archive.CreateEntry(
+                document.DocumentLab.Name,
+                CompressionLevel.Fastest);
+
+            using var entryStream = entry.Open();
+
+            await entryStream.WriteAsync(
+                document.DocumentLab.FileContent,
+                0,
+                document.DocumentLab.FileContent.Length,
+                token);
+        }
+    }
+
+    return memoryStream.ToArray();
+}
