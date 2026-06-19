@@ -1598,3 +1598,52 @@ public async Task<byte[]> BuildPiecesIdentiteZipAsync(
 
     return memoryStream.ToArray();
 }
+
+// ==========================================================
+// IPersonnePhysiqueLabService.cs
+// Ajouter
+// ==========================================================
+
+Task<PersonnePhysiqueLab> GetByIdPersonneAsync(
+    Guid idPersonne,
+    CancellationToken token = default);
+
+
+// ==========================================================
+// PersonnePhysiqueLabService.cs
+// Ajouter
+// ==========================================================
+
+public async Task<PersonnePhysiqueLab> GetByIdPersonneAsync(
+    Guid idPersonne,
+    CancellationToken token = default)
+{
+    return await Context.PersonnePhysiqueLabs
+        .AsNoTracking()
+        .FirstOrDefaultAsync(x => x.IdPersonne == idPersonne, token);
+}
+
+
+// ==========================================================
+// IPersonneMoraleLabService.cs
+// Ajouter
+// ==========================================================
+
+Task<PersonneMoraleLab> GetByIdPersonneAsync(
+    Guid idPersonne,
+    CancellationToken token = default);
+
+
+// ==========================================================
+// PersonneMoraleLabService.cs
+// Ajouter
+// ==========================================================
+
+public async Task<PersonneMoraleLab> GetByIdPersonneAsync(
+    Guid idPersonne,
+    CancellationToken token = default)
+{
+    return await Context.PersonneMoraleLabs
+        .AsNoTracking()
+        .FirstOrDefaultAsync(x => x.IdPersonne == idPersonne, token);
+}
