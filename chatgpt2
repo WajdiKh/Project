@@ -1,18 +1,1 @@
-var dateNaissance = $("#PersonnePhysiqueLabDateNaissance" + index)
-    .dxDateBox("instance")
-    .option("value");
-
-var dateNaissanceUtc = null;
-
-if (dateNaissance) {
-
-    dateNaissanceUtc = new Date(Date.UTC(
-        dateNaissance.getFullYear(),
-        dateNaissance.getMonth(),
-        dateNaissance.getDate(),
-        0,
-        0,
-        0,
-        0))
-        .toISOString();
-}
+font-size-16px text-green text-font-weight-600 smallCaps text-green
