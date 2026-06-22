@@ -1,1 +1,29 @@
-font-size-16px text-green text-font-weight-600 smallCaps text-green
+function showPiecesIdentitePopup(data, isPersonneMorale) {
+    if (!data || data.length === 0) {
+        DevExpress.ui.notify(_labPiecesIdentiteNoResult, "info", 3000);
+        return;
+    }
+
+    if ($("#piecesIdentitePopup").length === 0) {
+        $("body").append('<div id="piecesIdentitePopup"></div>');
+    }
+
+    $("#piecesIdentitePopup").dxPopup({
+        title: _labPiecesIdentiteTitle,
+        width: "80%",
+        height: "auto",
+        showTitle: true,
+        dragEnabled: true,
+        showCloseButton: true,
+        contentTemplate: function (contentElement) {
+            $("<div>")
+                .dxDataGrid({
+                    dataSource: data,
+                    showBorders: true,
+                    columnAutoWidth: true,
+                    columns: getPiecesIdentiteColumns(isPersonneMorale)
+                })
+                .appendTo(contentElement);
+        }
+    }).dxPopup("instance").show();
+}
