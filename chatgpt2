@@ -1,1 +1,18 @@
-Mon Jun 01 2026 00:00:00 GMT+0200 (heure d’été d’Europe centrale)
+var dateNaissance = $("#PersonnePhysiqueLabDateNaissance" + index)
+    .dxDateBox("instance")
+    .option("value");
+
+var dateNaissanceUtc = null;
+
+if (dateNaissance) {
+
+    dateNaissanceUtc = new Date(Date.UTC(
+        dateNaissance.getFullYear(),
+        dateNaissance.getMonth(),
+        dateNaissance.getDate(),
+        0,
+        0,
+        0,
+        0))
+        .toISOString();
+}
