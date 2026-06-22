@@ -1,9 +1,46 @@
-function isDeclarationSoupconChecked() {
-    var checkBox = $("#IsDeclarationSoupcon").dxCheckBox("instance");
+.Hint(translator.Common["Lab.PiecesIdentite.SearchAndDownload"])
 
-    if (!checkBox) {
-        return false;
-    }
+USE [BacaratWeb]
+GO
 
-    return checkBox.option("value") === true;
-}
+DECLARE @Traductions TABLE
+(
+    Id NVARCHAR(250) NOT NULL,
+    FrenchTranslate VARCHAR(MAX) NOT NULL,
+    EnglishTranslate VARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @Traductions
+(
+    Id,
+    FrenchTranslate,
+    EnglishTranslate
+)
+VALUES
+(
+    N'Lab.PiecesIdentite.SearchAndDownload',
+    'Rechercher et télécharger les pièces d''identité',
+    'Search and download identity documents'
+);
+
+MERGE [Commun].[Traduction] AS target
+USING @Traductions AS source
+    ON target.Id = source.Id
+WHEN MATCHED THEN
+    UPDATE SET
+        target.FrenchTranslate = source.FrenchTranslate,
+        target.EnglishTranslate = source.EnglishTranslate
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT
+    (
+        Id,
+        FrenchTranslate,
+        EnglishTranslate
+    )
+    VALUES
+    (
+        source.Id,
+        source.FrenchTranslate,
+        source.EnglishTranslate
+    );
+GO
