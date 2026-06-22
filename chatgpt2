@@ -1,146 +1,7 @@
-CORRECTION D'ARCHITECTURE SUITE À LA REVUE DE LabAttachmentService
-
-Tu as raison :
-LabAttachmentService n'utilise pas directement le DbContext dans le code existant.
-Il délègue systématiquement aux services métier/repository déjà en place.
-
-Donc il faut corriger ce que j'avais proposé.
-
-=========================================================
-1. ILabAttachmentService
-=========================================================
-
-Les signatures restent identiques :
-
-Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
-    PersonnePhysiqueLab personneSource,
-    IReadOnlyCollection<int> directionsCibles,
-    IReadOnlyCollection<int> typeDocumentIds,
-    CancellationToken token = default);
-
-Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
-    PersonneMoraleLab personneSource,
-    IReadOnlyCollection<int> directionsCibles,
-    IReadOnlyCollection<int> typeDocumentIds,
-    CancellationToken token = default);
-
-Task<byte[]> BuildPiecesIdentiteZipAsync(
-    int dossierLabId,
-    Guid personneId,
-    IReadOnlyCollection<int> typeDocumentIds,
-    CancellationToken token = default);
-
-=========================================================
-2. LabAttachmentService
-=========================================================
-
-SUPPRIMER COMPLÈTEMENT :
-
-_context.DossierLabPersonnePhysiques
-_context.DossierLabPersonneMorales
-_context.DocumentDossierLabs
-
-et toute requête EF ajoutée pour cette évolution.
-
-=========================================================
-3. NOUVELLES DÉPENDANCES À INJECTER
-=========================================================
-
-LabAttachmentService doit utiliser les services déjà existants du module Lab.
-
-Typiquement :
-
-private readonly IDocumentDossierLabService _documentDossierLabService;
-
-ou les services déjà utilisés actuellement par LabAttachmentService
-(selon la dernière version présente dans Github).
-
-=========================================================
-4. SearchPiecesIdentitePersonnePhysiqueAsync
-=========================================================
-
-La méthode devient un orchestrateur.
-
-Exemple :
-
-public async Task<List<PieceIdentiteSearchResultViewModel>>
-    SearchPiecesIdentitePersonnePhysiqueAsync(
-        PersonnePhysiqueLab personneSource,
-        IReadOnlyCollection<int> directionsCibles,
-        IReadOnlyCollection<int> typeDocumentIds,
-        CancellationToken token = default)
-{
-    return await _documentDossierLabService
-        .SearchPiecesIdentitePersonnePhysiqueAsync(
-            personneSource,
-            directionsCibles,
-            typeDocumentIds,
-            token);
-}
-
-=========================================================
-5. SearchPiecesIdentitePersonneMoraleAsync
-=========================================================
-
-public async Task<List<PieceIdentiteSearchResultViewModel>>
-    SearchPiecesIdentitePersonneMoraleAsync(
-        PersonneMoraleLab personneSource,
-        IReadOnlyCollection<int> directionsCibles,
-        IReadOnlyCollection<int> typeDocumentIds,
-        CancellationToken token = default)
-{
-    return await _documentDossierLabService
-        .SearchPiecesIdentitePersonneMoraleAsync(
-            personneSource,
-            directionsCibles,
-            typeDocumentIds,
-            token);
-}
-
-=========================================================
-6. BuildPiecesIdentiteZipAsync
-=========================================================
-
-public async Task<byte[]> BuildPiecesIdentiteZipAsync(
-    int dossierLabId,
-    Guid personneId,
-    IReadOnlyCollection<int> typeDocumentIds,
-    CancellationToken token = default)
-{
-    var documents =
-        await _documentDossierLabService
-            .GetPiecesIdentiteDocumentsAsync(
-                dossierLabId,
-                personneId,
-                typeDocumentIds,
-                token);
-
-    return BuildZip(documents);
-}
-
-=========================================================
-7. OÙ METTRE LES REQUÊTES EF ?
-=========================================================
-
-Les requêtes EF que j'avais écrites doivent être déplacées dans le service
-qui manipule déjà DocumentDossierLab.
-
-Probablement :
-
-- IDocumentDossierLabService
-- DocumentDossierLabService
-
-car c'est lui qui porte déjà le métier :
-
-- DossierLab
-- DocumentDossierLab
-- PersonneAssocieId
-- TypeDocumentLabId
-
-=========================================================
-8. NOUVELLES MÉTHODES À AJOUTER DANS
-   IDocumentDossierLabService
-=========================================================
+// ==========================================================
+// IDocumentDossierLabService
+// NOUVELLES MÉTHODES
+// ==========================================================
 
 Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
     PersonnePhysiqueLab personneSource,
@@ -160,35 +21,209 @@ Task<List<DocumentDossierLab>> GetPiecesIdentiteDocumentsAsync(
     IReadOnlyCollection<int> typeDocumentIds,
     CancellationToken token = default);
 
-=========================================================
-9. ServiceLabController
-=========================================================
 
-AUCUN CHANGEMENT par rapport à la version précédente.
 
-Le controller continue à :
+// ==========================================================
+// DocumentDossierLabService
+// ==========================================================
 
-- récupérer la direction source
-- récupérer les droits via AccesPiecesJointesDirectionService
-- récupérer la PP/PM via PersonnePhysiqueLabService ou PersonneMoraleLabService
-- appeler LabAttachmentService
+public async Task<List<PieceIdentiteSearchResultViewModel>>
+    SearchPiecesIdentitePersonnePhysiqueAsync(
+        PersonnePhysiqueLab personneSource,
+        IReadOnlyCollection<int> directionsCibles,
+        IReadOnlyCollection<int> typeDocumentIds,
+        CancellationToken token = default)
+{
+    if (personneSource?.IdPersonne == null)
+        return new List<PieceIdentiteSearchResultViewModel>();
 
-=========================================================
-10. BÉNÉFICE
-=========================================================
+    return await Repository.Query()
+        .AsNoTracking()
+        .Where(x =>
+            !x.IsDeleted
+            && x.PersonneAssocieId == personneSource.IdPersonne
+            && x.TypeDocumentLabId.HasValue
+            && typeDocumentIds.Contains(x.TypeDocumentLabId.Value))
+        .SelectMany(x => x.DossierLab.DossierLabPersonnePhysiques)
+        .Where(x =>
+            x.PersonnePhysiqueLab.IdPersonne.HasValue
+            && directionsCibles.Contains(x.DossierLab.DirectionId)
+            && x.PersonnePhysiqueLab.NomNaissance == personneSource.NomNaissance
+            && x.PersonnePhysiqueLab.Prenoms == personneSource.Prenoms
+            && x.PersonnePhysiqueLab.DateNaissance == personneSource.DateNaissance)
+        .Select(x => new PieceIdentiteSearchResultViewModel
+        {
+            DossierLabId = x.DossierLabId,
+            PersonneId = x.PersonnePhysiqueLab.IdPersonne.Value,
+            IsPersonneMorale = false,
+            Nom = x.PersonnePhysiqueLab.NomNaissance,
+            Prenom = x.PersonnePhysiqueLab.Prenoms,
+            DateNaissance = x.PersonnePhysiqueLab.DateNaissance,
+            CodeDossier = x.DossierLab.CodeUnique,
+            DirectionId = x.DossierLab.DirectionId,
+            DirectionName = x.DossierLab.Direction.Nom
+        })
+        .Distinct()
+        .ToListAsync(token);
+}
 
-On respecte complètement l'architecture actuelle du module Lab :
+public async Task<List<PieceIdentiteSearchResultViewModel>>
+    SearchPiecesIdentitePersonneMoraleAsync(
+        PersonneMoraleLab personneSource,
+        IReadOnlyCollection<int> directionsCibles,
+        IReadOnlyCollection<int> typeDocumentIds,
+        CancellationToken token = default)
+{
+    if (personneSource?.IdPersonne == null)
+        return new List<PieceIdentiteSearchResultViewModel>();
 
-Controller
-    -> AccesPiecesJointesDirectionService
-    -> PersonnePhysiqueLabService
-    -> PersonneMoraleLabService
-    -> LabAttachmentService
+    return await Repository.Query()
+        .AsNoTracking()
+        .Where(x =>
+            !x.IsDeleted
+            && x.PersonneAssocieId == personneSource.IdPersonne
+            && x.TypeDocumentLabId.HasValue
+            && typeDocumentIds.Contains(x.TypeDocumentLabId.Value))
+        .SelectMany(x => x.DossierLab.DossierLabPersonneMorales)
+        .Where(x =>
+            x.PersonneMoraleLab.IdPersonne.HasValue
+            && directionsCibles.Contains(x.DossierLab.DirectionId)
+            && x.PersonneMoraleLab.RaisonSociale == personneSource.RaisonSociale
+            && x.PersonneMoraleLab.NumeroImmatriculation == personneSource.NumeroImmatriculation)
+        .Select(x => new PieceIdentiteSearchResultViewModel
+        {
+            DossierLabId = x.DossierLabId,
+            PersonneId = x.PersonneMoraleLab.IdPersonne.Value,
+            IsPersonneMorale = true,
+            RaisonSociale = x.PersonneMoraleLab.RaisonSociale,
+            NumeroImmatriculation = x.PersonneMoraleLab.NumeroImmatriculation,
+            CodeDossier = x.DossierLab.CodeUnique,
+            DirectionId = x.DossierLab.DirectionId,
+            DirectionName = x.DossierLab.Direction.Nom
+        })
+        .Distinct()
+        .ToListAsync(token);
+}
 
-LabAttachmentService
-    -> DocumentDossierLabService
+public async Task<List<DocumentDossierLab>>
+    GetPiecesIdentiteDocumentsAsync(
+        int dossierLabId,
+        Guid personneId,
+        IReadOnlyCollection<int> typeDocumentIds,
+        CancellationToken token = default)
+{
+    return await Repository.Query()
+        .Include(x => x.DocumentLab)
+        .Where(x =>
+            !x.IsDeleted
+            && x.DossierLabId == dossierLabId
+            && x.PersonneAssocieId == personneId
+            && x.TypeDocumentLabId.HasValue
+            && typeDocumentIds.Contains(x.TypeDocumentLabId.Value))
+        .ToListAsync(token);
+}
 
-DocumentDossierLabService
-    -> Repository / EF
 
-Aucun accès direct au DbContext ajouté dans LabAttachmentService.
+
+// ==========================================================
+// LabAttachmentService
+// ==========================================================
+
+public async Task<byte[]> BuildPiecesIdentiteZipAsync(
+    int dossierLabId,
+    Guid personneId,
+    IReadOnlyCollection<int> typeDocumentIds,
+    CancellationToken token = default)
+{
+    var documents =
+        await _documentDossierLabService
+            .GetPiecesIdentiteDocumentsAsync(
+                dossierLabId,
+                personneId,
+                typeDocumentIds,
+                token);
+
+    return BuildZip(documents);
+}
+
+
+// ==========================================================
+// MÉTHODE PRIVÉE À AJOUTER DANS LabAttachmentService
+// ==========================================================
+
+private static byte[] BuildZip(
+    IReadOnlyCollection<DocumentDossierLab> documents)
+{
+    if (documents == null || !documents.Any())
+        return Array.Empty<byte>();
+
+    using var memoryStream = new MemoryStream();
+
+    using (var archive = new ZipArchive(
+        memoryStream,
+        ZipArchiveMode.Create,
+        true))
+    {
+        foreach (var document in documents)
+        {
+            if (document.DocumentLab?.Document == null)
+                continue;
+
+            var fileName =
+                string.IsNullOrWhiteSpace(document.DocumentLab.Name)
+                    ? document.DocumentLab.Document.FileName
+                    : document.DocumentLab.Name;
+
+            var entry = archive.CreateEntry(
+                fileName,
+                CompressionLevel.Fastest);
+
+            using var entryStream = entry.Open();
+
+            entryStream.Write(
+                document.DocumentLab.Document,
+                0,
+                document.DocumentLab.Document.Length);
+        }
+    }
+
+    return memoryStream.ToArray();
+}
+
+
+
+// ==========================================================
+// USINGS À AJOUTER DANS LabAttachmentService
+// ==========================================================
+
+using System.IO;
+using System.IO.Compression;
+
+
+
+// ==========================================================
+// POINT IMPORTANT À VÉRIFIER DANS TON GITHUB
+// ==========================================================
+
+J'ai supposé que :
+
+document.DocumentLab.Document
+
+est le byte[] contenant le fichier.
+
+Vérifie dans l'entité DocumentLab.
+
+Si le champ s'appelle :
+
+- FileContent
+- Content
+- BinaryContent
+- Fichier
+
+alors remplace simplement :
+
+document.DocumentLab.Document
+
+par le vrai nom de la propriété.
+
+C'est le seul point que je ne peux pas garantir sans relire l'entité DocumentLab exacte.
