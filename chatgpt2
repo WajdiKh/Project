@@ -1,156 +1,3 @@
-// ==========================================================
-// IDocumentDossierLabService
-// NOUVELLES MÉTHODES
-// ==========================================================
-
-Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
-    PersonnePhysiqueLab personneSource,
-    IReadOnlyCollection<int> directionsCibles,
-    IReadOnlyCollection<int> typeDocumentIds,
-    CancellationToken token = default);
-
-Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
-    PersonneMoraleLab personneSource,
-    IReadOnlyCollection<int> directionsCibles,
-    IReadOnlyCollection<int> typeDocumentIds,
-    CancellationToken token = default);
-
-Task<List<DocumentDossierLab>> GetPiecesIdentiteDocumentsAsync(
-    int dossierLabId,
-    Guid personneId,
-    IReadOnlyCollection<int> typeDocumentIds,
-    CancellationToken token = default);
-
-
-
-// ==========================================================
-// DocumentDossierLabService
-// ==========================================================
-
-public async Task<List<PieceIdentiteSearchResultViewModel>>
-    SearchPiecesIdentitePersonnePhysiqueAsync(
-        PersonnePhysiqueLab personneSource,
-        IReadOnlyCollection<int> directionsCibles,
-        IReadOnlyCollection<int> typeDocumentIds,
-        CancellationToken token = default)
-{
-    if (personneSource?.IdPersonne == null)
-        return new List<PieceIdentiteSearchResultViewModel>();
-
-    return await Repository.Query()
-        .AsNoTracking()
-        .Where(x =>
-            !x.IsDeleted
-            && x.PersonneAssocieId == personneSource.IdPersonne
-            && x.TypeDocumentLabId.HasValue
-            && typeDocumentIds.Contains(x.TypeDocumentLabId.Value))
-        .SelectMany(x => x.DossierLab.DossierLabPersonnePhysiques)
-        .Where(x =>
-            x.PersonnePhysiqueLab.IdPersonne.HasValue
-            && directionsCibles.Contains(x.DossierLab.DirectionId)
-            && x.PersonnePhysiqueLab.NomNaissance == personneSource.NomNaissance
-            && x.PersonnePhysiqueLab.Prenoms == personneSource.Prenoms
-            && x.PersonnePhysiqueLab.DateNaissance == personneSource.DateNaissance)
-        .Select(x => new PieceIdentiteSearchResultViewModel
-        {
-            DossierLabId = x.DossierLabId,
-            PersonneId = x.PersonnePhysiqueLab.IdPersonne.Value,
-            IsPersonneMorale = false,
-            Nom = x.PersonnePhysiqueLab.NomNaissance,
-            Prenom = x.PersonnePhysiqueLab.Prenoms,
-            DateNaissance = x.PersonnePhysiqueLab.DateNaissance,
-            CodeDossier = x.DossierLab.CodeUnique,
-            DirectionId = x.DossierLab.DirectionId,
-            DirectionName = x.DossierLab.Direction.Nom
-        })
-        .Distinct()
-        .ToListAsync(token);
-}
-
-public async Task<List<PieceIdentiteSearchResultViewModel>>
-    SearchPiecesIdentitePersonneMoraleAsync(
-        PersonneMoraleLab personneSource,
-        IReadOnlyCollection<int> directionsCibles,
-        IReadOnlyCollection<int> typeDocumentIds,
-        CancellationToken token = default)
-{
-    if (personneSource?.IdPersonne == null)
-        return new List<PieceIdentiteSearchResultViewModel>();
-
-    return await Repository.Query()
-        .AsNoTracking()
-        .Where(x =>
-            !x.IsDeleted
-            && x.PersonneAssocieId == personneSource.IdPersonne
-            && x.TypeDocumentLabId.HasValue
-            && typeDocumentIds.Contains(x.TypeDocumentLabId.Value))
-        .SelectMany(x => x.DossierLab.DossierLabPersonneMorales)
-        .Where(x =>
-            x.PersonneMoraleLab.IdPersonne.HasValue
-            && directionsCibles.Contains(x.DossierLab.DirectionId)
-            && x.PersonneMoraleLab.RaisonSociale == personneSource.RaisonSociale
-            && x.PersonneMoraleLab.NumeroImmatriculation == personneSource.NumeroImmatriculation)
-        .Select(x => new PieceIdentiteSearchResultViewModel
-        {
-            DossierLabId = x.DossierLabId,
-            PersonneId = x.PersonneMoraleLab.IdPersonne.Value,
-            IsPersonneMorale = true,
-            RaisonSociale = x.PersonneMoraleLab.RaisonSociale,
-            NumeroImmatriculation = x.PersonneMoraleLab.NumeroImmatriculation,
-            CodeDossier = x.DossierLab.CodeUnique,
-            DirectionId = x.DossierLab.DirectionId,
-            DirectionName = x.DossierLab.Direction.Nom
-        })
-        .Distinct()
-        .ToListAsync(token);
-}
-
-public async Task<List<DocumentDossierLab>>
-    GetPiecesIdentiteDocumentsAsync(
-        int dossierLabId,
-        Guid personneId,
-        IReadOnlyCollection<int> typeDocumentIds,
-        CancellationToken token = default)
-{
-    return await Repository.Query()
-        .Include(x => x.DocumentLab)
-        .Where(x =>
-            !x.IsDeleted
-            && x.DossierLabId == dossierLabId
-            && x.PersonneAssocieId == personneId
-            && x.TypeDocumentLabId.HasValue
-            && typeDocumentIds.Contains(x.TypeDocumentLabId.Value))
-        .ToListAsync(token);
-}
-
-
-
-// ==========================================================
-// LabAttachmentService
-// ==========================================================
-
-public async Task<byte[]> BuildPiecesIdentiteZipAsync(
-    int dossierLabId,
-    Guid personneId,
-    IReadOnlyCollection<int> typeDocumentIds,
-    CancellationToken token = default)
-{
-    var documents =
-        await _documentDossierLabService
-            .GetPiecesIdentiteDocumentsAsync(
-                dossierLabId,
-                personneId,
-                typeDocumentIds,
-                token);
-
-    return BuildZip(documents);
-}
-
-
-// ==========================================================
-// MÉTHODE PRIVÉE À AJOUTER DANS LabAttachmentService
-// ==========================================================
-
 private static byte[] BuildZip(
     IReadOnlyCollection<DocumentDossierLab> documents)
 {
@@ -166,13 +13,16 @@ private static byte[] BuildZip(
     {
         foreach (var document in documents)
         {
-            if (document.DocumentLab?.Document == null)
+            if (document.DocumentLab?.FileContent == null ||
+                document.DocumentLab.FileContent.Length == 0)
+            {
                 continue;
+            }
 
             var fileName =
-                string.IsNullOrWhiteSpace(document.DocumentLab.Name)
-                    ? document.DocumentLab.Document.FileName
-                    : document.DocumentLab.Name;
+                !string.IsNullOrWhiteSpace(document.DocumentLab.Name)
+                    ? document.DocumentLab.Name
+                    : $"PieceIdentite_{document.Id}";
 
             var entry = archive.CreateEntry(
                 fileName,
@@ -181,49 +31,11 @@ private static byte[] BuildZip(
             using var entryStream = entry.Open();
 
             entryStream.Write(
-                document.DocumentLab.Document,
+                document.DocumentLab.FileContent,
                 0,
-                document.DocumentLab.Document.Length);
+                document.DocumentLab.FileContent.Length);
         }
     }
 
     return memoryStream.ToArray();
 }
-
-
-
-// ==========================================================
-// USINGS À AJOUTER DANS LabAttachmentService
-// ==========================================================
-
-using System.IO;
-using System.IO.Compression;
-
-
-
-// ==========================================================
-// POINT IMPORTANT À VÉRIFIER DANS TON GITHUB
-// ==========================================================
-
-J'ai supposé que :
-
-document.DocumentLab.Document
-
-est le byte[] contenant le fichier.
-
-Vérifie dans l'entité DocumentLab.
-
-Si le champ s'appelle :
-
-- FileContent
-- Content
-- BinaryContent
-- Fichier
-
-alors remplace simplement :
-
-document.DocumentLab.Document
-
-par le vrai nom de la propriété.
-
-C'est le seul point que je ne peux pas garantir sans relire l'entité DocumentLab exacte.
