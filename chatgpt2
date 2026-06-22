@@ -1,7 +1,2 @@
-C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Lab\Services\LabAttachmentService.cs(213,38): error CS0246: Le nom de type ou d'espace de noms 'ZipArchive' est intr
-ouvable (vous manque-t-il une directive using ou une référence d'assembly ?) [C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\BacaratWeb.csproj]
-C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Lab\Services\LabAttachmentService.cs(215,17): error CS0103: Le nom 'ZipArchiveMode' n'existe pas dans le contexte ac
-tuel [C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\BacaratWeb.csproj]
-C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Lab\Services\LabAttachmentService.cs(233,25): error CS0103: Le nom 'CompressionLevel' n'existe pas dans le contexte 
-actuel [C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\BacaratWeb.csproj]
-    1607 Avertissement(s)
+using System.IO;
+using System.IO.Compression;
