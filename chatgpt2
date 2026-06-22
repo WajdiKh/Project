@@ -1,2 +1,8 @@
-using System.IO;
-using System.IO.Compression;
+C:\Program Files\dotnet\sdk\7.0.400\Microsoft.Common.CurrentVersion.targets(5198,5): error MSB3030: Impossible de copier le fichier "C:\Users\khemirw\source\repos\BacaratWeb\
+BacaratWeb\Certificates\sso-prod.crt", car il est introuvable. [C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\BacaratWeb.csproj]
+C:\Program Files\dotnet\sdk\7.0.400\Microsoft.Common.CurrentVersion.targets(5198,5): error MSB3030: Impossible de copier le fichier "C:\Users\khemirw\source\repos\BacaratWeb\
+BacaratWeb\Certificates\my.pfx", car il est introuvable. [C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\BacaratWeb.csproj]
+C:\Program Files\dotnet\sdk\7.0.400\Microsoft.Common.CurrentVersion.targets(5198,5): error MSB3030: Impossible de copier le fichier "C:\Users\khemirw\source\repos\BacaratWeb\
+BacaratWeb\Certificates\sso-recette.crt", car il est introuvable. [C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\BacaratWeb.csproj]
+C:\Program Files\dotnet\sdk\7.0.400\Microsoft.Common.CurrentVersion.targets(5198,5): error MSB3030: Impossible de copier le fichier "C:\Users\khemirw\source\repos\BacaratWeb\
+BacaratWeb\Certificates\sso.crt", car il est introuvable. [C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\BacaratWeb.csproj]
