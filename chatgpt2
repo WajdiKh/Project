@@ -1226,3 +1226,210 @@ IsDeclarationSoupcon.
 C'est plus robuste car on réutilise directement
 la condition métier serveur existante et on ne dépend
 pas de la visibilité CSS du composant DevExtreme.
+DERNIÈRE VERSION VALIDÉE
+
+Règle métier finale :
+
+Afficher l'icône "Pièces d'identité" uniquement si :
+
+1. La direction sélectionnée dans #DirectionId dispose d'un accès de recherche configuré dans AccesPiecesJointesDirection
+ET
+2. La checkbox IsDeclarationSoupcon est cochée
+
+=> On ne regarde plus la condition d'affichage de la checkbox.
+=> On ne regarde plus si le champ existe dans le DOM.
+=> On regarde uniquement sa valeur cochée/décochée.
+
+=========================================================
+1. PARTIAL PERSONNE PHYSIQUE
+=========================================================
+
+Bouton :
+
+@(Html.DevExtreme().Button()
+    .Icon("card")
+    .Hint(translator.Common["Lab.PiecesIdentite.IconTooltip"])
+    .ElementAttr(new Dictionary<string, object>
+    {
+        { "class", "color-blue btn-pieces-identite" }
+    })
+    .ID("btnPiecesIdentitePersonnePhysiqueLab" + Model.Item2)
+    .Visible(false)
+    .OnClick(@<text>
+        function () {
+            searchPiecesIdentitePersonnePhysique('@(Model.Item2)');
+        }
+    </text>)
+)
+
+Suppression complète de :
+
+data-can-display-integree-ds
+
+=========================================================
+2. PARTIAL PERSONNE MORALE
+=========================================================
+
+Bouton :
+
+@(Html.DevExtreme().Button()
+    .Icon("card")
+    .Hint(translator.Common["Lab.PiecesIdentite.IconTooltip"])
+    .ElementAttr(new Dictionary<string, object>
+    {
+        { "class", "color-blue btn-pieces-identite" }
+    })
+    .ID("btnPiecesIdentitePersonneMoraleLab" + Model.Item2)
+    .Visible(false)
+    .OnClick(@<text>
+        function () {
+            searchPiecesIdentitePersonneMorale('@(Model.Item2)');
+        }
+    </text>)
+)
+
+Suppression complète de :
+
+data-can-display-integree-ds
+
+=========================================================
+3. dossierlab.js
+=========================================================
+
+Ajouter :
+
+function isDeclarationSoupconChecked() {
+
+    var declarationSoupcon =
+        $("#IsDeclarationSoupcon");
+
+    if (declarationSoupcon.length === 0) {
+        return false;
+    }
+
+    return declarationSoupcon.is(":checked");
+}
+
+function canDisplayPiecesIdentite() {
+
+    return canSearchPiecesIdentite
+        && isDeclarationSoupconChecked();
+}
+
+function refreshPiecesIdentiteButtonsVisibility() {
+
+    $(".btn-pieces-identite")
+        .toggle(canDisplayPiecesIdentite());
+}
+
+=========================================================
+4. RECALCUL APRÈS CHANGEMENT DE DIRECTION
+=========================================================
+
+On garde ce qui avait déjà été ajouté :
+
+function refreshPiecesIdentiteAccess() {
+
+    var directionId = getSelectedDirectionId();
+
+    if (!directionId) {
+
+        canSearchPiecesIdentite = false;
+
+        refreshPiecesIdentiteButtonsVisibility();
+
+        return;
+    }
+
+    $.ajax({
+        method: "GET",
+        cache: false,
+        url: "/Lab/ServiceLab/HasAccesRecherchePiecesIdentite",
+        data: {
+            directionId: directionId
+        }
+    })
+    .done(function(result) {
+
+        canSearchPiecesIdentite =
+            result &&
+            result.hasAccess === true;
+
+        refreshPiecesIdentiteButtonsVisibility();
+    })
+    .fail(function() {
+
+        canSearchPiecesIdentite = false;
+
+        refreshPiecesIdentiteButtonsVisibility();
+    });
+}
+
+=========================================================
+5. RECALCUL APRÈS COCHER / DÉCOCHER
+=========================================================
+
+Si IsDeclarationSoupcon est une checkbox HTML classique :
+
+$(document).on(
+    "change",
+    "#IsDeclarationSoupcon",
+    function () {
+
+        refreshPiecesIdentiteButtonsVisibility();
+    });
+
+=========================================================
+6. SI IsDeclarationSoupcon EST UN DevExtreme CheckBox
+=========================================================
+
+Dans le OnValueChanged existant :
+
+function onIsDeclarationSoupconChanged(e) {
+
+    ...
+
+    refreshPiecesIdentiteButtonsVisibility();
+}
+
+ou simplement ajouter :
+
+refreshPiecesIdentiteButtonsVisibility();
+
+à la fin du handler déjà existant.
+
+=========================================================
+7. APRÈS CHARGEMENT DES PARTIALS PP / PM
+=========================================================
+
+Conserver :
+
+refreshPiecesIdentiteAccess();
+
+Cela permettra :
+
+- de recalculer le droit de recherche
+- puis d'afficher ou masquer automatiquement l'icône
+
+=========================================================
+8. CE QUI DISPARAÎT
+=========================================================
+
+SUPPRIMER COMPLÈTEMENT :
+
+- CanDisplayPiecesIdentite
+- data-can-display-integree-ds
+- toute logique liée à l'affichage de IntegreeDs
+
+=========================================================
+9. RÈGLE FINALE D'AFFICHAGE
+=========================================================
+
+Icône visible
+=
+Accès recherche autorisé pour la direction sélectionnée
+ET
+IsDeclarationSoupcon == true
+
+Sinon :
+icône masquée.
