@@ -1,41 +1,7 @@
-private static byte[] BuildZip(
-    IReadOnlyCollection<DocumentDossierLab> documents)
-{
-    if (documents == null || !documents.Any())
-        return Array.Empty<byte>();
-
-    using var memoryStream = new MemoryStream();
-
-    using (var archive = new ZipArchive(
-        memoryStream,
-        ZipArchiveMode.Create,
-        true))
-    {
-        foreach (var document in documents)
-        {
-            if (document.DocumentLab?.FileContent == null ||
-                document.DocumentLab.FileContent.Length == 0)
-            {
-                continue;
-            }
-
-            var fileName =
-                !string.IsNullOrWhiteSpace(document.DocumentLab.Name)
-                    ? document.DocumentLab.Name
-                    : $"PieceIdentite_{document.Id}";
-
-            var entry = archive.CreateEntry(
-                fileName,
-                CompressionLevel.Fastest);
-
-            using var entryStream = entry.Open();
-
-            entryStream.Write(
-                document.DocumentLab.FileContent,
-                0,
-                document.DocumentLab.FileContent.Length);
-        }
-    }
-
-    return memoryStream.ToArray();
-}
+C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Lab\Services\LabAttachmentService.cs(213,38): error CS0246: Le nom de type ou d'espace de noms 'ZipArchive' est intr
+ouvable (vous manque-t-il une directive using ou une référence d'assembly ?) [C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\BacaratWeb.csproj]
+C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Lab\Services\LabAttachmentService.cs(215,17): error CS0103: Le nom 'ZipArchiveMode' n'existe pas dans le contexte ac
+tuel [C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\BacaratWeb.csproj]
+C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Lab\Services\LabAttachmentService.cs(233,25): error CS0103: Le nom 'CompressionLevel' n'existe pas dans le contexte 
+actuel [C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\BacaratWeb.csproj]
+    1607 Avertissement(s)
