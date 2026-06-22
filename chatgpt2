@@ -1,1 +1,9 @@
-git restore BacaratWeb/Certificates
+function isDeclarationSoupconChecked() {
+    var checkBox = $("#IsDeclarationSoupcon").dxCheckBox("instance");
+
+    if (!checkBox) {
+        return false;
+    }
+
+    return checkBox.option("value") === true;
+}
