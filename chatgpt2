@@ -1433,3 +1433,26 @@ IsDeclarationSoupcon == true
 
 Sinon :
 icône masquée.
+
+// ==========================================================
+// ILabAttachmentService
+// Nouveaux membres à ajouter
+// ==========================================================
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
+    PersonnePhysiqueLab personneSource,
+    IReadOnlyCollection<int> directionsCibles,
+    IReadOnlyCollection<int> typeDocumentIds,
+    CancellationToken token = default);
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
+    PersonneMoraleLab personneSource,
+    IReadOnlyCollection<int> directionsCibles,
+    IReadOnlyCollection<int> typeDocumentIds,
+    CancellationToken token = default);
+
+Task<byte[]> BuildPiecesIdentiteZipAsync(
+    int dossierLabId,
+    Guid personneId,
+    IReadOnlyCollection<int> typeDocumentIds,
+    CancellationToken token = default);
