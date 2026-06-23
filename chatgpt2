@@ -1,6 +1,334 @@
-.pieces-identite-popup-title {
-    max-width: none !important;
-    overflow: visible !important;
-    text-overflow: unset !important;
-    white-space: normal !important;
+// ==========================================================
+// 1. Nouveau ViewModel technique
+// ==========================================================
+
+public sealed class AccesPiecesJointesDirectionAutoriseViewModel
+{
+    public int DirectionCibleId { get; set; }
+
+    public int TypeDocumentLabId { get; set; }
 }
+
+
+// ==========================================================
+// 2. IAccesPiecesJointesDirectionService
+// Remplacer les méthodes séparées par celle-ci
+// ==========================================================
+
+Task<List<AccesPiecesJointesDirectionAutoriseViewModel>> GetAccesRechercheAutorisesAsync(
+    int directionSourceId,
+    CancellationToken token = default);
+
+Task<List<AccesPiecesJointesDirectionAutoriseViewModel>> GetAccesTelechargementAutorisesAsync(
+    int directionSourceId,
+    int directionCibleId,
+    CancellationToken token = default);
+
+
+// ==========================================================
+// 3. AccesPiecesJointesDirectionService
+// ==========================================================
+
+public async Task<List<AccesPiecesJointesDirectionAutoriseViewModel>> GetAccesRechercheAutorisesAsync(
+    int directionSourceId,
+    CancellationToken token = default)
+{
+    return await _context.AccesPiecesJointesDirections
+        .AsNoTracking()
+        .Where(x =>
+            x.DirectionSourceId == directionSourceId
+            && x.AutoriserRecherche
+            && x.IsActive)
+        .Select(x => new AccesPiecesJointesDirectionAutoriseViewModel
+        {
+            DirectionCibleId = x.DirectionCibleId,
+            TypeDocumentLabId = x.TypeDocumentLabId
+        })
+        .Distinct()
+        .ToListAsync(token);
+}
+
+public async Task<List<AccesPiecesJointesDirectionAutoriseViewModel>> GetAccesTelechargementAutorisesAsync(
+    int directionSourceId,
+    int directionCibleId,
+    CancellationToken token = default)
+{
+    return await _context.AccesPiecesJointesDirections
+        .AsNoTracking()
+        .Where(x =>
+            x.DirectionSourceId == directionSourceId
+            && x.DirectionCibleId == directionCibleId
+            && x.AutoriserTelechargement
+            && x.IsActive)
+        .Select(x => new AccesPiecesJointesDirectionAutoriseViewModel
+        {
+            DirectionCibleId = x.DirectionCibleId,
+            TypeDocumentLabId = x.TypeDocumentLabId
+        })
+        .Distinct()
+        .ToListAsync(token);
+}
+
+
+// ==========================================================
+// 4. ILabAttachmentService
+// Modifier les signatures
+// ==========================================================
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
+    string nom,
+    string prenoms,
+    DateTimeOffset? dateNaissance,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default);
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
+    string raisonSociale,
+    string numeroImmatriculation,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default);
+
+Task<byte[]> BuildPiecesIdentiteZipAsync(
+    int dossierLabId,
+    Guid personneId,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default);
+
+
+// ==========================================================
+// 5. LabAttachmentService
+// ==========================================================
+
+public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
+    string nom,
+    string prenoms,
+    DateTimeOffset? dateNaissance,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default)
+{
+    return await _documentDossierLabService
+        .SearchPiecesIdentitePersonnePhysiqueAsync(
+            nom,
+            prenoms,
+            dateNaissance,
+            accesAutorises,
+            token);
+}
+
+public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
+    string raisonSociale,
+    string numeroImmatriculation,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default)
+{
+    return await _documentDossierLabService
+        .SearchPiecesIdentitePersonneMoraleAsync(
+            raisonSociale,
+            numeroImmatriculation,
+            accesAutorises,
+            token);
+}
+
+public async Task<byte[]> BuildPiecesIdentiteZipAsync(
+    int dossierLabId,
+    Guid personneId,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default)
+{
+    var documents = await _documentDossierLabService
+        .GetPiecesIdentiteDocumentsAsync(
+            dossierLabId,
+            personneId,
+            accesAutorises,
+            token);
+
+    return BuildZip(documents);
+}
+
+
+// ==========================================================
+// 6. IDocumentDossierLabService
+// Modifier les signatures
+// ==========================================================
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
+    string nom,
+    string prenoms,
+    DateTimeOffset? dateNaissance,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default);
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
+    string raisonSociale,
+    string numeroImmatriculation,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default);
+
+Task<List<DocumentDossierLab>> GetPiecesIdentiteDocumentsAsync(
+    int dossierLabId,
+    Guid personneId,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default);
+
+
+// ==========================================================
+// 7. DocumentDossierLabService
+// Corriger la recherche en respectant le couple DirectionCibleId + TypeDocumentLabId
+// ==========================================================
+
+public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
+    string nom,
+    string prenoms,
+    DateTimeOffset? dateNaissance,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default)
+{
+    if (string.IsNullOrWhiteSpace(nom)
+        || string.IsNullOrWhiteSpace(prenoms)
+        || !dateNaissance.HasValue
+        || accesAutorises == null
+        || !accesAutorises.Any())
+    {
+        return new List<PieceIdentiteSearchResultViewModel>();
+    }
+
+    return await Repository.Query()
+        .AsNoTracking()
+        .Where(document =>
+            !document.IsDeleted
+            && document.TypeDocumentLabId.HasValue
+            && accesAutorises.Any(acces =>
+                acces.DirectionCibleId == document.DossierLab.DirectionId
+                && acces.TypeDocumentLabId == document.TypeDocumentLabId.Value))
+        .SelectMany(document => document.DossierLab.DossierLabPersonnePhysiques)
+        .Where(personne =>
+            personne.PersonnePhysiqueLab.IdPersonne.HasValue
+            && personne.PersonnePhysiqueLab.NomNaissance == nom
+            && personne.PersonnePhysiqueLab.Prenoms == prenoms
+            && personne.PersonnePhysiqueLab.DateNaissance == dateNaissance.Value)
+        .Select(personne => new PieceIdentiteSearchResultViewModel
+        {
+            DossierLabId = personne.DossierLabId,
+            PersonneId = personne.PersonnePhysiqueLab.IdPersonne.Value,
+            IsPersonneMorale = false,
+            Nom = personne.PersonnePhysiqueLab.NomNaissance,
+            Prenom = personne.PersonnePhysiqueLab.Prenoms,
+            DateNaissance = personne.PersonnePhysiqueLab.DateNaissance,
+            CodeDossier = personne.DossierLab.CodeUnique,
+            DirectionId = personne.DossierLab.DirectionId,
+            DirectionCibleId = personne.DossierLab.DirectionId,
+            DirectionName = personne.DossierLab.Direction.Nom
+        })
+        .Distinct()
+        .ToListAsync(token);
+}
+
+public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
+    string raisonSociale,
+    string numeroImmatriculation,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default)
+{
+    if (string.IsNullOrWhiteSpace(raisonSociale)
+        || string.IsNullOrWhiteSpace(numeroImmatriculation)
+        || accesAutorises == null
+        || !accesAutorises.Any())
+    {
+        return new List<PieceIdentiteSearchResultViewModel>();
+    }
+
+    return await Repository.Query()
+        .AsNoTracking()
+        .Where(document =>
+            !document.IsDeleted
+            && document.TypeDocumentLabId.HasValue
+            && accesAutorises.Any(acces =>
+                acces.DirectionCibleId == document.DossierLab.DirectionId
+                && acces.TypeDocumentLabId == document.TypeDocumentLabId.Value))
+        .SelectMany(document => document.DossierLab.DossierLabPersonneMorales)
+        .Where(personne =>
+            personne.PersonneMoraleLab.IdPersonne.HasValue
+            && personne.PersonneMoraleLab.RaisonSociale == raisonSociale
+            && personne.PersonneMoraleLab.NumeroImmatriculation == numeroImmatriculation)
+        .Select(personne => new PieceIdentiteSearchResultViewModel
+        {
+            DossierLabId = personne.DossierLabId,
+            PersonneId = personne.PersonneMoraleLab.IdPersonne.Value,
+            IsPersonneMorale = true,
+            RaisonSociale = personne.PersonneMoraleLab.RaisonSociale,
+            NumeroImmatriculation = personne.PersonneMoraleLab.NumeroImmatriculation,
+            CodeDossier = personne.DossierLab.CodeUnique,
+            DirectionId = personne.DossierLab.DirectionId,
+            DirectionCibleId = personne.DossierLab.DirectionId,
+            DirectionName = personne.DossierLab.Direction.Nom
+        })
+        .Distinct()
+        .ToListAsync(token);
+}
+
+public async Task<List<DocumentDossierLab>> GetPiecesIdentiteDocumentsAsync(
+    int dossierLabId,
+    Guid personneId,
+    IReadOnlyCollection<AccesPiecesJointesDirectionAutoriseViewModel> accesAutorises,
+    CancellationToken token = default)
+{
+    if (accesAutorises == null || !accesAutorises.Any())
+        return new List<DocumentDossierLab>();
+
+    return await Repository.Query()
+        .Include(document => document.DocumentLab)
+        .Where(document =>
+            !document.IsDeleted
+            && document.DossierLabId == dossierLabId
+            && document.PersonneAssocieId == personneId
+            && document.TypeDocumentLabId.HasValue
+            && accesAutorises.Any(acces =>
+                acces.DirectionCibleId == document.DossierLab.DirectionId
+                && acces.TypeDocumentLabId == document.TypeDocumentLabId.Value))
+        .ToListAsync(token);
+}
+
+
+// ==========================================================
+// 8. ServiceLabController
+// Remplacer récupération séparée directions/types par les couples autorisés
+// ==========================================================
+
+// Dans SearchPiecesIdentitePersonnePhysique
+var accesAutorises = await _accesPiecesJointesDirectionService
+    .GetAccesRechercheAutorisesAsync(directionId, token);
+
+var result = await _labAttachmentService
+    .SearchPiecesIdentitePersonnePhysiqueAsync(
+        nom,
+        prenoms,
+        dateNaissance,
+        accesAutorises,
+        token);
+
+
+// Dans SearchPiecesIdentitePersonneMorale
+var accesAutorises = await _accesPiecesJointesDirectionService
+    .GetAccesRechercheAutorisesAsync(directionId, token);
+
+var result = await _labAttachmentService
+    .SearchPiecesIdentitePersonneMoraleAsync(
+        raisonSociale,
+        numeroImmatriculation,
+        accesAutorises,
+        token);
+
+
+// Dans DownloadPiecesIdentiteZip
+var accesAutorises = await _accesPiecesJointesDirectionService
+    .GetAccesTelechargementAutorisesAsync(
+        directionId,
+        directionCibleId,
+        token);
+
+var zip = await _labAttachmentService
+    .BuildPiecesIdentiteZipAsync(
+        dossierLabId,
+        personneId,
+        accesAutorises,
+        token);
