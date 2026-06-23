@@ -1,45 +1,440 @@
+// ============================================================================
+// OBJECTIF DE CETTE CORRECTION
+// ============================================================================
+//
+// Problème précédent :
+// On passait une collection mémoire accesAutorises au DocumentDossierLabService,
+// puis on faisait :
+// accesAutorises.Any(...)
+// dans une requête EF.
+//
+// EF Core ne sait pas traduire ce Any sur une collection d'objets complexes.
+//
+// Correction propre :
+// Le DocumentDossierLabService reçoit directionSourceId,
+// puis fait une vraie jointure SQL avec Context.AccesPiecesJointesDirections.
+//
+// Avantages :
+// - plus de Any non traduisible
+// - pas de clé string "direction-type"
+// - respect strict du couple DirectionCibleId + TypeDocumentLabId
+// - logique SQL propre
+//
+// ============================================================================
 
-11:23:34.730 +02:00 [Error] An unhandled exception has occurred while executing the request.
-System.InvalidOperationException: The LINQ expression 'DbSet<DocumentDossierLab>()
-    .Join(
-        inner: DbSet<DossierLab>(), 
-        outerKeySelector: d => EF.Property<Nullable<int>>(d, "DossierLabId"), 
-        innerKeySelector: d0 => EF.Property<Nullable<int>>(d0, "Id"), 
-        resultSelector: (o, i) => new TransparentIdentifier<DocumentDossierLab, DossierLab>(
-            Outer = o, 
-            Inner = i
-        ))
-    .Where(d => !(d.Outer.IsDeleted) && d.Outer.TypeDocumentLabId.HasValue && __accesAutorises_0
-        .Any(acces => acces.DirectionCibleId == d.Inner.DirectionId && acces.TypeDocumentLabId == d.Outer.TypeDocumentLabId.Value))' could not be translated. Either rewrite the query in a form that can be translated, or switch to client evaluation explicitly by inserting a call to 'AsEnumerable', 'AsAsyncEnumerable', 'ToList', or 'ToListAsync'. See https://go.microsoft.com/fwlink/?linkid=2101038 for more information.
-   at Microsoft.EntityFrameworkCore.Query.QueryableMethodTranslatingExpressionVisitor.<VisitMethodCall>g__CheckTranslated|15_0(ShapedQueryExpression translated, <>c__DisplayClass15_0& )
-8
-   at Microsoft.EntityFrameworkCore.Query.QueryableMethodTranslatingExpressionVisitor.VisitMethodCall(MethodCallExpression methodCallExpression)
-   at Microsoft.EntityFrameworkCore.Query.QueryCompilationContext.CreateQueryExecutor[TResult](Expression query)
-   at Microsoft.EntityFrameworkCore.Query.Internal.QueryCompiler.<>c__DisplayClass12_0`1.<ExecuteAsync>b__0()
-   at Microsoft.EntityFrameworkCore.Query.Internal.CompiledQueryCache.GetOrAddQuery[TResult](Object cacheKey, Func`1 compiler)
-   at Microsoft.EntityFrameworkCore.Query.Internal.QueryCompiler.ExecuteAsync[TResult](Expression query, CancellationToken cancellationToken)
-   at Microsoft.EntityFrameworkCore.Query.Internal.EntityQueryProvider.ExecuteAsync[TResult](Expression expression, CancellationToken cancellationToken)
-   at Microsoft.EntityFrameworkCore.Query.Internal.EntityQueryable`1.GetAsyncEnumerator(CancellationToken cancellationToken)
-   at System.Runtime.CompilerServices.ConfiguredCancelableAsyncEnumerable`1.GetAsyncEnumerator()
-   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
-   at BacaratWeb.Services.Lab.DocumentDossierLabService.SearchPiecesIdentitePersonnePhysiqueAsync(String nom, String prenoms, Nullable`1 dateNaissance, IReadOnlyCollection`1 accesAutorises, CancellationToken token) in C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb.Services.Lab\Services\DocumentDossierLabService.cs:line 285
-   at BacaratWeb.Areas.Lab.Services.LabAttachmentService.SearchPiecesIdentitePersonnePhysiqueAsync(String nom, String prenoms, Nullable`1 dateNaissance, IReadOnlyCollection`1 accesAutorises, CancellationToken token) in C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Lab\Services\LabAttachmentService.cs:line 169
-   at BacaratWeb.Areas.Lab.Controllers.ServiceLabController.SearchPiecesIdentitePersonnePhysique(Int32 directionId, String nom, String prenoms, Nullable`1 dateNaissance, CancellationToken token) in C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Lab\Controllers\ServiceLabController.cs:line 7367
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.TaskOfIActionResultExecutor.Execute(IActionResultTypeMapper mapper, ObjectMethodExecutor executor, Object controller, Object[] arguments)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeActionMethodAsync>g__Awaited|12_0(ControllerActionInvoker invoker, ValueTask`1 actionResultValueTask)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeNextActionFilterAsync>g__Awaited|10_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Rethrow(ActionExecutedContextSealed context)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeInnerFilterAsync>g__Awaited|13_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeNextResourceFilter>g__Awaited|24_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Rethrow(ResourceExecutedContextSealed context)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|19_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
-   at Microsoft.AspNetCore.Builder.RouterMiddleware.Invoke(HttpContext httpContext)
-   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
-   at Microsoft.AspNetCore.Localization.RequestLocalizationMiddleware.Invoke(HttpContext context)
-   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
-2
-   at Microsoft.AspNetCore.Session.SessionMiddleware.Invoke(HttpContext context)
-   at Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware.<Invoke>g__Awaited|6_0(ExceptionHandlerMiddleware middleware, HttpContext context, Task task)
+
+
+// ============================================================================
+// 1. ILabAttachmentService
+// Remplacer les signatures de recherche et ZIP par celles-ci
+// ============================================================================
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
+    int directionSourceId,
+    string nom,
+    string prenoms,
+    DateTimeOffset? dateNaissance,
+    CancellationToken token = default);
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
+    int directionSourceId,
+    string raisonSociale,
+    string numeroImmatriculation,
+    CancellationToken token = default);
+
+Task<byte[]> BuildPiecesIdentiteZipAsync(
+    int directionSourceId,
+    int dossierLabId,
+    Guid personneId,
+    int directionCibleId,
+    CancellationToken token = default);
+
+
+
+// ============================================================================
+// 2. LabAttachmentService
+// Remplacer les méthodes correspondantes par celles-ci
+// ============================================================================
+
+public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
+    int directionSourceId,
+    string nom,
+    string prenoms,
+    DateTimeOffset? dateNaissance,
+    CancellationToken token = default)
+{
+    return await _documentDossierLabService
+        .SearchPiecesIdentitePersonnePhysiqueAsync(
+            directionSourceId,
+            nom,
+            prenoms,
+            dateNaissance,
+            token);
+}
+
+public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
+    int directionSourceId,
+    string raisonSociale,
+    string numeroImmatriculation,
+    CancellationToken token = default)
+{
+    return await _documentDossierLabService
+        .SearchPiecesIdentitePersonneMoraleAsync(
+            directionSourceId,
+            raisonSociale,
+            numeroImmatriculation,
+            token);
+}
+
+public async Task<byte[]> BuildPiecesIdentiteZipAsync(
+    int directionSourceId,
+    int dossierLabId,
+    Guid personneId,
+    int directionCibleId,
+    CancellationToken token = default)
+{
+    var documents = await _documentDossierLabService
+        .GetPiecesIdentiteDocumentsAsync(
+            directionSourceId,
+            dossierLabId,
+            personneId,
+            directionCibleId,
+            token);
+
+    return BuildZip(documents);
+}
+
+
+
+// ============================================================================
+// 3. IDocumentDossierLabService
+// Remplacer les signatures de recherche et ZIP par celles-ci
+// ============================================================================
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
+    int directionSourceId,
+    string nom,
+    string prenoms,
+    DateTimeOffset? dateNaissance,
+    CancellationToken token = default);
+
+Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
+    int directionSourceId,
+    string raisonSociale,
+    string numeroImmatriculation,
+    CancellationToken token = default);
+
+Task<List<DocumentDossierLab>> GetPiecesIdentiteDocumentsAsync(
+    int directionSourceId,
+    int dossierLabId,
+    Guid personneId,
+    int directionCibleId,
+    CancellationToken token = default);
+
+
+
+// ============================================================================
+// 4. DocumentDossierLabService
+// Remplacer les méthodes concernées par celles-ci
+//
+// IMPORTANT :
+// Ces méthodes supposent que DocumentDossierLabService a accès à Context.
+// Si dans ton service la propriété s'appelle autrement, remplace Context par
+// la propriété existante.
+// ============================================================================
+
+public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
+    int directionSourceId,
+    string nom,
+    string prenoms,
+    DateTimeOffset? dateNaissance,
+    CancellationToken token = default)
+{
+    if (directionSourceId <= 0
+        || string.IsNullOrWhiteSpace(nom)
+        || string.IsNullOrWhiteSpace(prenoms)
+        || !dateNaissance.HasValue)
+    {
+        return new List<PieceIdentiteSearchResultViewModel>();
+    }
+
+    var query =
+        from document in Repository.Query().AsNoTracking()
+        join acces in Context.AccesPiecesJointesDirections.AsNoTracking()
+            on new
+            {
+                DirectionCibleId = document.DossierLab.DirectionId,
+                TypeDocumentLabId = document.TypeDocumentLabId.Value
+            }
+            equals new
+            {
+                acces.DirectionCibleId,
+                acces.TypeDocumentLabId
+            }
+        from personne in document.DossierLab.DossierLabPersonnePhysiques
+        where !document.IsDeleted
+              && document.TypeDocumentLabId.HasValue
+              && acces.DirectionSourceId == directionSourceId
+              && acces.AutoriserRecherche
+              && acces.IsActive
+              && personne.PersonnePhysiqueLab.IdPersonne.HasValue
+              && personne.PersonnePhysiqueLab.NomNaissance == nom
+              && personne.PersonnePhysiqueLab.Prenoms == prenoms
+              && personne.PersonnePhysiqueLab.DateNaissance == dateNaissance.Value
+        select new PieceIdentiteSearchResultViewModel
+        {
+            DossierLabId = personne.DossierLabId,
+            PersonneId = personne.PersonnePhysiqueLab.IdPersonne.Value,
+            IsPersonneMorale = false,
+            Nom = personne.PersonnePhysiqueLab.NomNaissance,
+            Prenom = personne.PersonnePhysiqueLab.Prenoms,
+            DateNaissance = personne.PersonnePhysiqueLab.DateNaissance,
+            CodeDossier = personne.DossierLab.CodeUnique,
+            DirectionId = personne.DossierLab.DirectionId,
+            DirectionCibleId = personne.DossierLab.DirectionId,
+            DirectionName = personne.DossierLab.Direction.Nom
+        };
+
+    return await query
+        .Distinct()
+        .ToListAsync(token);
+}
+
+public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
+    int directionSourceId,
+    string raisonSociale,
+    string numeroImmatriculation,
+    CancellationToken token = default)
+{
+    if (directionSourceId <= 0
+        || string.IsNullOrWhiteSpace(raisonSociale)
+        || string.IsNullOrWhiteSpace(numeroImmatriculation))
+    {
+        return new List<PieceIdentiteSearchResultViewModel>();
+    }
+
+    var query =
+        from document in Repository.Query().AsNoTracking()
+        join acces in Context.AccesPiecesJointesDirections.AsNoTracking()
+            on new
+            {
+                DirectionCibleId = document.DossierLab.DirectionId,
+                TypeDocumentLabId = document.TypeDocumentLabId.Value
+            }
+            equals new
+            {
+                acces.DirectionCibleId,
+                acces.TypeDocumentLabId
+            }
+        from personne in document.DossierLab.DossierLabPersonneMorales
+        where !document.IsDeleted
+              && document.TypeDocumentLabId.HasValue
+              && acces.DirectionSourceId == directionSourceId
+              && acces.AutoriserRecherche
+              && acces.IsActive
+              && personne.PersonneMoraleLab.IdPersonne.HasValue
+              && personne.PersonneMoraleLab.RaisonSociale == raisonSociale
+              && personne.PersonneMoraleLab.NumeroImmatriculation == numeroImmatriculation
+        select new PieceIdentiteSearchResultViewModel
+        {
+            DossierLabId = personne.DossierLabId,
+            PersonneId = personne.PersonneMoraleLab.IdPersonne.Value,
+            IsPersonneMorale = true,
+            RaisonSociale = personne.PersonneMoraleLab.RaisonSociale,
+            NumeroImmatriculation = personne.PersonneMoraleLab.NumeroImmatriculation,
+            CodeDossier = personne.DossierLab.CodeUnique,
+            DirectionId = personne.DossierLab.DirectionId,
+            DirectionCibleId = personne.DossierLab.DirectionId,
+            DirectionName = personne.DossierLab.Direction.Nom
+        };
+
+    return await query
+        .Distinct()
+        .ToListAsync(token);
+}
+
+public async Task<List<DocumentDossierLab>> GetPiecesIdentiteDocumentsAsync(
+    int directionSourceId,
+    int dossierLabId,
+    Guid personneId,
+    int directionCibleId,
+    CancellationToken token = default)
+{
+    if (directionSourceId <= 0
+        || dossierLabId <= 0
+        || personneId == Guid.Empty
+        || directionCibleId <= 0)
+    {
+        return new List<DocumentDossierLab>();
+    }
+
+    var query =
+        from document in Repository.Query()
+            .Include(x => x.DocumentLab)
+        join acces in Context.AccesPiecesJointesDirections.AsNoTracking()
+            on new
+            {
+                DirectionCibleId = document.DossierLab.DirectionId,
+                TypeDocumentLabId = document.TypeDocumentLabId.Value
+            }
+            equals new
+            {
+                acces.DirectionCibleId,
+                acces.TypeDocumentLabId
+            }
+        where !document.IsDeleted
+              && document.DossierLabId == dossierLabId
+              && document.PersonneAssocieId == personneId
+              && document.TypeDocumentLabId.HasValue
+              && document.DossierLab.DirectionId == directionCibleId
+              && acces.DirectionSourceId == directionSourceId
+              && acces.DirectionCibleId == directionCibleId
+              && acces.AutoriserTelechargement
+              && acces.IsActive
+        select document;
+
+    return await query
+        .Distinct()
+        .ToListAsync(token);
+}
+
+
+
+// ============================================================================
+// 5. ServiceLabController
+// Remplacer les appels dans les 3 actions concernées
+// ============================================================================
+
+
+// ----------------------------------------------------------------------------
+// SearchPiecesIdentitePersonnePhysique
+// ----------------------------------------------------------------------------
+
+[HttpGet]
+public async Task<IActionResult> SearchPiecesIdentitePersonnePhysique(
+    int directionId,
+    string nom,
+    string prenoms,
+    DateTimeOffset? dateNaissance,
+    CancellationToken token = default)
+{
+    if (directionId <= 0)
+        return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
+
+    var hasAccess = await _accesPiecesJointesDirectionService
+        .HasRechercheAccessAsync(directionId, token);
+
+    if (!hasAccess)
+    {
+        return StatusCode(
+            StatusCodes.Status403Forbidden,
+            _translator.Common["Lab.PiecesIdentite.SearchUnauthorized"]);
+    }
+
+    var result = await _labAttachmentService
+        .SearchPiecesIdentitePersonnePhysiqueAsync(
+            directionId,
+            nom,
+            prenoms,
+            dateNaissance,
+            token);
+
+    return Json(result);
+}
+
+
+// ----------------------------------------------------------------------------
+// SearchPiecesIdentitePersonneMorale
+// ----------------------------------------------------------------------------
+
+[HttpGet]
+public async Task<IActionResult> SearchPiecesIdentitePersonneMorale(
+    int directionId,
+    string raisonSociale,
+    string numeroImmatriculation,
+    CancellationToken token = default)
+{
+    if (directionId <= 0)
+        return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
+
+    var hasAccess = await _accesPiecesJointesDirectionService
+        .HasRechercheAccessAsync(directionId, token);
+
+    if (!hasAccess)
+    {
+        return StatusCode(
+            StatusCodes.Status403Forbidden,
+            _translator.Common["Lab.PiecesIdentite.SearchUnauthorized"]);
+    }
+
+    var result = await _labAttachmentService
+        .SearchPiecesIdentitePersonneMoraleAsync(
+            directionId,
+            raisonSociale,
+            numeroImmatriculation,
+            token);
+
+    return Json(result);
+}
+
+
+// ----------------------------------------------------------------------------
+// DownloadPiecesIdentiteZip
+// ----------------------------------------------------------------------------
+
+[HttpGet]
+public async Task<IActionResult> DownloadPiecesIdentiteZip(
+    int directionId,
+    int dossierLabId,
+    Guid personneId,
+    int directionCibleId,
+    CancellationToken token = default)
+{
+    if (directionId <= 0)
+        return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
+
+    if (directionCibleId <= 0)
+        return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
+
+    var zip = await _labAttachmentService
+        .BuildPiecesIdentiteZipAsync(
+            directionId,
+            dossierLabId,
+            personneId,
+            directionCibleId,
+            token);
+
+    if (zip == null || zip.Length == 0)
+        return BadRequest(_translator.Common["Lab.PiecesIdentite.NoResult"]);
+
+    return File(
+        zip,
+        "application/zip",
+        $"PiecesIdentite_{DateTime.Now:yyyyMMddHHmmss}.zip");
+}
+
+
+
+// ============================================================================
+// 6. À SUPPRIMER SI TU LES AS AJOUTÉES AVANT
+// ============================================================================
+//
+// Dans IAccesPiecesJointesDirectionService / AccesPiecesJointesDirectionService,
+// tu peux supprimer les méthodes devenues inutiles pour cette version :
+//
+// - GetAccesRechercheAutorisesAsync
+// - GetAccesTelechargementAutorisesAsync
+// - GetDirectionsCiblesRechercheAsync
+// - GetTypesDocumentsRechercheAsync
+// - GetTypesDocumentsTelechargementAsync
+//
+// Il faut garder seulement :
+//
+// Task<bool> HasRechercheAccessAsync(
+//     int directionSourceId,
+//     CancellationToken token = default);
+//
+// Car les requêtes de recherche/téléchargement font maintenant directement
+// la jointure avec AccesPiecesJointesDirections dans DocumentDossierLabService.
+//
+// ============================================================================
