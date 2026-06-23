@@ -1,440 +1,256 @@
-// ============================================================================
-// OBJECTIF DE CETTE CORRECTION
-// ============================================================================
-//
-// Problème précédent :
-// On passait une collection mémoire accesAutorises au DocumentDossierLabService,
-// puis on faisait :
-// accesAutorises.Any(...)
-// dans une requête EF.
-//
-// EF Core ne sait pas traduire ce Any sur une collection d'objets complexes.
-//
-// Correction propre :
-// Le DocumentDossierLabService reçoit directionSourceId,
-// puis fait une vraie jointure SQL avec Context.AccesPiecesJointesDirections.
-//
-// Avantages :
-// - plus de Any non traduisible
-// - pas de clé string "direction-type"
-// - respect strict du couple DirectionCibleId + TypeDocumentLabId
-// - logique SQL propre
-//
-// ============================================================================
+/* ============================================================================
+MODIFICATIONS INDEX — VERSION APRÈS REFACTORING
+===============================================================================
+
+Contexte final :
+- Les requêtes DocumentDossierLabService font maintenant une jointure directe
+  avec [Commun].[AccesPiecesJointesDirection].
+- On respecte le couple exact :
+  DirectionCibleId + TypeDocumentLabId
+- Le filtre principal côté accès est :
+  DirectionSourceId + AutoriserRecherche/AutoriserTelechargement + IsActive
+- Les documents sont filtrés via :
+  DossierLabId
+  PersonneAssocieId
+  TypeDocumentLabId
+  IsDeleted = 0
+
+============================================================================ */
+
+USE [BacaratWeb]
+GO
 
 
+/* ============================================================================
+1) GARDER L'INDEX UNIQUE
+===============================================================================
 
-// ============================================================================
-// 1. ILabAttachmentService
-// Remplacer les signatures de recherche et ZIP par celles-ci
-// ============================================================================
+Celui-ci reste indispensable.
+Il empêche les doublons de paramétrage pour le même triplet :
 
-Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
-    int directionSourceId,
-    string nom,
-    string prenoms,
-    DateTimeOffset? dateNaissance,
-    CancellationToken token = default);
+DirectionSourceId + DirectionCibleId + TypeDocumentLabId
+============================================================================ */
 
-Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
-    int directionSourceId,
-    string raisonSociale,
-    string numeroImmatriculation,
-    CancellationToken token = default);
-
-Task<byte[]> BuildPiecesIdentiteZipAsync(
-    int directionSourceId,
-    int dossierLabId,
-    Guid personneId,
-    int directionCibleId,
-    CancellationToken token = default);
-
-
-
-// ============================================================================
-// 2. LabAttachmentService
-// Remplacer les méthodes correspondantes par celles-ci
-// ============================================================================
-
-public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
-    int directionSourceId,
-    string nom,
-    string prenoms,
-    DateTimeOffset? dateNaissance,
-    CancellationToken token = default)
-{
-    return await _documentDossierLabService
-        .SearchPiecesIdentitePersonnePhysiqueAsync(
-            directionSourceId,
-            nom,
-            prenoms,
-            dateNaissance,
-            token);
-}
-
-public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
-    int directionSourceId,
-    string raisonSociale,
-    string numeroImmatriculation,
-    CancellationToken token = default)
-{
-    return await _documentDossierLabService
-        .SearchPiecesIdentitePersonneMoraleAsync(
-            directionSourceId,
-            raisonSociale,
-            numeroImmatriculation,
-            token);
-}
-
-public async Task<byte[]> BuildPiecesIdentiteZipAsync(
-    int directionSourceId,
-    int dossierLabId,
-    Guid personneId,
-    int directionCibleId,
-    CancellationToken token = default)
-{
-    var documents = await _documentDossierLabService
-        .GetPiecesIdentiteDocumentsAsync(
-            directionSourceId,
-            dossierLabId,
-            personneId,
-            directionCibleId,
-            token);
-
-    return BuildZip(documents);
-}
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'UX_AccesPiecesJointesDirection_Source_Cible_TypeDocument'
+      AND object_id = OBJECT_ID('[Commun].[AccesPiecesJointesDirection]')
+)
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UX_AccesPiecesJointesDirection_Source_Cible_TypeDocument]
+    ON [Commun].[AccesPiecesJointesDirection]
+    (
+        [DirectionSourceId],
+        [DirectionCibleId],
+        [TypeDocumentLabId]
+    );
+END
+GO
 
 
+/* ============================================================================
+2) SUPPRIMER LES ANCIENS INDEX MOINS ADAPTÉS SI DÉJÀ CRÉÉS
+============================================================================ */
 
-// ============================================================================
-// 3. IDocumentDossierLabService
-// Remplacer les signatures de recherche et ZIP par celles-ci
-// ============================================================================
+IF EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'IX_AccesPiecesJointesDirection_Source_Recherche_Active'
+      AND object_id = OBJECT_ID('[Commun].[AccesPiecesJointesDirection]')
+)
+BEGIN
+    DROP INDEX [IX_AccesPiecesJointesDirection_Source_Recherche_Active]
+    ON [Commun].[AccesPiecesJointesDirection];
+END
+GO
 
-Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
-    int directionSourceId,
-    string nom,
-    string prenoms,
-    DateTimeOffset? dateNaissance,
-    CancellationToken token = default);
+IF EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'IX_AccesPiecesJointesDirection_Source_Cible_Telechargement_Active'
+      AND object_id = OBJECT_ID('[Commun].[AccesPiecesJointesDirection]')
+)
+BEGIN
+    DROP INDEX [IX_AccesPiecesJointesDirection_Source_Cible_Telechargement_Active]
+    ON [Commun].[AccesPiecesJointesDirection];
+END
+GO
 
-Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
-    int directionSourceId,
-    string raisonSociale,
-    string numeroImmatriculation,
-    CancellationToken token = default);
-
-Task<List<DocumentDossierLab>> GetPiecesIdentiteDocumentsAsync(
-    int directionSourceId,
-    int dossierLabId,
-    Guid personneId,
-    int directionCibleId,
-    CancellationToken token = default);
-
-
-
-// ============================================================================
-// 4. DocumentDossierLabService
-// Remplacer les méthodes concernées par celles-ci
-//
-// IMPORTANT :
-// Ces méthodes supposent que DocumentDossierLabService a accès à Context.
-// Si dans ton service la propriété s'appelle autrement, remplace Context par
-// la propriété existante.
-// ============================================================================
-
-public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonnePhysiqueAsync(
-    int directionSourceId,
-    string nom,
-    string prenoms,
-    DateTimeOffset? dateNaissance,
-    CancellationToken token = default)
-{
-    if (directionSourceId <= 0
-        || string.IsNullOrWhiteSpace(nom)
-        || string.IsNullOrWhiteSpace(prenoms)
-        || !dateNaissance.HasValue)
-    {
-        return new List<PieceIdentiteSearchResultViewModel>();
-    }
-
-    var query =
-        from document in Repository.Query().AsNoTracking()
-        join acces in Context.AccesPiecesJointesDirections.AsNoTracking()
-            on new
-            {
-                DirectionCibleId = document.DossierLab.DirectionId,
-                TypeDocumentLabId = document.TypeDocumentLabId.Value
-            }
-            equals new
-            {
-                acces.DirectionCibleId,
-                acces.TypeDocumentLabId
-            }
-        from personne in document.DossierLab.DossierLabPersonnePhysiques
-        where !document.IsDeleted
-              && document.TypeDocumentLabId.HasValue
-              && acces.DirectionSourceId == directionSourceId
-              && acces.AutoriserRecherche
-              && acces.IsActive
-              && personne.PersonnePhysiqueLab.IdPersonne.HasValue
-              && personne.PersonnePhysiqueLab.NomNaissance == nom
-              && personne.PersonnePhysiqueLab.Prenoms == prenoms
-              && personne.PersonnePhysiqueLab.DateNaissance == dateNaissance.Value
-        select new PieceIdentiteSearchResultViewModel
-        {
-            DossierLabId = personne.DossierLabId,
-            PersonneId = personne.PersonnePhysiqueLab.IdPersonne.Value,
-            IsPersonneMorale = false,
-            Nom = personne.PersonnePhysiqueLab.NomNaissance,
-            Prenom = personne.PersonnePhysiqueLab.Prenoms,
-            DateNaissance = personne.PersonnePhysiqueLab.DateNaissance,
-            CodeDossier = personne.DossierLab.CodeUnique,
-            DirectionId = personne.DossierLab.DirectionId,
-            DirectionCibleId = personne.DossierLab.DirectionId,
-            DirectionName = personne.DossierLab.Direction.Nom
-        };
-
-    return await query
-        .Distinct()
-        .ToListAsync(token);
-}
-
-public async Task<List<PieceIdentiteSearchResultViewModel>> SearchPiecesIdentitePersonneMoraleAsync(
-    int directionSourceId,
-    string raisonSociale,
-    string numeroImmatriculation,
-    CancellationToken token = default)
-{
-    if (directionSourceId <= 0
-        || string.IsNullOrWhiteSpace(raisonSociale)
-        || string.IsNullOrWhiteSpace(numeroImmatriculation))
-    {
-        return new List<PieceIdentiteSearchResultViewModel>();
-    }
-
-    var query =
-        from document in Repository.Query().AsNoTracking()
-        join acces in Context.AccesPiecesJointesDirections.AsNoTracking()
-            on new
-            {
-                DirectionCibleId = document.DossierLab.DirectionId,
-                TypeDocumentLabId = document.TypeDocumentLabId.Value
-            }
-            equals new
-            {
-                acces.DirectionCibleId,
-                acces.TypeDocumentLabId
-            }
-        from personne in document.DossierLab.DossierLabPersonneMorales
-        where !document.IsDeleted
-              && document.TypeDocumentLabId.HasValue
-              && acces.DirectionSourceId == directionSourceId
-              && acces.AutoriserRecherche
-              && acces.IsActive
-              && personne.PersonneMoraleLab.IdPersonne.HasValue
-              && personne.PersonneMoraleLab.RaisonSociale == raisonSociale
-              && personne.PersonneMoraleLab.NumeroImmatriculation == numeroImmatriculation
-        select new PieceIdentiteSearchResultViewModel
-        {
-            DossierLabId = personne.DossierLabId,
-            PersonneId = personne.PersonneMoraleLab.IdPersonne.Value,
-            IsPersonneMorale = true,
-            RaisonSociale = personne.PersonneMoraleLab.RaisonSociale,
-            NumeroImmatriculation = personne.PersonneMoraleLab.NumeroImmatriculation,
-            CodeDossier = personne.DossierLab.CodeUnique,
-            DirectionId = personne.DossierLab.DirectionId,
-            DirectionCibleId = personne.DossierLab.DirectionId,
-            DirectionName = personne.DossierLab.Direction.Nom
-        };
-
-    return await query
-        .Distinct()
-        .ToListAsync(token);
-}
-
-public async Task<List<DocumentDossierLab>> GetPiecesIdentiteDocumentsAsync(
-    int directionSourceId,
-    int dossierLabId,
-    Guid personneId,
-    int directionCibleId,
-    CancellationToken token = default)
-{
-    if (directionSourceId <= 0
-        || dossierLabId <= 0
-        || personneId == Guid.Empty
-        || directionCibleId <= 0)
-    {
-        return new List<DocumentDossierLab>();
-    }
-
-    var query =
-        from document in Repository.Query()
-            .Include(x => x.DocumentLab)
-        join acces in Context.AccesPiecesJointesDirections.AsNoTracking()
-            on new
-            {
-                DirectionCibleId = document.DossierLab.DirectionId,
-                TypeDocumentLabId = document.TypeDocumentLabId.Value
-            }
-            equals new
-            {
-                acces.DirectionCibleId,
-                acces.TypeDocumentLabId
-            }
-        where !document.IsDeleted
-              && document.DossierLabId == dossierLabId
-              && document.PersonneAssocieId == personneId
-              && document.TypeDocumentLabId.HasValue
-              && document.DossierLab.DirectionId == directionCibleId
-              && acces.DirectionSourceId == directionSourceId
-              && acces.DirectionCibleId == directionCibleId
-              && acces.AutoriserTelechargement
-              && acces.IsActive
-        select document;
-
-    return await query
-        .Distinct()
-        .ToListAsync(token);
-}
+IF EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'IX_AccesPiecesJointesDirection_TypeDocumentLabId'
+      AND object_id = OBJECT_ID('[Commun].[AccesPiecesJointesDirection]')
+)
+BEGIN
+    DROP INDEX [IX_AccesPiecesJointesDirection_TypeDocumentLabId]
+    ON [Commun].[AccesPiecesJointesDirection];
+END
+GO
 
 
+/* ============================================================================
+3) NOUVEL INDEX RECHERCHE
+===============================================================================
 
-// ============================================================================
-// 5. ServiceLabController
-// Remplacer les appels dans les 3 actions concernées
-// ============================================================================
+Utilisé par :
+- HasRechercheAccessAsync
+- SearchPiecesIdentitePersonnePhysiqueAsync
+- SearchPiecesIdentitePersonneMoraleAsync
 
+Optimise :
+- DirectionSourceId
+- AutoriserRecherche = 1
+- IsActive = 1
+- jointure sur DirectionCibleId + TypeDocumentLabId
+============================================================================ */
 
-// ----------------------------------------------------------------------------
-// SearchPiecesIdentitePersonnePhysique
-// ----------------------------------------------------------------------------
-
-[HttpGet]
-public async Task<IActionResult> SearchPiecesIdentitePersonnePhysique(
-    int directionId,
-    string nom,
-    string prenoms,
-    DateTimeOffset? dateNaissance,
-    CancellationToken token = default)
-{
-    if (directionId <= 0)
-        return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
-
-    var hasAccess = await _accesPiecesJointesDirectionService
-        .HasRechercheAccessAsync(directionId, token);
-
-    if (!hasAccess)
-    {
-        return StatusCode(
-            StatusCodes.Status403Forbidden,
-            _translator.Common["Lab.PiecesIdentite.SearchUnauthorized"]);
-    }
-
-    var result = await _labAttachmentService
-        .SearchPiecesIdentitePersonnePhysiqueAsync(
-            directionId,
-            nom,
-            prenoms,
-            dateNaissance,
-            token);
-
-    return Json(result);
-}
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'IX_AccesPiecesJointesDirection_Recherche'
+      AND object_id = OBJECT_ID('[Commun].[AccesPiecesJointesDirection]')
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_AccesPiecesJointesDirection_Recherche]
+    ON [Commun].[AccesPiecesJointesDirection]
+    (
+        [DirectionSourceId],
+        [AutoriserRecherche],
+        [IsActive],
+        [DirectionCibleId],
+        [TypeDocumentLabId]
+    );
+END
+GO
 
 
-// ----------------------------------------------------------------------------
-// SearchPiecesIdentitePersonneMorale
-// ----------------------------------------------------------------------------
+/* ============================================================================
+4) NOUVEL INDEX TÉLÉCHARGEMENT
+===============================================================================
 
-[HttpGet]
-public async Task<IActionResult> SearchPiecesIdentitePersonneMorale(
-    int directionId,
-    string raisonSociale,
-    string numeroImmatriculation,
-    CancellationToken token = default)
-{
-    if (directionId <= 0)
-        return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
+Utilisé par :
+- DownloadPiecesIdentiteZip
+- GetPiecesIdentiteDocumentsAsync
 
-    var hasAccess = await _accesPiecesJointesDirectionService
-        .HasRechercheAccessAsync(directionId, token);
+Optimise :
+- DirectionSourceId
+- DirectionCibleId
+- AutoriserTelechargement = 1
+- IsActive = 1
+- TypeDocumentLabId
+============================================================================ */
 
-    if (!hasAccess)
-    {
-        return StatusCode(
-            StatusCodes.Status403Forbidden,
-            _translator.Common["Lab.PiecesIdentite.SearchUnauthorized"]);
-    }
-
-    var result = await _labAttachmentService
-        .SearchPiecesIdentitePersonneMoraleAsync(
-            directionId,
-            raisonSociale,
-            numeroImmatriculation,
-            token);
-
-    return Json(result);
-}
-
-
-// ----------------------------------------------------------------------------
-// DownloadPiecesIdentiteZip
-// ----------------------------------------------------------------------------
-
-[HttpGet]
-public async Task<IActionResult> DownloadPiecesIdentiteZip(
-    int directionId,
-    int dossierLabId,
-    Guid personneId,
-    int directionCibleId,
-    CancellationToken token = default)
-{
-    if (directionId <= 0)
-        return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
-
-    if (directionCibleId <= 0)
-        return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
-
-    var zip = await _labAttachmentService
-        .BuildPiecesIdentiteZipAsync(
-            directionId,
-            dossierLabId,
-            personneId,
-            directionCibleId,
-            token);
-
-    if (zip == null || zip.Length == 0)
-        return BadRequest(_translator.Common["Lab.PiecesIdentite.NoResult"]);
-
-    return File(
-        zip,
-        "application/zip",
-        $"PiecesIdentite_{DateTime.Now:yyyyMMddHHmmss}.zip");
-}
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'IX_AccesPiecesJointesDirection_Telechargement'
+      AND object_id = OBJECT_ID('[Commun].[AccesPiecesJointesDirection]')
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_AccesPiecesJointesDirection_Telechargement]
+    ON [Commun].[AccesPiecesJointesDirection]
+    (
+        [DirectionSourceId],
+        [DirectionCibleId],
+        [AutoriserTelechargement],
+        [IsActive],
+        [TypeDocumentLabId]
+    );
+END
+GO
 
 
+/* ============================================================================
+5) INDEX DOCUMENTDOSSIERLAB POUR LA RECHERCHE PIÈCES IDENTITÉ
+===============================================================================
 
-// ============================================================================
-// 6. À SUPPRIMER SI TU LES AS AJOUTÉES AVANT
-// ============================================================================
-//
-// Dans IAccesPiecesJointesDirectionService / AccesPiecesJointesDirectionService,
-// tu peux supprimer les méthodes devenues inutiles pour cette version :
-//
-// - GetAccesRechercheAutorisesAsync
-// - GetAccesTelechargementAutorisesAsync
-// - GetDirectionsCiblesRechercheAsync
-// - GetTypesDocumentsRechercheAsync
-// - GetTypesDocumentsTelechargementAsync
-//
-// Il faut garder seulement :
-//
-// Task<bool> HasRechercheAccessAsync(
-//     int directionSourceId,
-//     CancellationToken token = default);
-//
-// Car les requêtes de recherche/téléchargement font maintenant directement
-// la jointure avec AccesPiecesJointesDirections dans DocumentDossierLabService.
-//
-// ============================================================================
+Utilisé pour :
+- filtrer les documents actifs
+- joindre TypeDocumentLabId
+- retrouver les PJ d'une personne
+- récupérer les documents d'un dossier donné
+
+Index filtré sur IsDeleted = 0 pour réduire sa taille.
+
+ATTENTION :
+Si ta base SQL Server ne permet pas l'index filtré avec ce schéma,
+utilise l'alternative non filtrée plus bas.
+============================================================================ */
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'IX_DocumentDossierLab_PiecesIdentite'
+      AND object_id = OBJECT_ID('[Lab].[DocumentDossierLab]')
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_DocumentDossierLab_PiecesIdentite]
+    ON [Lab].[DocumentDossierLab]
+    (
+        [DossierLabId],
+        [PersonneAssocieId],
+        [TypeDocumentLabId]
+    )
+    INCLUDE
+    (
+        [DocumentLabId]
+    )
+    WHERE [IsDeleted] = 0;
+END
+GO
+
+
+/* ============================================================================
+6) ALTERNATIVE SI TU NE VEUX PAS D'INDEX FILTRÉ
+===============================================================================
+
+À utiliser uniquement si l'index filtré ci-dessus pose problème.
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'IX_DocumentDossierLab_PiecesIdentite'
+      AND object_id = OBJECT_ID('[Lab].[DocumentDossierLab]')
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_DocumentDossierLab_PiecesIdentite]
+    ON [Lab].[DocumentDossierLab]
+    (
+        [IsDeleted],
+        [DossierLabId],
+        [PersonneAssocieId],
+        [TypeDocumentLabId]
+    )
+    INCLUDE
+    (
+        [DocumentLabId]
+    );
+END
+GO
+============================================================================ */
+
+
+/* ============================================================================
+7) VÉRIFICATION
+============================================================================ */
+
+SELECT
+    i.name AS IndexName,
+    OBJECT_SCHEMA_NAME(i.object_id) AS SchemaName,
+    OBJECT_NAME(i.object_id) AS TableName,
+    i.is_unique,
+    i.has_filter,
+    i.filter_definition
+FROM sys.indexes i
+WHERE i.object_id IN (
+    OBJECT_ID('[Commun].[AccesPiecesJointesDirection]'),
+    OBJECT_ID('[Lab].[DocumentDossierLab]')
+)
+AND i.name LIKE '%Pieces%'
+ORDER BY
+    SchemaName,
+    TableName,
+    IndexName;
+GO
