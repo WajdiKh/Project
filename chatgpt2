@@ -6,10 +6,66 @@ function downloadPiecesIdentite(row) {
         return;
     }
 
-    window.location =
+    var url =
         "/Lab/ServiceLab/DownloadPiecesIdentiteZip" +
         "?directionId=" + encodeURIComponent(directionId) +
         "&dossierLabId=" + encodeURIComponent(row.DossierLabId) +
         "&personneId=" + encodeURIComponent(row.PersonneId) +
         "&directionCibleId=" + encodeURIComponent(row.DirectionId);
+
+    fetch(url)
+        .then(async function (response) {
+
+            if (!response.ok) {
+                var message = await response.text();
+
+                DevExpress.ui.notify(
+                    message || _labPiecesIdentiteNoResult,
+                    "warning",
+                    3000);
+
+                return null;
+            }
+
+            return {
+                blob: await response.blob(),
+                fileName: getFileNameFromDisposition(
+                    response.headers.get("Content-Disposition"))
+            };
+        })
+        .then(function (result) {
+
+            if (!result) {
+                return;
+            }
+
+            var downloadUrl = window.URL.createObjectURL(result.blob);
+
+            var link = document.createElement("a");
+            link.href = downloadUrl;
+            link.download = result.fileName || "PiecesIdentite.zip";
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            window.URL.revokeObjectURL(downloadUrl);
+        })
+        .catch(function () {
+            DevExpress.ui.notify(
+                _labPiecesIdentiteDownloadError,
+                "error",
+                3000);
+        });
+}
+
+function getFileNameFromDisposition(contentDisposition) {
+
+    if (!contentDisposition) {
+        return null;
+    }
+
+    var match = /filename="?([^"]+)"?/i.exec(contentDisposition);
+
+    return match ? match[1] : null;
 }
