@@ -1,1 +1,62 @@
-WHERE Abreviation LIKE 'cr8%' OR  Abreviation LIKE 'cr9%' 
+/* ============================================================================
+   Alimentation AccesPiecesJointesDirection
+   Direction source : PREDICA
+   Directions cibles :
+       - LCL
+       - CR8*
+       - CR9*
+============================================================================ */
+
+DECLARE @DirectionSourceId INT;
+
+SELECT @DirectionSourceId = Id
+FROM Commun.Direction
+WHERE Nom = 'PREDICA';
+
+INSERT INTO Commun.AccesPiecesJointesDirection
+(
+    DirectionSourceId,
+    DirectionCibleId,
+    TypeDocumentLabId,
+    AutoriserRecherche,
+    AutoriserTelechargement,
+    IsActive,
+    DateCreation,
+    DateModification
+)
+SELECT
+    @DirectionSourceId,
+    D.Id,
+    T.Id,
+    1,
+    1,
+    1,
+    GETUTCDATE(),
+    GETUTCDATE()
+FROM Commun.Direction D
+CROSS JOIN Lab.TypeDocumentLab T
+WHERE
+    (
+        D.Nom = 'LCL'
+        OR D.Abreviation LIKE 'cr8%'
+        OR D.Abreviation LIKE 'cr9%'
+    )
+    AND T.Code IN
+    (
+        'TA2', -- Carte nationale d'identité
+        'TA3', -- Passeport
+        'TA4', -- Livret de famille
+        'TA5', -- Titre de séjour
+        'TA6', -- Kbis
+        'TA7', -- Statuts
+        'TA8', -- Autre document
+        'TA9'  -- Permis de conduire
+    )
+    AND NOT EXISTS
+    (
+        SELECT 1
+        FROM Commun.AccesPiecesJointesDirection A
+        WHERE A.DirectionSourceId = @DirectionSourceId
+          AND A.DirectionCibleId = D.Id
+          AND A.TypeDocumentLabId = T.Id
+    );
