@@ -1,8 +1,29 @@
-@(Html.DevExtreme().Button()
-    .Icon(Url.Content("~/images/person-vcard.svg"))
-    .ElementAttr(new Dictionary<string, object>
+// ==========================================================
+// 1. _PartialPersonneMoraleLab.cshtml
+// Sur le champ Activite, ajouter un StringLengthRule
+// ==========================================================
+
+// Exemple si le champ est un dxTextBox :
+
+@(Html.DevExtreme().TextBoxFor(m => m.Item1.Activite)
+    .ID("PersonneMoraleLabActivite" + Model.Item2)
+    .ValidationRules(rules =>
     {
-        { "class", "color-blue btn-pieces-identite" }
+        rules.AddStringLength()
+            .Max(209)
+            .Message(translator.Common["Lab.PersonneMorale.Activite.MaxLength"]);
     })
-    ...
+)
+
+
+// Exemple si le champ est un dxTextArea :
+
+@(Html.DevExtreme().TextAreaFor(m => m.Item1.Activite)
+    .ID("PersonneMoraleLabActivite" + Model.Item2)
+    .ValidationRules(rules =>
+    {
+        rules.AddStringLength()
+            .Max(209)
+            .Message(translator.Common["Lab.PersonneMorale.Activite.MaxLength"]);
+    })
 )
