@@ -1,4 +1,94 @@
-C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Lab\Views\Dossier\_PartialPersonneMoraleLab.cshtml(521,36): error CS1061: 'TextBoxBuilder' ne contient pas de définition pour 'ValidationRules
-' et aucune méthode d'extension accessible 'ValidationRules' acceptant un premier argument de type 'TextBoxBuilder' n'a été trouvée (une directive using ou une référence d'assembly est-elle manquante 
-?) [C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\BacaratWeb.csproj]
-    1611 Avertissement(s)
+OBJECTIF
+========
+Ajouter une validation DevExtreme sur le champ Activite de _PartialPersonneMoraleLab :
+- Longueur maximale = 209 caractères
+- Affichage d'un message traduit
+
+=========================================================
+1. _PartialPersonneMoraleLab.cshtml
+=========================================================
+
+Conserver le TextBox existant et lui ajouter un dxValidator.
+
+Exemple :
+
+@(Html.DevExtreme().TextBoxFor(m => m.Item1.Activite)
+    .ID("PersonneMoraleLabActivite" + Model.Item2)
+)
+
+<script>
+
+$("#PersonneMoraleLabActivite@(Model.Item2)")
+    .dxValidator({
+        validationRules: [{
+            type: "stringLength",
+            max: 209,
+            message: _labPersonneMoraleActiviteMaxLength
+        }]
+    });
+
+</script>
+
+
+=========================================================
+2. Déclaration de la traduction JavaScript
+=========================================================
+
+Dans la vue (ou dans le fichier où sont déjà déclarées les variables JavaScript de traduction, par exemple avec _labPiecesIdentiteNoResult, _labPiecesIdentiteTitle, etc.), ajouter :
+
+<script>
+
+var _labPersonneMoraleActiviteMaxLength =
+    "@translator.Common["Lab.PersonneMorale.Activite.MaxLength"]";
+
+</script>
+
+
+=========================================================
+3. Script SQL traduction
+=========================================================
+
+USE [BacaratWeb]
+GO
+
+DECLARE @Traductions TABLE
+(
+    Id NVARCHAR(250) NOT NULL,
+    FrenchTranslate VARCHAR(MAX) NOT NULL,
+    EnglishTranslate VARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @Traductions
+(
+    Id,
+    FrenchTranslate,
+    EnglishTranslate
+)
+VALUES
+(
+    N'Lab.PersonneMorale.Activite.MaxLength',
+    'Le champ Activité ne doit pas dépasser 209 caractères.',
+    'The Activity field must not exceed 209 characters.'
+);
+
+MERGE [Commun].[Traduction] AS target
+USING @Traductions AS source
+    ON target.Id = source.Id
+WHEN MATCHED THEN
+    UPDATE SET
+        target.FrenchTranslate = source.FrenchTranslate,
+        target.EnglishTranslate = source.EnglishTranslate
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT
+    (
+        Id,
+        FrenchTranslate,
+        EnglishTranslate
+    )
+    VALUES
+    (
+        source.Id,
+        source.FrenchTranslate,
+        source.EnglishTranslate
+    );
+GO
