@@ -1,16 +1,74 @@
 // ======================================================
-// 1) Entity DocumentShare
+// DocumentController.cs
 // ======================================================
 
-public bool IsActive { get; set; } = true;
+[HttpPost("{culture:required}/transfert/save-document")]
+public async Task<IActionResult> SaveDocument(
+    AddDocumentViewModel model,
+    CancellationToken token = default)
+{
+    try
+    {
+        if (!CanWriteTransfert())
+            return Forbidden();
 
-public DateTimeOffset? LastDownloadDate { get; set; }
+        if (!ModelState.IsValid)
+            return BadRequest(GetModelStateErrorMessage());
 
+        if (!new[] { 24, 48, 72 }.Contains(model.ExpiryDelayHours))
+            return BadRequest(_translator.Common["Transfert.Document.ExpiryDelayHoursRange"]);
 
-// ======================================================
-// 2) DocumentController.cs
-// Méthode BuildDocumentShares à remplacer
-// ======================================================
+        var extension = Path.GetExtension(model.File.FileName).ToLowerInvariant();
+
+        if (!IsAllowedDocumentExtension(extension))
+            return BadRequest(_translator.Common["Transfert.Document.FileExtension"]);
+
+        if (model.File.Length > 10 * 1024 * 1024)
+            return BadRequest(_translator.Common["Transfert.Document.FileSize"]);
+
+        var statutActif = await _documentService.GetStatutDocumentByCodeAsync(
+            nameof(StatutDocumentTransfert.Active),
+            token);
+
+        if (statutActif == null)
+            throw new CustomMessageException("Active status not found");
+
+        var fileContent = await ReadFileContentAsync(model.File, token);
+        var now = DateTimeOffset.Now;
+
+        var document = new Document
+        {
+            Name = model.Name,
+            Description = model.Description,
+            OriginalFileName = model.File.FileName,
+            FileExtension = extension,
+            ContentType = model.File.ContentType,
+            FileContent = fileContent,
+            FileSize = model.File.Length,
+            UploadDate = now,
+            ExpiryDate = CalculateBusinessExpiryDate(now, model.ExpiryDelayHours),
+            OwnerId = CurrentUser.Id,
+            StatutDocumentId = statutActif.Id,
+            SecurityCode = GenerateSecurityCode(),
+            EncryptionKey = model.EncryptionKey
+        };
+
+        var saved = await _documentService.AddDocumentAsync(document, token);
+
+        if (!saved)
+            return BadRequest(_translator.Common["Transfert.Document.ErrorWhileSavingDocument"]);
+
+        return Ok(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        _logger.TraceError(ex);
+
+        return StatusCode(
+            500,
+            _translator.Common["Transfert.Document.ErrorWhileSavingDocument"]);
+    }
+}
 
 private List<DocumentShare> BuildDocumentShares(
     Document document,
@@ -31,12 +89,6 @@ private List<DocumentShare> BuildDocumentShares(
         })
         .ToList();
 }
-
-
-// ======================================================
-// 3) DocumentController.cs
-// Méthode DownloadFile à remplacer
-// ======================================================
 
 [HttpGet("{culture:required}/transfert/download-file/{id:int}")]
 public async Task<IActionResult> DownloadFile(
@@ -96,8 +148,16 @@ public async Task<IActionResult> DownloadFile(
 
 
 // ======================================================
-// 4) IDocumentService.cs
-// Méthode à ajouter dans l'interface
+// Entity DocumentShare
+// ======================================================
+
+public bool IsActive { get; set; } = true;
+
+public DateTimeOffset? LastDownloadDate { get; set; }
+
+
+// ======================================================
+// IDocumentService.cs
 // ======================================================
 
 Task<bool> UpdateDocumentShareLastDownloadDateAsync(
@@ -109,93 +169,7 @@ Task<bool> UpdateDocumentShareLastDownloadDateAsync(
 
 
 // ======================================================
-// 5) DocumentService.cs
-// Méthode GetSharedWithMeDocumentsAsync à remplacer
-// ======================================================
-
-public async Task<IEnumerable<DocumentShare>> GetSharedWithMeDocumentsAsync(
-    int userId,
-    string email,
-    CancellationToken token = default)
-{
-    var now = DateTimeOffset.Now;
-
-    return await Context.DocumentShares
-        .Include(x => x.Document)
-            .ThenInclude(x => x.Owner)
-        .Include(x => x.Document)
-            .ThenInclude(x => x.StatutDocument)
-        .Where(x =>
-            x.IsActive
-            && (x.SharedWithUserId == userId || x.Email == email)
-            && x.SharedDate <= now
-            && x.ExpiryDate >= now
-            && x.Document.ExpiryDate >= now)
-        .OrderByDescending(x => x.SharedDate)
-        .ToListAsync(token)
-        .ConfigureAwait(false);
-}
-
-
-// ======================================================
-// 6) DocumentService.cs
-// Méthode GetAllDocumentsAsync à remplacer
-// ======================================================
-
-public async Task<IEnumerable<Document>> GetAllDocumentsAsync(
-    int userId,
-    string email,
-    CancellationToken token = default)
-{
-    var now = DateTimeOffset.Now;
-
-    return await Context.Documents
-        .Include(x => x.Owner)
-        .Include(x => x.StatutDocument)
-        .Include(x => x.DocumentShares)
-        .Where(x =>
-            x.OwnerId == userId
-            || x.DocumentShares.Any(s =>
-                s.IsActive
-                && (s.SharedWithUserId == userId || s.Email == email)
-                && s.SharedDate <= now
-                && s.ExpiryDate >= now
-                && x.ExpiryDate >= now))
-        .Distinct()
-        .OrderByDescending(x => x.UploadDate)
-        .ToListAsync(token);
-}
-
-
-// ======================================================
-// 7) DocumentService.cs
-// Méthode CanUserDownloadSharedDocumentAsync à remplacer
-// ======================================================
-
-public async Task<bool> CanUserDownloadSharedDocumentAsync(
-    int documentId,
-    int userId,
-    string email,
-    CancellationToken token = default)
-{
-    var now = DateTimeOffset.Now;
-
-    return await Context.DocumentShares
-        .Include(x => x.Document)
-        .AnyAsync(x =>
-            x.DocumentId == documentId
-            && x.IsActive
-            && (x.SharedWithUserId == userId || x.Email == email)
-            && x.SharedDate <= now
-            && x.ExpiryDate >= now
-            && x.Document.ExpiryDate >= now,
-            token);
-}
-
-
-// ======================================================
-// 8) DocumentService.cs
-// Nouvelle méthode à ajouter
+// DocumentService.cs
 // ======================================================
 
 public async Task<bool> UpdateDocumentShareLastDownloadDateAsync(
@@ -220,11 +194,66 @@ public async Task<bool> UpdateDocumentShareLastDownloadDateAsync(
     return await Context.SaveChangesAsync(token) > 0;
 }
 
+public async Task<bool> CanUserDownloadSharedDocumentAsync(
+    int documentId,
+    int userId,
+    string email,
+    CancellationToken token = default)
+{
+    var now = DateTimeOffset.Now;
 
-// ======================================================
-// 9) Script SQL DocumentShare
-// Colonnes à créer avec la table
-// ======================================================
+    return await Context.DocumentShares
+        .AnyAsync(x =>
+            x.DocumentId == documentId
+            && x.IsActive
+            && (x.SharedWithUserId == userId || x.Email == email)
+            && x.SharedDate <= now
+            && x.ExpiryDate >= now
+            && x.Document.ExpiryDate >= now,
+            token);
+}
 
-[LastDownloadDate] DATETIMEOFFSET(7) NULL,
-[IsActive] BIT NOT NULL CONSTRAINT [DF_DocumentShare_IsActive] DEFAULT (1),
+public async Task<IEnumerable<DocumentShare>> GetSharedWithMeDocumentsAsync(
+    int userId,
+    string email,
+    CancellationToken token = default)
+{
+    var now = DateTimeOffset.Now;
+
+    return await Context.DocumentShares
+        .Include(x => x.Document)
+            .ThenInclude(x => x.Owner)
+        .Include(x => x.Document)
+            .ThenInclude(x => x.StatutDocument)
+        .Where(x =>
+            x.IsActive
+            && (x.SharedWithUserId == userId || x.Email == email)
+            && x.SharedDate <= now
+            && x.ExpiryDate >= now
+            && x.Document.ExpiryDate >= now)
+        .OrderByDescending(x => x.SharedDate)
+        .ToListAsync(token);
+}
+
+public async Task<IEnumerable<Document>> GetAllDocumentsAsync(
+    int userId,
+    string email,
+    CancellationToken token = default)
+{
+    var now = DateTimeOffset.Now;
+
+    return await Context.Documents
+        .Include(x => x.Owner)
+        .Include(x => x.StatutDocument)
+        .Include(x => x.DocumentShares)
+        .Where(x =>
+            x.OwnerId == userId
+            || x.DocumentShares.Any(s =>
+                s.IsActive
+                && (s.SharedWithUserId == userId || s.Email == email)
+                && s.SharedDate <= now
+                && s.ExpiryDate >= now
+                && x.ExpiryDate >= now))
+        .OrderByDescending(x => x.UploadDate)
+        .ToListAsync(token);
+}
