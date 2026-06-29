@@ -15,11 +15,6 @@ namespace BacaratWeb.ViewModel.Transfert
         [StringLength(1000, ErrorMessage = "Transfert.Document.DescriptionMaxLength")]
         public string Description { get; set; }
 
-        [Required(ErrorMessage = "Transfert.Document.RecipientEmailRequired")]
-        [EmailAddress(ErrorMessage = "Transfert.Document.RecipientEmailEmail")]
-        [StringLength(320, ErrorMessage = "Transfert.Document.RecipientEmailMaxLength")]
-        public string RecipientEmail { get; set; }
-
         [StringLength(255, ErrorMessage = "Transfert.Document.EncryptionKeyMaxLength")]
         public string EncryptionKey { get; set; }
 
