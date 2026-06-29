@@ -1,25 +1,11 @@
-Bonjour à tous,
+- En cas d'un destinataire non habilité au module "transfer" => ajouter le texte suivant quand qu'il clique sur l'URL du mail 
+:" Vous n'avez pas les droits d'accès à BacaratWeb Transfert. Merci d'effectuer une demande d'habilitation. "/ 
+English version :"You are not authorized to access BacaratWeb Transfert. Please request access."
 
-Comme échangé avec Hernani, la spécification mise à jour :  
+- ajouter un texte a coté du titre "E-mails :" : "Veuillez ajouter un point-virgule après chaque adresse e-mail." "/ English version :"Please add a semicolon following each email address."
 
-Avoir 2 boutons d’action : 
-•	Ajouter 
-•	Historique de partage
- 
-Ajouter : ajouter document et Partager
-•	Ajouter le champ Email ici
-•	Après ajout, 
-o	La date et heure d’expiration = date et heure de création + délai de validité (24h/48h/72h)
-o	Le statut du document est Actif. 
-o	Pas de suppression possible. 
-o	Après la date d'expiration, le statut devient Expiré. Archivage dans la base pendant 15 jours
-Historique de partage
-•	Après le partage, lister les mails destinataires individuellement par ligne
-•	Ajouter une colonne boolean « Actif »
-•	Ajouter une colonne « Date de dernier téléchargement »
-•	Remplacer le bouton « Modifier » par « Désactiver », après un clic, pop-up de confirmation, une fois confirmé, mettre le boolean Actif à 0 
-•	Enlever le bouton « Supprimer »
+- description très longue : pas de retour en ligne actuellement
 
-Je reste à disposition pour toute information complémentaire. 
-
-Cordialement,
+- Le champ E-mails doit être identique à celui du popup de partage (même contrôles client et serveurs) sauf une petite modif. : il faut vérifier aussi que l'utilisateur
+est habilité au module transfert et non seulement existant. Et s'il n'est pas habilité affiche le message d'erreur suivant : 
+l'utilisateur [email] n'existe pas dans BacaratWeb Transfert. Merci d'effectuer une demande d'habilitation pour le destinataire. 
