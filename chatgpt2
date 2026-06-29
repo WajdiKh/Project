@@ -1,94 +1,25 @@
-OBJECTIF
-========
-Ajouter une validation DevExtreme sur le champ Activite de _PartialPersonneMoraleLab :
-- Longueur maximale = 209 caractères
-- Affichage d'un message traduit
+Bonjour à tous,
 
-=========================================================
-1. _PartialPersonneMoraleLab.cshtml
-=========================================================
+Comme échangé avec Hernani, la spécification mise à jour :  
 
-Conserver le TextBox existant et lui ajouter un dxValidator.
+Avoir 2 boutons d’action : 
+•	Ajouter 
+•	Historique de partage
+ 
+Ajouter : ajouter document et Partager
+•	Ajouter le champ Email ici
+•	Après ajout, 
+o	La date et heure d’expiration = date et heure de création + délai de validité (24h/48h/72h)
+o	Le statut du document est Actif. 
+o	Pas de suppression possible. 
+o	Après la date d'expiration, le statut devient Expiré. Archivage dans la base pendant 15 jours
+Historique de partage
+•	Après le partage, lister les mails destinataires individuellement par ligne
+•	Ajouter une colonne boolean « Actif »
+•	Ajouter une colonne « Date de dernier téléchargement »
+•	Remplacer le bouton « Modifier » par « Désactiver », après un clic, pop-up de confirmation, une fois confirmé, mettre le boolean Actif à 0 
+•	Enlever le bouton « Supprimer »
 
-Exemple :
+Je reste à disposition pour toute information complémentaire. 
 
-@(Html.DevExtreme().TextBoxFor(m => m.Item1.Activite)
-    .ID("PersonneMoraleLabActivite" + Model.Item2)
-)
-
-<script>
-
-$("#PersonneMoraleLabActivite@(Model.Item2)")
-    .dxValidator({
-        validationRules: [{
-            type: "stringLength",
-            max: 209,
-            message: _labPersonneMoraleActiviteMaxLength
-        }]
-    });
-
-</script>
-
-
-=========================================================
-2. Déclaration de la traduction JavaScript
-=========================================================
-
-Dans la vue (ou dans le fichier où sont déjà déclarées les variables JavaScript de traduction, par exemple avec _labPiecesIdentiteNoResult, _labPiecesIdentiteTitle, etc.), ajouter :
-
-<script>
-
-var _labPersonneMoraleActiviteMaxLength =
-    "@translator.Common["Lab.PersonneMorale.Activite.MaxLength"]";
-
-</script>
-
-
-=========================================================
-3. Script SQL traduction
-=========================================================
-
-USE [BacaratWeb]
-GO
-
-DECLARE @Traductions TABLE
-(
-    Id NVARCHAR(250) NOT NULL,
-    FrenchTranslate VARCHAR(MAX) NOT NULL,
-    EnglishTranslate VARCHAR(MAX) NOT NULL
-);
-
-INSERT INTO @Traductions
-(
-    Id,
-    FrenchTranslate,
-    EnglishTranslate
-)
-VALUES
-(
-    N'Lab.PersonneMorale.Activite.MaxLength',
-    'Le champ Activité ne doit pas dépasser 209 caractères.',
-    'The Activity field must not exceed 209 characters.'
-);
-
-MERGE [Commun].[Traduction] AS target
-USING @Traductions AS source
-    ON target.Id = source.Id
-WHEN MATCHED THEN
-    UPDATE SET
-        target.FrenchTranslate = source.FrenchTranslate,
-        target.EnglishTranslate = source.EnglishTranslate
-WHEN NOT MATCHED BY TARGET THEN
-    INSERT
-    (
-        Id,
-        FrenchTranslate,
-        EnglishTranslate
-    )
-    VALUES
-    (
-        source.Id,
-        source.FrenchTranslate,
-        source.EnglishTranslate
-    );
-GO
+Cordialement,
