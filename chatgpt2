@@ -1,11 +1,579 @@
-- En cas d'un destinataire non habilité au module "transfer" => ajouter le texte suivant quand qu'il clique sur l'URL du mail 
-:" Vous n'avez pas les droits d'accès à BacaratWeb Transfert. Merci d'effectuer une demande d'habilitation. "/ 
-English version :"You are not authorized to access BacaratWeb Transfert. Please request access."
+MODIFICATIONS MODULE TRANSFERT — VERSION CONSOLIDÉE
 
-- ajouter un texte a coté du titre "E-mails :" : "Veuillez ajouter un point-virgule après chaque adresse e-mail." "/ English version :"Please add a semicolon following each email address."
+Objectif :
+- Écran impacté : Mes documents uniquement
+- Menus inchangés
+- Ajout document + partage destinataire dès l’ajout
+- Historique de partage par destinataire
+- Désactivation d’un partage sans suppression
+- Dernière date de téléchargement
+- Contrôle habilitation Transfert au partage et au téléchargement
 
-- description très longue : pas de retour en ligne actuellement
 
-- Le champ E-mails doit être identique à celui du popup de partage (même contrôles client et serveurs) sauf une petite modif. : il faut vérifier aussi que l'utilisateur
-est habilité au module transfert et non seulement existant. Et s'il n'est pas habilité affiche le message d'erreur suivant : 
-l'utilisateur [email] n'existe pas dans BacaratWeb Transfert. Merci d'effectuer une demande d'habilitation pour le destinataire. 
+============================================================
+1. SQL — DocumentShare
+============================================================
+
+USE [BacaratWeb]
+GO
+
+IF COL_LENGTH('[Transfert].[DocumentShare]', 'IsActive') IS NULL
+BEGIN
+    ALTER TABLE [Transfert].[DocumentShare]
+    ADD [IsActive] BIT NOT NULL
+        CONSTRAINT [DF_DocumentShare_IsActive] DEFAULT (1);
+END
+GO
+
+IF COL_LENGTH('[Transfert].[DocumentShare]', 'LastDownloadDate') IS NULL
+BEGIN
+    ALTER TABLE [Transfert].[DocumentShare]
+    ADD [LastDownloadDate] DATETIMEOFFSET(7) NULL;
+END
+GO
+
+
+============================================================
+2. SQL — Traductions
+============================================================
+
+USE [BacaratWeb]
+GO
+
+DECLARE @Traductions TABLE
+(
+    Id NVARCHAR(250) NOT NULL,
+    FrenchTranslate VARCHAR(MAX) NOT NULL,
+    EnglishTranslate VARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @Traductions
+(
+    Id,
+    FrenchTranslate,
+    EnglishTranslate
+)
+VALUES
+(
+    N'Transfert.Document.EmailsHelp',
+    'Veuillez ajouter un point-virgule après chaque adresse e-mail.',
+    'Please add a semicolon following each email address.'
+),
+(
+    N'Transfert.Document.UserNotAuthorizedTransfer',
+    'Vous n''avez pas les droits d''accès à BacaratWeb Transfert. Merci d''effectuer une demande d''habilitation.',
+    'You are not authorized to access BacaratWeb Transfert. Please request access.'
+),
+(
+    N'Transfert.Document.RecipientNotAuthorizedTransfer',
+    'L''utilisateur {0} n''existe pas dans BacaratWeb Transfert. Merci d''effectuer une demande d''habilitation pour le destinataire.',
+    'User {0} does not exist in BacaratWeb Transfert. Please request access for the recipient.'
+),
+(
+    N'Transfert.Document.ShareInactive',
+    'Ce partage a été désactivé.',
+    'This share has been disabled.'
+),
+(
+    N'Transfert.Document.ShareHistory',
+    'Historique de partage',
+    'Share history'
+),
+(
+    N'Transfert.Document.DisableShare',
+    'Désactiver',
+    'Disable'
+),
+(
+    N'Transfert.Document.DisableShareConfirm',
+    'Voulez-vous vraiment désactiver ce partage ?',
+    'Do you really want to disable this share?'
+),
+(
+    N'Transfert.Document.ShareDisabledSuccess',
+    'Le partage a été désactivé avec succès.',
+    'The share has been successfully disabled.'
+),
+(
+    N'Transfert.Document.Active',
+    'Actif',
+    'Active'
+),
+(
+    N'Transfert.Document.LastDownloadDate',
+    'Date de dernier téléchargement',
+    'Last download date'
+);
+
+MERGE [Commun].[Traduction] AS target
+USING @Traductions AS source
+    ON target.Id = source.Id
+WHEN MATCHED THEN
+    UPDATE SET
+        target.FrenchTranslate = source.FrenchTranslate,
+        target.EnglishTranslate = source.EnglishTranslate
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT
+    (
+        Id,
+        FrenchTranslate,
+        EnglishTranslate
+    )
+    VALUES
+    (
+        source.Id,
+        source.FrenchTranslate,
+        source.EnglishTranslate
+    );
+GO
+
+
+============================================================
+3. DocumentShare.cs
+============================================================
+
+Ajouter dans l’entité DocumentShare :
+
+public bool IsActive { get; set; }
+
+public DateTimeOffset? LastDownloadDate { get; set; }
+
+
+============================================================
+4. DocumentShareViewModel.cs
+============================================================
+
+Ajouter :
+
+public bool IsActive { get; set; }
+
+public DateTimeOffset? LastDownloadDate { get; set; }
+
+
+============================================================
+5. AddDocumentViewModel.cs
+============================================================
+
+Ajouter le champ E-mails, comme dans le popup de partage :
+
+[Required(ErrorMessage = "Transfert.Document.EmailsRequired")]
+public string Emails { get; set; }
+
+
+============================================================
+6. TransfertMappingProfile.cs
+============================================================
+
+Dans le mapping DocumentShare -> DocumentShareViewModel, ajouter :
+
+.ForMember(dest => dest.IsActive,
+    opt => opt.MapFrom(src => src.IsActive))
+.ForMember(dest => dest.LastDownloadDate,
+    opt => opt.MapFrom(src => src.LastDownloadDate))
+
+
+============================================================
+7. IDocumentService.cs
+============================================================
+
+Ajouter les méthodes :
+
+Task<bool> DisableDocumentShareAsync(
+    int documentShareId,
+    CancellationToken token = default);
+
+Task<DocumentShare> GetActiveDocumentShareForDownloadAsync(
+    int documentId,
+    int userId,
+    string email,
+    CancellationToken token = default);
+
+Task<bool> UpdateDocumentShareLastDownloadDateAsync(
+    int documentShareId,
+    DateTimeOffset lastDownloadDate,
+    CancellationToken token = default);
+
+
+============================================================
+8. DocumentService.cs
+============================================================
+
+Ajouter :
+
+public async Task<bool> DisableDocumentShareAsync(
+    int documentShareId,
+    CancellationToken token = default)
+{
+    var share = await Context.DocumentShares
+        .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+
+    if (share == null)
+        return false;
+
+    share.IsActive = false;
+
+    return await Context.SaveChangesAsync(token) > 0;
+}
+
+public async Task<DocumentShare> GetActiveDocumentShareForDownloadAsync(
+    int documentId,
+    int userId,
+    string email,
+    CancellationToken token = default)
+{
+    return await Context.DocumentShares
+        .Include(x => x.Document)
+            .ThenInclude(x => x.Owner)
+        .FirstOrDefaultAsync(x =>
+            x.DocumentId == documentId
+            && x.IsActive
+            && (x.SharedWithUserId == userId || x.Email == email),
+            token);
+}
+
+public async Task<bool> UpdateDocumentShareLastDownloadDateAsync(
+    int documentShareId,
+    DateTimeOffset lastDownloadDate,
+    CancellationToken token = default)
+{
+    var share = await Context.DocumentShares
+        .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+
+    if (share == null)
+        return false;
+
+    share.LastDownloadDate = lastDownloadDate;
+
+    return await Context.SaveChangesAsync(token) > 0;
+}
+
+
+============================================================
+9. Validation habilitation Transfert
+============================================================
+
+Créer/helper à réutiliser dans DocumentController :
+
+private bool CanUserAccessTransfert()
+{
+    return _roleAccessUser.HasRoles(null, null, RoleUser.AdminGlobal)
+        || _roleAccessUser.HasClaims(ActiviteModule.TRANSFERT, ClaimUser.READ, null)
+        || _roleAccessUser.HasClaims(ActiviteModule.TRANSFERT, ClaimUser.WRITE, null);
+}
+
+Pour vérifier un destinataire, il faut faire l’équivalent avec l’utilisateur trouvé.
+Si IRoleAccessUser ne sait vérifier que CurrentUser, il faudra utiliser le service/référentiel existant des habilitations utilisateur.
+
+Règle serveur :
+- utilisateur inexistant => erreur existante
+- utilisateur existant mais non habilité Transfert => message :
+  Transfert.Document.RecipientNotAuthorizedTransfer
+
+
+============================================================
+10. SaveDocument — création document + partages
+============================================================
+
+Dans SaveDocument :
+- ajouter la validation Emails
+- extraire les emails comme dans le popup de partage
+- vérifier existence utilisateur
+- vérifier habilitation Transfert
+- créer le Document
+- créer un DocumentShare par destinataire
+- IsActive = true
+- ExpiryDate = document.ExpiryDate
+- SharedDate = now
+- CreateurId = CurrentUser.Id
+
+Exemple logique à intégrer :
+
+var emails = ExtractShareEmails(model.Emails);
+
+var recipients = await GetShareRecipientsAsync(emails, token);
+
+ValidateShareRecipients(emails, recipients);
+
+ValidateRecipientsTransfertAccess(emails, recipients);
+
+var shares = recipients.Select(recipient => new DocumentShare
+{
+    DocumentId = document.Id,
+    SharedWithUserId = recipient.Id,
+    CreateurId = CurrentUser.Id,
+    Email = recipient.Email,
+    SharedDate = now,
+    ExpiryDate = document.ExpiryDate,
+    IsActive = true
+}).ToList();
+
+await _documentService.AddDocumentSharesAsync(shares, token);
+
+Important :
+Le calcul ExpiryDate garde le mécanisme existant des jours ouvrables.
+
+
+============================================================
+11. DocumentController — désactivation partage
+============================================================
+
+Ajouter :
+
+[HttpPost("{culture:required}/transfert/disable-share-document")]
+public async Task<IActionResult> DisableShareDocument(
+    int documentShareId,
+    CancellationToken token = default)
+{
+    try
+    {
+        if (!CanWriteTransfert())
+            return Forbidden();
+
+        var share = await _documentService.GetDocumentShareAsync(documentShareId, token);
+
+        if (share == null)
+            return BadRequest(_translator.Common["Transfert.Document.ShareNotFound"]);
+
+        EnsureCanManageDocumentShares(share.Document);
+
+        var disabled = await _documentService.DisableDocumentShareAsync(documentShareId, token);
+
+        if (!disabled)
+            return BadRequest(_translator.Common["Transfert.Document.ShareDeleteError"]);
+
+        return Ok(new { success = true });
+    }
+    catch (CustomMessageException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+    catch (Exception ex)
+    {
+        _logger.TraceError(ex);
+
+        return StatusCode(
+            500,
+            _translator.Common["Transfert.Document.ShareDeleteError"]);
+    }
+}
+
+
+============================================================
+12. DocumentController — téléchargement
+============================================================
+
+Dans Download / ValidateSecurityCode / DownloadFile :
+
+Avant d’autoriser le téléchargement partagé :
+
+- vérifier que CurrentUser est habilité Transfert
+- récupérer le DocumentShare actif
+- refuser si aucun partage actif
+
+Exemple dans DownloadFile après le cas owner :
+
+if (!CanUserAccessTransfert())
+{
+    return StatusCode(
+        StatusCodes.Status403Forbidden,
+        _translator.Common["Transfert.Document.UserNotAuthorizedTransfer"]);
+}
+
+var share = await _documentService.GetActiveDocumentShareForDownloadAsync(
+    id,
+    CurrentUser.Id,
+    CurrentUser.Email,
+    token);
+
+if (share == null)
+{
+    return StatusCode(
+        StatusCodes.Status403Forbidden,
+        _translator.Common["Transfert.Document.ShareInactive"]);
+}
+
+Puis après validation du code sécurité et juste avant/après File :
+
+await _documentService.UpdateDocumentShareLastDownloadDateAsync(
+    share.Id,
+    DateTimeOffset.UtcNow,
+    token);
+
+Attention :
+Mettre à jour LastDownloadDate uniquement si le téléchargement est effectivement autorisé.
+
+
+============================================================
+13. _PartialAddNewDocument.cshtml
+============================================================
+
+Ajouter le champ E-mails comme dans le popup de partage.
+
+Ajouter le texte d’aide à côté ou sous le titre :
+
+@translator.Common["Transfert.Document.EmailsHelp"]
+
+Exemple :
+
+<label>
+    @translator.Common["Transfert.Document.Emails"]
+</label>
+<span class="text-muted">
+    @translator.Common["Transfert.Document.EmailsHelp"]
+</span>
+
+Le champ doit réutiliser les mêmes contrôles client que le popup de partage.
+
+
+============================================================
+14. _PartialShareSettingsDocument.cshtml
+============================================================
+
+Dans la grille historique :
+
+Ajouter colonnes :
+- Email
+- IsActive
+- LastDownloadDate
+
+Supprimer :
+- Modifier
+- Supprimer
+
+Ajouter :
+- Désactiver
+
+Bouton visible seulement si IsActive == true.
+
+Le bouton appelle :
+disableDocumentShare(documentShareId)
+
+
+============================================================
+15. document.js — désactivation partage
+============================================================
+
+Ajouter :
+
+function disableDocumentShare(documentShareId) {
+    DevExpress.ui.dialog.confirm(
+        _transfertDocumentDisableShareConfirm,
+        _transfertDocumentShareHistory
+    ).done(function (dialogResult) {
+
+        if (!dialogResult) {
+            return;
+        }
+
+        $.ajax({
+            method: "POST",
+            url: "/" + currentCulture + "/transfert/disable-share-document",
+            data: {
+                documentShareId: documentShareId
+            }
+        }).done(function () {
+
+            DevExpress.ui.notify(
+                _transfertDocumentShareDisabledSuccess,
+                "success",
+                3000);
+
+            refreshDocumentSharesGrid();
+
+        }).fail(function (xhr) {
+
+            DevExpress.ui.notify(
+                xhr.responseText || _transfertDocumentShareDisableError,
+                "error",
+                3000);
+        });
+    });
+}
+
+
+============================================================
+16. Variables JS traductions
+============================================================
+
+Ajouter dans la vue principale Transfert ou l’endroit existant :
+
+var _transfertDocumentDisableShareConfirm =
+    "@Html.Raw(_translator.Common["Transfert.Document.DisableShareConfirm"])";
+
+var _transfertDocumentShareHistory =
+    "@Html.Raw(_translator.Common["Transfert.Document.ShareHistory"])";
+
+var _transfertDocumentShareDisabledSuccess =
+    "@Html.Raw(_translator.Common["Transfert.Document.ShareDisabledSuccess"])";
+
+
+============================================================
+17. Description longue
+============================================================
+
+Dans la colonne Description de la grille Mes documents :
+
+Ajouter un CellTemplate ou une classe CSS :
+
+.description-cell {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+}
+
+Et appliquer cette classe à la cellule Description.
+
+
+============================================================
+18. Suppression document
+============================================================
+
+Côté UI :
+- supprimer le bouton Supprimer dans Mes documents
+
+Côté serveur :
+- garder DeleteDocument si risque d’usage ailleurs
+- mais ne plus l’appeler depuis Mes documents
+
+
+============================================================
+19. Historique de partage
+============================================================
+
+GetDocumentShares doit retourner maintenant :
+- Email
+- CreateurName
+- SharedDate
+- ExpiryDate
+- IsActive
+- LastDownloadDate
+
+Chaque DocumentShare = une ligne.
+
+Donc si AddDocument crée une ligne par destinataire, l’historique est automatiquement correct.
+
+
+============================================================
+20. Règles finales téléchargement
+============================================================
+
+Téléchargement autorisé si :
+
+- document existe
+- document statut Actif
+- document non expiré
+- utilisateur connecté habilité au module Transfert
+- si utilisateur non propriétaire :
+    - partage existe
+    - partage IsActive = true
+    - email/user correspond au destinataire
+    - code sécurité valide
+
+Après téléchargement réussi :
+- DocumentShare.LastDownloadDate = DateTimeOffset.UtcNow
+
+Si non habilité :
+- afficher Transfert.Document.UserNotAuthorizedTransfer
+
+Si partage désactivé :
+- afficher Transfert.Document.ShareInactive
