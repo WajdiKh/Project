@@ -1,0 +1,102 @@
+@using BacaratWeb.Areas.Transfert.Helpers
+@using BacaratWeb.ViewModel.Transfert
+
+@inject IViewTranslator translator
+
+@model ShareDocumentViewModel
+
+@{
+    var startDate = Model.StartDate;
+    var expiryDate = Model.ExpiryDate;
+    var maxDate = Model.DocumentExpiryDate;
+}
+
+<div class="card-body">
+    @using (Html.BeginForm(FormMethod.Post, new { id = TransfertConstants.ShareDocumentFormId }))
+    {
+        @Html.HiddenFor(x => x.DocumentShareId)
+        @Html.HiddenFor(x => x.DocumentId)
+        @Html.HiddenFor(x => x.StartDate)
+        @Html.HiddenFor(x => x.DocumentExpiryDate)
+
+        @using (Html.DevExtreme().ValidationGroup(TransfertConstants.ShareDocumentFormValidationGroupName))
+        {
+            <div class="row mb-3">
+                <div class="col-sm-12 col-md-3">
+                    <div class="text-truncate text-green">
+                        @translator.Common["Transfert.Document.ShareEmail"] :
+                    </div>
+                </div>
+
+                <div class="col-sm-12 col-md-9">
+                    @(Html.DevExtreme()
+                        .TextArea()
+                        .ID("ShareEmails")
+                        .Name("Emails")
+                        .Value(Model.Emails)
+                        .Height(90)
+                        .Width("100%"))
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-sm-12 col-md-6">
+                    <div class="mb-2 text-green">
+                        @translator.Common["Transfert.Document.ShareStartDate"] :
+                    </div>
+
+                    @(Html.DevExtreme()
+                        .DateBox()
+                        .ID("ShareStartDate")
+                        .Type(DateBoxType.Date)
+                        .Disabled(true)
+                        .DisplayFormat("dd/MM/yyyy")
+                        .UseMaskBehavior(true)
+                        .Value(startDate.LocalDateTime)
+                        .Width("100%"))
+                </div>
+
+                <div class="col-sm-12 col-md-6">
+                    <div class="mb-2 text-green">
+                        @translator.Common["Transfert.Document.ShareExpiryDate"] :
+                    </div>
+
+                    @(Html.DevExtreme()
+                        .DateBox()
+                        .ID("ShareExpiryDate")
+                        .Name("ExpiryDate")
+                        .Type(DateBoxType.Date)
+                        .ShowClearButton(true)
+                        .DisplayFormat("dd/MM/yyyy")
+                        .UseMaskBehavior(true)
+                        .Value(expiryDate.LocalDateTime)
+                        .Min(startDate.LocalDateTime)
+                        .Max(maxDate.LocalDateTime)
+                        .Width("100%"))
+                </div>
+            </div>
+
+            <div class="row mt-5">
+                <div class="col d-flex justify-content-end align-items-center">
+                    <div class="mr-2">
+                        @(Html.DevExtreme()
+                            .Button()
+                            .Text(translator.Common["Envoyer"])
+                            .Icon("email")
+                            .ElementAttr("class", "color-blue")
+                            .OnClick("Transfert.Document.shareDocument"))
+                    </div>
+
+                    <div>
+                        @(Html.DevExtreme()
+                            .Button()
+                            .Text(translator.Common["Cancel"])
+                            .Icon("close")
+                            .ElementAttr("class", "color-red")
+                            .OnClick("Transfert.Document.closeShareDocumentPopup"))
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>

@@ -1,0 +1,67 @@
+@model BacaratWeb.ViewModel.Transfert.DownloadDocumentViewModel
+
+@inject IViewTranslator translator
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-sm-12 col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="text-green mb-4">
+                        @translator.Common["Transfert.Document.DownloadTitle"]
+                    </h4>
+
+                    <input type="hidden" id="DocumentId" value="@Model.DocumentId" />
+
+                    <div class="mb-3">
+                        <label class="text-green">
+                            @translator.Common["Transfert.Document.SecurityCode"]
+                        </label>
+
+                        @(Html.DevExtreme()
+                            .TextBox()
+                            .ID("SecurityCode")
+                            .Mode(TextBoxMode.Password)
+                            .Width("100%"))
+                    </div>
+
+                    <div class="d-flex justify-content-end">
+                        @(Html.DevExtreme()
+                            .Button()
+                            .Text(translator.Common["Download"])
+                            .Icon("download")
+                            .ElementAttr("class", "color-blue")
+                            .OnClick("Transfert.Document.validateSecurityCode"))
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.Transfert = window.Transfert || {};
+    window.Transfert.Document = window.Transfert.Document || {};
+
+    Transfert.Document.validateSecurityCode = function () {
+        $.ajax({
+            url: "/" + culture + "/transfert/validate-security-code",
+            type: "POST",
+            data: {
+                DocumentId: $("#DocumentId").val(),
+                SecurityCode: $("#SecurityCode").dxTextBox("instance").option("value")
+            },
+            success: function (response) {
+                if (response && response.downloadUrl) {
+                    window.location = response.downloadUrl;
+                }
+            },
+            error: function (xhr) {
+                DevExpress.ui.notify(
+                    xhr.responseText,
+                    "error",
+                    5000);
+            }
+        });
+    };
+</script>

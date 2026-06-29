@@ -1,0 +1,90 @@
+@using Microsoft.Extensions.Options
+@using BacaratWeb.Shared.Configurations
+
+@inject IOptions<ApplicationSettings> _settings
+@inject IViewTranslator translator
+
+<script>
+    var _transfertTranslatableDocumentNameRequired = "@Html.Raw(translator.Common["Transfert.Document.NameRequired"])";
+    var _transfertTranslatableDocumentNameMaxLength = "@Html.Raw(translator.Common["Transfert.Document.NameMaxLength"])";
+    var _transfertTranslatableDocumentDescriptionMaxLength = "@Html.Raw(translator.Common["Transfert.Document.DescriptionMaxLength"])";
+    var _transfertTranslatableDocumentEncryptionKeyMaxLength = "@Html.Raw(translator.Common["Transfert.Document.EncryptionKeyMaxLength"])";
+    var _transfertTranslatableDocumentRecipientEmailRequired = "@Html.Raw(translator.Common["Transfert.Document.RecipientEmailRequired"])";
+    var _transfertTranslatableDocumentRecipientEmailEmail = "@Html.Raw(translator.Common["Transfert.Document.RecipientEmailEmail"])";
+    var _transfertTranslatableDocumentRecipientEmailMaxLength = "@Html.Raw(translator.Common["Transfert.Document.RecipientEmailMaxLength"])";
+    var _transfertTranslatableDocumentFileRequired = "@Html.Raw(translator.Common["Transfert.Document.FileRequired"])";
+    var _transfertTranslatableDocumentFileExtension = "@Html.Raw(translator.Common["Transfert.Document.FileExtension"])";
+    var _transfertTranslatableDocumentFileSize = "@Html.Raw(translator.Common["Transfert.Document.FileSize"])";
+    var _transfertTranslatableDocumentShareWith = "@Html.Raw(translator.Common["Transfert.Document.ShareWith"])";
+    
+    var _transfertDocumentSuccesAjout = "@Html.Raw(translator.Common["Transfert.Document.SuccesAjout"])";
+    var _transfertDocumentSaveError = "@Html.Raw(translator.Common["Transfert.Document.SaveError"])";
+    
+    var _transfertAddNewDocumentPopupId = "@TransfertConstants.AddNewDocumentPopupId";
+    var _transfertAddNewDocumentFormValidationGroupName = "@TransfertConstants.AddNewDocumentFormValidationGroupName";
+    var _transfertAddNewDocumentFormId = "@TransfertConstants.AddNewDocumentFormId";
+
+    var _transfertShareDocumentPopupId = "@TransfertConstants.ShareDocumentPopupId";
+    var _transfertShareDocumentFormId = "@TransfertConstants.ShareDocumentFormId";
+    var _transfertShareDocumentFormValidationGroupName = "@TransfertConstants.ShareDocumentFormValidationGroupName";
+
+    var _transfertTranslatableDocumentShareEmailRequired = "@Html.Raw(translator.Common["Transfert.Document.ShareEmailsRequired"])";
+    var _transfertTranslatableDocumentShareEmailInvalid = "@Html.Raw(translator.Common["Transfert.Document.ShareEmailInvalid"])";
+    var _transfertTranslatableDocumentShareEmailMaxLength = "@Html.Raw(translator.Common["Transfert.Document.ShareEmailMaxLength"])";
+    var _transfertTranslatableDocumentShareStartDateRequired = "@Html.Raw(translator.Common["Transfert.Document.ShareStartDateRequired"])";
+    var _transfertTranslatableDocumentShareExpiryDateRequired = "@Html.Raw(translator.Common["Transfert.Document.ShareExpiryDateRequired"])";
+    var _transfertTranslatableDocumentShareExpiryDateInvalid = "@Html.Raw(translator.Common["Transfert.Document.ShareExpiryDateInvalid"])";
+    var _transfertDocumentShareSuccess = "@Html.Raw(translator.Common["Transfert.Document.ShareSuccess"])";
+    var _transfertDocumentShareError = "@Html.Raw(translator.Common["Transfert.Document.ShareError"])";
+
+    var _transfertShareSettingsDocumentPopupId = "@TransfertConstants.ShareSettingsDocumentPopupId";
+    var _transfertDeleteShareDocumentConfirmationPopupId = "@TransfertConstants.DeleteShareDocumentConfirmationPopupId";
+
+    var _transfertTranslatableDocumentShareSettings = "@Html.Raw(translator.Common["Transfert.Document.ShareSettings"])";
+    var _transfertTranslatableDocumentShareSettingsTitle = "@Html.Raw(translator.Common["Transfert.Document.ShareSettingsTitle"])";
+    var _transfertTranslatableDocumentShareEmail = "@Html.Raw(translator.Common["Transfert.Document.ShareEmail"])";
+    var _transfertTranslatableDocumentShareEmailMaxLength = "@Html.Raw(translator.Common["Transfert.Document.ShareEmailMaxLength"])";
+    var _transfertTranslatableDocumentShareStartDateInvalid = "@Html.Raw(translator.Common["Transfert.Document.ShareStartDateInvalid"])";
+    var _transfertTranslatableDocumentShareExpiryDateDocumentInvalid = "@Html.Raw(translator.Common["Transfert.Document.ShareExpiryDateDocumentInvalid"])";
+
+    var _transfertTranslatableDocumentShareUpdateSuccess = "@Html.Raw(translator.Common["Transfert.Document.ShareUpdateSuccess"])";
+    var _transfertTranslatableDocumentShareUpdateError = "@Html.Raw(translator.Common["Transfert.Document.ShareUpdateError"])";
+    var _transfertTranslatableDocumentShareDeleteSuccess = "@Html.Raw(translator.Common["Transfert.Document.ShareDeleteSuccess"])";
+    var _transfertTranslatableDocumentShareDeleteError = "@Html.Raw(translator.Common["Transfert.Document.ShareDeleteError"])";
+    var _transfertTranslatableDocumentShareDeleteConfirmation = "@Html.Raw(translator.Common["Transfert.Document.ShareDeleteConfirmation"])";
+    var _transfertTranslatableTransfer = "@Html.Raw(translator.Common["Transfert"])";
+    var _transfertTranslatableDocumentShareWithUsers = "@Html.Raw(translator.Common["Transfert.Document.ShareWithUsers"])";
+    var _transfertTranslatableDocumentYes = "@Html.Raw(translator.Common["Yes"])";
+    var _transfertTranslatableDocumentNo = "@Html.Raw(translator.Common["No"])";
+    var _transfertTranslatableDocumentSend = "@Html.Raw(translator.Common["Envoyer"])";
+    var _transfertTranslatableDocumentEdit = "@Html.Raw(translator.Common["Edit"])";
+    var _transfertTranslatableDocumentDelete = "@Html.Raw(translator.Common["Delete"])";
+    var _transfertTranslatableDocumentClose = "@Html.Raw(translator.Common["Close"])";
+    var _transfertTranslatableDocumentCancel = "@Html.Raw(translator.Common["Cancel"])";
+
+    var _transfertDocumentFileSizeUnit = "@Html.Raw(translator.Common["Transfert.Document.FileSizeUnit"])";
+
+    var _transfertDocumentDeleteConfirmation = "@Html.Raw(translator.Common["Transfert.Document.DeleteConfirmation"])";
+    var _transfertDocumentDeleteSuccess = "@Html.Raw(translator.Common["Transfert.Document.DeleteSuccess"])";
+    var _transfertDocumentDeleteError = "@Html.Raw(translator.Common["Transfert.Document.DeleteError"])";
+    var _transfertTranslatableLoading = "@Html.Raw(translator.Common["Loading"])";
+
+    var _transfertTranslatableMenuAllDocuments = "@Html.Raw(translator.Common["Transfert.Document.MenuAllDocuments"])";
+    var _transfertTranslatableMenuMyDocuments = "@Html.Raw(translator.Common["Transfert.Document.MenuMyDocuments"])";
+    var _transfertTranslatableMenuSharedWithMe = "@Html.Raw(translator.Common["Transfert.Document.MenuSharedWithMe"])";
+
+
+</script>
+
+<environment include="Production">
+    <link href="~/css/min/bacarat-area-transfert.min.css?version_@(_settings.Value.ReleaseVersion)" rel="stylesheet" />
+    <script src="~/js/min/bacarat-area-transfert.min.js?version_@(_settings.Value.ReleaseVersion)"></script>
+</environment>
+<environment include="Development">
+    <link href="~/areas/transfert/css/document.css" rel="stylesheet" />
+    <script src="~/areas/transfert/javascript/document.js"></script>
+</environment>
+
+@{
+    Layout = "_Layout";
+}

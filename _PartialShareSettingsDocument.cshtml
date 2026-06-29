@@ -1,0 +1,106 @@
+@using BacaratWeb.Areas.Transfert.Helpers
+@using BacaratWeb.ViewModel.Transfert
+
+@inject IViewTranslator translator
+
+@model ShareDocumentSettingsViewModel
+
+<div class="card-body">
+    <input type="hidden" id="ShareSettingsDocumentId" value="@Model.DocumentId" />
+
+    <div class="row mb-3">
+        <div class="col-12">
+            @(Html.DevExtreme().DataGrid<DocumentShareViewModel>()
+                .ID("shareSettingsGrid")
+                .Width("100%")
+                .ShowBorders(true)
+                .ColumnAutoWidth(true)
+                .AllowColumnResizing(true)
+                .ColumnResizingMode(ColumnResizingMode.Widget)
+                .AllowColumnReordering(true)
+                .HoverStateEnabled(true)
+                .RowAlternationEnabled(false)
+                .RemoteOperations(false)
+                .ColumnChooser(cc => cc
+                    .Enabled(true)
+                    .AllowSearch(true))
+                .Export(e => e
+                    .Enabled(true)
+                    .AllowExportSelectedData(true))
+                .SearchPanel(s => s
+                    .Visible(true)
+                    .Placeholder(translator.Common["Search"] + "...")
+                    .HighlightCaseSensitive(true))
+                .FilterRow(filterRow => filterRow
+                    .Visible(true)
+                    .ApplyFilter(GridApplyFilterMode.Auto))
+                .Paging(p => p.PageSize(10))
+                .Pager(pager =>
+                    pager.ShowPageSizeSelector(true)
+                        .ShowNavigationButtons(true)
+                        .AllowedPageSizes(new List<int> { 10, 20, 50 }))
+                .Selection(s => s.Mode(SelectionMode.Single))
+                .OnSelectionChanged("Transfert.Document.onShareSettingsSelectionChanged")
+                .Columns(columns =>
+                {
+                    columns.AddFor(m => m.Email)
+                        .Caption(translator.Common["Transfert.Document.SharedEmails"]);
+
+                    columns.AddFor(m => m.CreateurName)
+                        .Caption(translator.Common["Transfert.Document.AddedBy"]);
+
+                    columns.AddFor(m => m.SharedDate)
+                        .Caption(translator.Common["Transfert.Document.StartDate"])
+                        .DataType(GridColumnDataType.DateTime)
+                        .Format("dd/MM/yyyy HH:mm");
+
+                    columns.AddFor(m => m.ExpiryDate)
+                        .Caption(translator.Common["Transfert.Document.EndDate"])
+                        .DataType(GridColumnDataType.DateTime)
+                        .Format("dd/MM/yyyy HH:mm");
+                })
+                .DataSource(ds => ds.Mvc()
+                    .RouteName("apiRoute")
+                    .Area("Transfert")
+                    .Controller("Document")
+                    .LoadAction("GetDocumentShares")
+                    .LoadParams(new { documentId = Model.DocumentId })))
+        </div>
+    </div>
+
+    <div class="row mt-5">
+        <div class="col d-flex justify-content-end align-items-center">
+            <div class="mr-2">
+                @(Html.DevExtreme()
+                    .Button()
+                    .ID("btnEditDocumentShare")
+                    .Text(translator.Common["Edit"])
+                    .Icon("edit")
+                    .Disabled(true)
+                    .ElementAttr("class", "color-blue")
+                    .OnClick("Transfert.Document.openEditSharePopup"))
+            </div>
+
+            <div class="mr-2">
+                @(Html.DevExtreme()
+                    .Button()
+                    .ID("btnDeleteDocumentShare")
+                    .Text(translator.Common["Delete"])
+                    .Icon("trash")
+                    .Disabled(true)
+                    .ElementAttr("class", "color-red")
+                    .OnClick("Transfert.Document.confirmDeleteShare"))
+            </div>
+
+            <div>
+                @(Html.DevExtreme()
+                    .Button()
+                    .ID("btnCloseShareSettingsPopup")
+                    .Text(translator.Common["Close"])
+                    .Icon("close")
+                    .ElementAttr("class", "color-red")
+                    .OnClick("Transfert.Document.closeShareSettingsPopup"))
+            </div>
+        </div>
+    </div>
+</div>
