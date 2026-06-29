@@ -15,6 +15,8 @@ namespace BacaratWeb.Entities.Transfert
 
         public int SharedWithUserId { get; set; }
 
+        public int? CreateurId { get; set; }
+
         [Required]
         [StringLength(320)]
         public string Email { get; set; }
@@ -28,5 +30,8 @@ namespace BacaratWeb.Entities.Transfert
 
         [ForeignKey(nameof(SharedWithUserId))]
         public Utilisateur SharedWithUser { get; set; }
+
+        [ForeignKey(nameof(CreateurId))]
+        public Utilisateur Createur { get; set; }
     }
 }
