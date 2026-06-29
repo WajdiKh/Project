@@ -14,60 +14,57 @@ namespace BacaratWeb.Mappers
             CreateMap<StatutDocument, StatutDocumentViewModel>()
                 .ReverseMap();
 
-            // =============================
-            // Mes documents
-            // =============================
             CreateMap<Document, DocumentViewModel>()
                 .ForMember(dest => dest.OwnerName,
-                    opt => opt.MapFrom(src => src.Owner != null ? src.Owner.Nom : string.Empty))
-                .ForMember(dest => dest.StatutDocumentNameFr,
-                    opt => opt.MapFrom(src => src.StatutDocument != null ? src.StatutDocument.FrenchName : string.Empty))
-                .ForMember(dest => dest.StatutDocumentNameEn,
-                    opt => opt.MapFrom(src => src.StatutDocument != null ? src.StatutDocument.EnglishName : string.Empty));
+                    opt => opt.MapFrom(src =>
+                        src.Owner != null
+                            ? ((src.Owner.Prenom ?? string.Empty) + " " + (src.Owner.Nom ?? string.Empty).ToUpper())
+                            : string.Empty))
+                .ForMember(dest => dest.ContentType,
+                           opt => opt
+                            .MapFrom(src => string.IsNullOrWhiteSpace(src.FileExtension) ? string.Empty : src.FileExtension.Replace(".", string.Empty).ToLower()))
 
-            // =============================
-            // Documents partagés avec moi
-            // =============================
+                .ForMember(dest => dest.StatutDocumentNameFr,
+                    opt => opt.MapFrom(src =>
+                        src.StatutDocument != null ? src.StatutDocument.FrenchName : string.Empty))
+                .ForMember(dest => dest.StatutDocumentNameEn,
+                    opt => opt.MapFrom(src =>
+                        src.StatutDocument != null ? src.StatutDocument.EnglishName : string.Empty));
+
             CreateMap<DocumentShare, DocumentViewModel>()
-                // Document
                 .ForMember(dest => dest.Id,
                     opt => opt.MapFrom(src => src.Document.Id))
                 .ForMember(dest => dest.Name,
                     opt => opt.MapFrom(src => src.Document.Name))
                 .ForMember(dest => dest.Description,
                     opt => opt.MapFrom(src => src.Document.Description))
-                .ForMember(dest => dest.ContentType,
-                    opt => opt.MapFrom(src => src.Document.ContentType))
+                .ForMember(dest => dest.ContentType, 
+                           opt => opt.MapFrom(src => string.IsNullOrWhiteSpace(src.Document.FileExtension) ? string.Empty : src.Document.FileExtension.Replace(".", string.Empty).ToLower()))
                 .ForMember(dest => dest.FileSize,
                     opt => opt.MapFrom(src => src.Document.FileSize))
                 .ForMember(dest => dest.UploadDate,
                     opt => opt.MapFrom(src => src.Document.UploadDate))
                 .ForMember(dest => dest.ExpiryDate,
                     opt => opt.MapFrom(src => src.Document.ExpiryDate))
-
-                // Propriétaire
                 .ForMember(dest => dest.OwnerName,
                     opt => opt.MapFrom(src =>
                         src.Document.Owner != null
-                            ? src.Document.Owner.Nom
+                            ? ((src.Document.Owner.Prenom ?? string.Empty) + " " + (src.Document.Owner.Nom ?? string.Empty).ToUpper())
                             : string.Empty))
-
-                // Destinataire
-                .ForMember(dest => dest.Email,
-                    opt => opt.MapFrom(src => src.Email))
-
-                // Statut multilingue
                 .ForMember(dest => dest.StatutDocumentNameFr,
                     opt => opt.MapFrom(src =>
-                        src.Document.StatutDocument != null
-                            ? src.Document.StatutDocument.FrenchName
-                            : string.Empty))
-
+                        src.Document.StatutDocument != null ? src.Document.StatutDocument.FrenchName : string.Empty))
                 .ForMember(dest => dest.StatutDocumentNameEn,
                     opt => opt.MapFrom(src =>
-                        src.Document.StatutDocument != null
-                            ? src.Document.StatutDocument.EnglishName
-                            : string.Empty));
+                        src.Document.StatutDocument != null ? src.Document.StatutDocument.EnglishName : string.Empty));
+
+
+            CreateMap<DocumentShare, DocumentShareViewModel>()
+                .ForMember(dest => dest.CreateurName,
+                           opt => opt.MapFrom(src => src.Createur != null ?
+                           ((src.Createur.Prenom ?? string.Empty) + " " + (src.Createur.Nom ?? string.Empty).ToUpper()) :
+                           string.Empty));
+
         }
     }
 }
