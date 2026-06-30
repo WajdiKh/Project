@@ -1,362 +1,78 @@
 ============================================================
-OBJECTIF
+DocumentController.cs
 ============================================================
 
-Supprimer la logique d’expiration du partage.
+Ajouter l'injection du service si ce n'est pas déjà le cas :
 
-Avant :
-- Document.ExpiryDate
-- DocumentShare.ExpiryDate
+private readonly IUtilisateurDirectionService _utilisateurDirectionService;
+
+Puis remplacer complètement la méthode CanRecipientAccessTransfert par :
+
+private bool CanRecipientAccessTransfert(Utilisateur recipient)
+{
+    if (recipient == null)
+    {
+        return false;
+    }
+
+    return _utilisateurDirectionService.CanViewDossier(recipient.Id)
+        || _utilisateurDirectionService.CanCreateDossier(recipient.Id);
+}
+
+
+============================================================
+ValidateRecipientsTransfertAccess
+============================================================
+
+Remplacer complètement la méthode par :
+
+private void ValidateRecipientsTransfertAccess(
+    IEnumerable<string> emails,
+    IEnumerable<Utilisateur> recipients)
+{
+    var recipientsByEmail = recipients
+        .Where(x => !string.IsNullOrWhiteSpace(x.Email))
+        .ToDictionary(x => x.Email, StringComparer.OrdinalIgnoreCase);
+
+    foreach (var email in emails)
+    {
+        if (!recipientsByEmail.TryGetValue(email, out var recipient))
+        {
+            continue;
+        }
+
+        if (!CanRecipientAccessTransfert(recipient))
+        {
+            throw new CustomMessageException(
+                string.Format(
+                    _translator.Common["Transfert.Document.RecipientNotAuthorizedTransfer"],
+                    email));
+        }
+    }
+}
+
+
+============================================================
+SaveDocument
+============================================================
 
 Après :
-- Document.ExpiryDate uniquement
-- DocumentShare porte seulement :
-  - IsActive
-  - LastDownloadDate
+
+ValidateShareRecipients(emails, recipients);
+
+Ajouter :
+
+ValidateRecipientsTransfertAccess(emails, recipients);
+
 
 ============================================================
-1. SQL — CREATE TABLE DocumentShare.sql
+SaveShareDocument
 ============================================================
 
-Dans [Transfert].[DocumentShare], SUPPRIMER la colonne :
+Après :
 
-[ExpiryDate] DATETIMEOFFSET(7) NOT NULL,
+ValidateShareRecipients(emails, recipients);
 
-Et garder/ajouter :
+Ajouter :
 
-[IsActive] BIT NOT NULL CONSTRAINT [DF_DocumentShare_IsActive] DEFAULT (1),
-[LastDownloadDate] DATETIMEOFFSET(7) NULL,
-
-La table devient logiquement :
-
-CREATE TABLE [Transfert].[DocumentShare]
-(
-    [Id] INT IDENTITY(1,1) NOT NULL,
-    [DocumentId] INT NOT NULL,
-    [SharedWithUserId] INT NOT NULL,
-    [Email] NVARCHAR(320) NOT NULL,
-    [SharedDate] DATETIMEOFFSET(7) NOT NULL,
-    [IsActive] BIT NOT NULL CONSTRAINT [DF_DocumentShare_IsActive] DEFAULT (1),
-    [LastDownloadDate] DATETIMEOFFSET(7) NULL,
-    [CreateurId] INT NULL,
-
-    CONSTRAINT [PK_DocumentShare] PRIMARY KEY CLUSTERED ([Id] ASC)
-);
-GO
-
-============================================================
-2. SQL — SI LA COLONNE EXISTE DÉJÀ EN BASE
-============================================================
-
-IF COL_LENGTH('[Transfert].[DocumentShare]', 'ExpiryDate') IS NOT NULL
-BEGIN
-    ALTER TABLE [Transfert].[DocumentShare]
-    DROP COLUMN [ExpiryDate];
-END
-GO
-
-IF COL_LENGTH('[Transfert].[DocumentShare]', 'IsActive') IS NULL
-BEGIN
-    ALTER TABLE [Transfert].[DocumentShare]
-    ADD [IsActive] BIT NOT NULL
-        CONSTRAINT [DF_DocumentShare_IsActive] DEFAULT (1);
-END
-GO
-
-IF COL_LENGTH('[Transfert].[DocumentShare]', 'LastDownloadDate') IS NULL
-BEGIN
-    ALTER TABLE [Transfert].[DocumentShare]
-    ADD [LastDownloadDate] DATETIMEOFFSET(7) NULL;
-END
-GO
-
-============================================================
-3. DocumentShare.cs
-============================================================
-
-SUPPRIMER :
-
-public DateTimeOffset ExpiryDate { get; set; }
-
-AJOUTER / GARDER :
-
-public bool IsActive { get; set; }
-
-public DateTimeOffset? LastDownloadDate { get; set; }
-
-============================================================
-4. DocumentShareViewModel.cs
-============================================================
-
-SUPPRIMER :
-
-public DateTimeOffset ExpiryDate { get; set; }
-
-AJOUTER / GARDER :
-
-public bool IsActive { get; set; }
-
-public DateTimeOffset? LastDownloadDate { get; set; }
-
-============================================================
-5. TransfertMappingProfile.cs
-============================================================
-
-SUPPRIMER le mapping ExpiryDate s’il existe :
-
-.ForMember(dest => dest.ExpiryDate, ...)
-
-AJOUTER / GARDER :
-
-.ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
-.ForMember(dest => dest.LastDownloadDate, opt => opt.MapFrom(src => src.LastDownloadDate))
-
-============================================================
-6. BuildDocumentShares
-============================================================
-
-AVANT :
-
-new DocumentShare
-{
-    DocumentId = document.Id,
-    SharedWithUserId = recipient.Id,
-    Email = recipient.Email,
-    SharedDate = model.StartDate,
-    ExpiryDate = model.ExpiryDate,
-    IsActive = true
-}
-
-APRÈS :
-
-new DocumentShare
-{
-    DocumentId = document.Id,
-    SharedWithUserId = recipient.Id,
-    Email = recipient.Email,
-    SharedDate = DateTimeOffset.Now,
-    IsActive = true,
-    CreateurId = CurrentUser.Id
-}
-
-============================================================
-7. SaveDocument
-============================================================
-
-Le document garde son expiration :
-
-document.ExpiryDate = expiryDate;
-
-Mais les partages n’ont plus d’ExpiryDate.
-
-Donc lors de la création des shares :
-
-var shares = recipients.Select(recipient => new DocumentShare
-{
-    SharedWithUserId = recipient.Id,
-    Email = recipient.Email,
-    SharedDate = now,
-    IsActive = true,
-    CreateurId = CurrentUser.Id
-}).ToList();
-
-============================================================
-8. CanUserDownloadSharedDocumentAsync
-============================================================
-
-SUPPRIMER toute condition sur share.ExpiryDate.
-
-AVANT :
-
-x.IsActive
-&& x.SharedDate <= now
-&& x.ExpiryDate >= now
-&& x.Document.ExpiryDate >= now
-
-APRÈS :
-
-x.IsActive
-&& x.SharedDate <= now
-&& x.Document.ExpiryDate >= now
-
-Implémentation :
-
-public async Task<bool> CanUserDownloadSharedDocumentAsync(
-    int documentId,
-    int userId,
-    string email,
-    CancellationToken token = default)
-{
-    var now = DateTimeOffset.Now;
-
-    return await Context.DocumentShares
-        .Include(x => x.Document)
-        .AnyAsync(x =>
-            x.DocumentId == documentId
-            && x.IsActive
-            && x.SharedDate <= now
-            && x.Document.ExpiryDate >= now
-            && (
-                x.SharedWithUserId == userId
-                || x.Email == email
-            ),
-            token);
-}
-
-============================================================
-9. GetCurrentUserActiveDocumentShareAsync
-============================================================
-
-SUPPRIMER toute condition sur share.ExpiryDate.
-
-public async Task<DocumentShare> GetCurrentUserActiveDocumentShareAsync(
-    int documentId,
-    int userId,
-    string email,
-    CancellationToken token = default)
-{
-    var now = DateTimeOffset.Now;
-
-    return await Context.DocumentShares
-        .Include(x => x.Document)
-            .ThenInclude(x => x.Owner)
-        .FirstOrDefaultAsync(x =>
-            x.DocumentId == documentId
-            && x.IsActive
-            && x.SharedDate <= now
-            && x.Document.ExpiryDate >= now
-            && (
-                x.SharedWithUserId == userId
-                || x.Email == email
-            ),
-            token);
-}
-
-============================================================
-10. Historique de partage
-============================================================
-
-Dans la grille historique :
-
-SUPPRIMER la colonne :
-
-ExpiryDate / Date fin partage
-
-REMPLACER si besoin par la date d’expiration du document :
-
-Document.ExpiryDate
-
-Colonnes finales recommandées :
-
-- Email
-- SharedDate
-- Document.ExpiryDate
-- IsActive
-- LastDownloadDate
-- Action Désactiver
-
-============================================================
-11. DocumentShareViewModel — si tu veux afficher expiration document
-============================================================
-
-Ajouter plutôt :
-
-public DateTimeOffset DocumentExpiryDate { get; set; }
-
-Mapping :
-
-.ForMember(dest => dest.DocumentExpiryDate,
-    opt => opt.MapFrom(src => src.Document.ExpiryDate))
-
-============================================================
-12. _PartialShareSettingsDocument.cshtml
-============================================================
-
-SUPPRIMER :
-
-columns.AddFor(m => m.ExpiryDate)
-
-REMPLACER PAR :
-
-columns.AddFor(m => m.DocumentExpiryDate)
-    .Caption(translator.Common["Transfert.Document.ExpiryDate"])
-    .DataType(GridColumnDataType.DateTime)
-    .Format("dd/MM/yyyy HH:mm");
-
-============================================================
-13. SaveShareDocument existant
-============================================================
-
-Si le popup de partage existe encore :
-
-SUPPRIMER toute logique liée à :
-
-model.ExpiryDate
-model.DocumentExpiryDate
-ValidateShareDates(...)
-
-Le partage ne choisit plus une date d’expiration propre.
-
-Il doit seulement créer des DocumentShare actifs.
-
-============================================================
-14. ShareDocumentViewModel
-============================================================
-
-Si ce ViewModel ne sert plus qu’au partage :
-
-SUPPRIMER :
-
-public DateTimeOffset StartDate { get; set; }
-public DateTimeOffset ExpiryDate { get; set; }
-public DateTimeOffset DocumentExpiryDate { get; set; }
-
-GARDER :
-
-public int DocumentId { get; set; }
-public string Emails { get; set; }
-
-============================================================
-15. Contrôle téléchargement final
-============================================================
-
-Téléchargement partagé autorisé si :
-
-- Document existe
-- Document.ExpiryDate >= now
-- Document statut Actif
-- DocumentShare existe
-- DocumentShare.IsActive = true
-- DocumentShare.SharedDate <= now
-- User/email correspond au destinataire
-- User habilité Transfert
-- Code sécurité correct
-
-Il n’y a plus aucun contrôle sur DocumentShare.ExpiryDate.
-
-============================================================
-16. À supprimer dans le code
-============================================================
-
-Chercher et supprimer toutes les références à :
-
-DocumentShare.ExpiryDate
-share.ExpiryDate
-model.ExpiryDate dans le contexte partage
-ValidateShareDates
-ShareExpiryDateInvalid
-ShareExpiryDateDocumentInvalid
-
-Sauf si ces clés sont encore utilisées ailleurs.
-
-============================================================
-17. Traductions potentiellement obsolètes
-============================================================
-
-Ces clés peuvent devenir inutiles si elles ne servent plus ailleurs :
-
-Transfert.Document.ShareExpiryDateInvalid
-Transfert.Document.ShareExpiryDateDocumentInvalid
-Transfert.Document.ShareStartDateInvalid
-
-Ne pas forcément les supprimer de la table Traduction, mais ne plus les utiliser.
+ValidateRecipientsTransfertAccess(emails, recipients);
