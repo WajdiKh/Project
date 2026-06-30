@@ -1,17 +1,18 @@
-1. problème avec la longeur du champ description (voir capture d'écran). Ne faut t-il pas fixer la largeur de la colonne et 
-faire un retour à la ligne (dans les trois datagrids)
-2. Dans le popup de partage au dessus du libellé E-mails ajouter cette remarque en rouge
-"Veuillez ajouter un point-virgule après chaque adresse e-mail." (traduction : "Please add a semicolon following each email address.")
-3. Quand un utilisateur BacaratWeb non habilité au module Transfert (droit de lecture minimum) clique sur l'url dans la notification de partage afficher 
-le message suivant : "Vous n'avez pas les droits d'accès à BacaratWeb Transfert. Merci d'effectuer une demande d'habilitation." (traduction :
-"You are not authorized to access BacaratWeb Transfert. Please request access.")
-4. Un contrôle existant lors du partage vérifie si les emails saisis correspondent à des utilisateurs BacaratWeb. Il faudra vérifier 
-lors du même contrôle que les utililisateurs sont habilité au module Transfert (droit de lecture minimum). 
-5. Pour le menu Mes documents 
-      * Les libellés des boutons Ajouter, Partager avec d'autres utilisateurs et Paramètres de partage deviennent resp.
-      Ajout, Partage, Historique
-      * Dans le popup d'Ajout quand l'utilisateur clique sur le bouton "Enregistrer", le document doit avoir plutôt le statut 
-        "Inactif" (ajouter ce statut si nécessaire et me fournir le script sql) et pour la date d'expiration 
-        ce sera le jour d'après avec l'heure = minuit (UTC)
-     *
-        
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [Transfert].[DocumentShare]
+(
+    [Id] INT IDENTITY(1,1) NOT NULL,
+    [DocumentId] INT NOT NULL,
+    [SharedWithUserId] INT NOT NULL,
+    [Email] NVARCHAR(320) NOT NULL,
+    [SharedDate] DATETIMEOFFSET(7) NOT NULL,
+    [ExpiryDate] DATETIMEOFFSET(7) NOT NULL,
+    [IsActive] BIT NOT NULL CONSTRAINT [DF_DocumentShare_IsActive] DEFAULT (1),
+    [LastDownloadDate] DATETIMEOFFSET(7) NULL,
+    [CreateurId] INT NULL,
+
+    CONSTRAINT [PK_DocumentShare] PRIMARY KEY CLUSTERED ([Id] ASC)
+);
+GO
