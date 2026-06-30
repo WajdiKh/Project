@@ -4,4 +4,5 @@
 - Dans le popup d'ajout de document : Emails au lieu de Emails de partage
 - L'explication à côté du champ Emails n'est pas correctement affiché. Je veux plutôt utiliser un tooltip comme dans les captures d'écran avec la même mention que tu as 
 affichée
-- 
+- Je veux que le message d'erreur qui s'affiche quand quand l'utilisateur n'est pas habilité au module Transfert (introuvable ou existant mais non habilité)
+"les utilisateurs suivants n'existent pas dans BacaratWeb Transfert : {0}. Merci d'effectuer une demande d'habilitation pour le destinataire."
