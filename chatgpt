@@ -7,4 +7,4 @@ affichée
 - Je veux que le message d'erreur qui s'affiche quand l'utilisateur n'est pas habilité au module Transfert (introuvable ou existant mais non habilité)
 "les utilisateurs suivants n'existent pas dans BacaratWeb Transfert : {0}. Merci d'effectuer une demande d'habilitation pour les destinataires."
 - Le titre popup "Historique de partage" (anciennement "Paramètres de partage") doit être se terminer par "Historique de partage" au lieu de "Paramètres de partage"
-- Dans le datagrid du popup "Historique de partage" la première colonne doit être plutôt "Email de partage"
+- Dans le datagrid du popup "Historique de partage" la première colonne doit être plutôt "Email"
