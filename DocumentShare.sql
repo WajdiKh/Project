@@ -9,9 +9,7 @@ CREATE TABLE [Transfert].[DocumentShare]
     [Email]            NVARCHAR(320) NOT NULL,
     [SharedDate]       DATETIMEOFFSET(7) NOT NULL,
     [ExpiryDate]       DATETIMEOFFSET(7) NOT NULL,
-    [LastDownloadDate] DATETIMEOFFSET(7) NULL,
-    [IsActive]         BIT NOT NULL CONSTRAINT [DF_DocumentShare_IsActive] DEFAULT (1),
-    [CreateurId]       INT NULL,
+    [CreateurId] INT NULL,
     CONSTRAINT [PK_DocumentShare]
         PRIMARY KEY CLUSTERED ([Id] ASC)
 );
