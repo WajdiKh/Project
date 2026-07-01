@@ -1,10 +1,170 @@
-- Il faudrait enlever le bouton Partager avec d'autres utilisateurs
-- Le libellé du bouton "Paramètres de partage" doit devenir "Historique de partage"
-- Enlève le bouton de suppression de tous les datagrids
-- Dans le popup d'ajout de document : Emails au lieu de Emails de partage
-- L'explication à côté du champ Emails n'est pas correctement affiché. Je veux plutôt utiliser un tooltip comme dans les captures d'écran avec la même mention que tu as 
-affichée
-- Je veux que le message d'erreur qui s'affiche quand l'utilisateur n'est pas habilité au module Transfert (introuvable ou existant mais non habilité)
-"les utilisateurs suivants n'existent pas dans BacaratWeb Transfert : {0}. Merci d'effectuer une demande d'habilitation pour les destinataires."
-- Le titre popup "Historique de partage" (anciennement "Paramètres de partage") doit être se terminer par "Historique de partage" au lieu de "Paramètres de partage"
-- Dans le datagrid du popup "Historique de partage" la première colonne doit être plutôt "Email"
+USE [BacaratWeb]
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM [Commun].[EmailNotificationType]
+    WHERE [Code] = 'DocumentPartage'
+)
+BEGIN
+    INSERT INTO [Commun].[EmailNotificationType]
+    (
+        [Code],
+        [Libelle],
+        [Description],
+        [DateCreation],
+        [DateModification],
+        [ModificateurId],
+        [CreateurId],
+        [IsActive]
+    )
+    VALUES
+    (
+        'DocumentPartage',
+        'DocumentPartage',
+        'DocumentPartage',
+        SYSDATETIMEOFFSET(),
+        NULL,
+        NULL,
+        NULL,
+        1
+    );
+END
+GO
+
+DECLARE @EmailNotificationTypeId INT;
+
+SELECT @EmailNotificationTypeId = [Id]
+FROM [Commun].[EmailNotificationType]
+WHERE [Code] = 'DocumentPartage';
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM [Commun].[EmailNotificationTemplate]
+    WHERE [EmailNotificationTypeId] = @EmailNotificationTypeId
+      AND [ActiviteId] = 5
+      AND [LangueId] = 1
+      AND [ScopeId] = 1
+)
+BEGIN
+    INSERT INTO [Commun].[EmailNotificationTemplate]
+    (
+        [Subject],
+        [Body],
+        [EmailNotificationTypeId],
+        [ActiviteId],
+        [DirectionId],
+        [LangueId],
+        [DateCreation],
+        [DateModification],
+        [ModificateurId],
+        [CreateurId],
+        [IsActive],
+        [ScopeId]
+    )
+    VALUES
+    (
+        'BacaratWeb Transfert : Document partagé avec vous sur la plateforme BacaratWeb',
+        '<html xmlns:v="urn:schemas-microsoft-com:vml"   xmlns:o ="urn:schemas-microsoft-com:office:office"  xmlns:w ="urn:schemas-microsoft-com:office:word"   xmlns:m ="http://schemas.microsoft.com/office/2004/12/omml"   xmlns="http://www.w3.org/TR/REC-html40">     
+				<body lang=FR style=''tab-interval:35.4pt''>   
+					<div class=WordSection1>   
+						<p>Bonjour,</p>
+						<p>Nous vous informons qu''un document a été partagé avec vous sur la plateforme BacaratWeb.</p>
+						<p><strong>Détails du document :</strong></p>
+						<ul>
+							<li>Nom : {0}</li>
+							<li>Partagé par : {1}</li>
+							<li>Date de partage : de {2} à {3}</li>
+							<li>URL de téléchargement : {4}</li>
+							<li>Code de sécurité pour téléchargement : {5}</li>
+							<li>Clé de chiffrement : {6}</li>
+						</ul>
+						<p>Nous vous souhaitons une bonne réception. </p>
+						<p>Cordialement</p>
+						<p><strong>L''équipe BacaratWeb<strong></p> 			
+					</div>  
+				</body>  
+			</html>',
+        @EmailNotificationTypeId,
+        5,
+        NULL,
+        1,
+        SYSDATETIMEOFFSET(),
+        NULL,
+        NULL,
+        NULL,
+        1,
+        1
+    );
+END
+GO
+
+DECLARE @EmailNotificationTypeId INT;
+
+SELECT @EmailNotificationTypeId = [Id]
+FROM [Commun].[EmailNotificationType]
+WHERE [Code] = 'DocumentPartage';
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM [Commun].[EmailNotificationTemplate]
+    WHERE [EmailNotificationTypeId] = @EmailNotificationTypeId
+      AND [ActiviteId] = 5
+      AND [LangueId] = 2
+      AND [ScopeId] = 1
+)
+BEGIN
+    INSERT INTO [Commun].[EmailNotificationTemplate]
+    (
+        [Subject],
+        [Body],
+        [EmailNotificationTypeId],
+        [ActiviteId],
+        [DirectionId],
+        [LangueId],
+        [DateCreation],
+        [DateModification],
+        [ModificateurId],
+        [CreateurId],
+        [IsActive],
+        [ScopeId]
+    )
+    VALUES
+    (
+        'BacaratWeb Transfert : Document shared with you on the BacaratWeb platform',
+        '<html xmlns:v="urn:schemas-microsoft-com:vml"   xmlns:o ="urn:schemas-microsoft-com:office:office"  xmlns:w ="urn:schemas-microsoft-com:office:word"   xmlns:m ="http://schemas.microsoft.com/office/2004/12/omml"   xmlns="http://www.w3.org/TR/REC-html40">     
+				<body lang=FR style=''tab-interval:35.4pt''>   
+					<div class=WordSection1>   
+						<p>Hello,</p>
+						<p>We would like to inform you that a document has been shared with you on the BacaratWeb platform.</p>
+						<p><strong>Document details:</strong></p>
+						<ul>
+							<li>Name: {0}</li>
+							<li>Shared by: {1}</li>
+							<li>Sharing date: from {2} to {3}</li>
+							<li>Download URL: {4}</li>
+							<li>Download security code: {5}</li>
+							<li>Encryption key: {6}</li>
+						</ul>
+						<p>We hope you receive it in good order.</p>
+						<p>Sincerely</p>
+						<p><strong>The BacaratWeb team<strong></p> 			
+					</div>  
+				</body>  
+			</html>',
+        @EmailNotificationTypeId,
+        5,
+        NULL,
+        2,
+        SYSDATETIMEOFFSET(),
+        NULL,
+        NULL,
+        NULL,
+        1,
+        1
+    );
+END
+GO
