@@ -42,6 +42,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         private readonly IEmailNotificationTemplateService _emailNotificationTemplateService;
         private readonly ILogger<DocumentController> _logger;
         private readonly IEventDossierLogger _eventDossierLogger;
+        private readonly IUtilisateurDirectionService _utilisateurDirectionService;
 
         public DocumentController(
             IHttpContextAccessor httpContextAccessor,
@@ -55,7 +56,8 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             IEmailNotificationService emailNotificationService,
             IEmailNotificationTemplateService emailNotificationTemplateService,
             ILogger<DocumentController> logger,
-            IEventDossierLogger eventDossierLogger)
+            IEventDossierLogger eventDossierLogger,
+            IUtilisateurDirectionService utilisateurDirectionService)
             : base(httpContextAccessor, mapper, referentielService, userInfoService)
         {
             _documentService = documentService ?? throw new ArgumentNullException(nameof(documentService));
@@ -66,6 +68,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             _emailNotificationTemplateService = emailNotificationTemplateService ?? throw new ArgumentNullException(nameof(emailNotificationTemplateService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _eventDossierLogger = eventDossierLogger ?? throw new ArgumentNullException(nameof(eventDossierLogger));
+           _utilisateurDirectionService = utilisateurDirectionService ?? throw new ArgumentNullException(nameof(utilisateurDirectionService)); 
         }
 
         #region Droits Transfert
@@ -104,10 +107,51 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                 throw new CustomMessageException(_translator.Common["Transfert.Document.ShareUnauthorized"]);
         }
 
+        private bool CanUserAccessTransfert()
+        {
+            return IsAdminGlobal()
+                || _roleAccessUser.HasClaims(ActiviteModule.TRANSFERT, ClaimUser.READ)
+                || _roleAccessUser.HasClaims(ActiviteModule.TRANSFERT, ClaimUser.WRITE);
+        }
+
+        private bool CanRecipientAccessTransfert(Utilisateur recipient)
+        {
+            if (recipient == null)
+                return false;
+
+            return _roleAccessUser.HasRolesById(recipient.AspNetUsersId, null, null, RoleUser.AdminGlobal)
+                || _utilisateurDirectionService.CanViewDossier((int)ActiviteModule.TRANSFERT, recipient.Id)
+                || _utilisateurDirectionService.CanCreateDossier((int)ActiviteModule.TRANSFERT, recipient.Id);
+        }
+
+        private void ValidateRecipientsTransfertAccess(
+            IEnumerable<string> emails,
+            IEnumerable<Utilisateur> recipients)
+        {
+            var recipientsByEmail = recipients
+                .Where(x => !string.IsNullOrWhiteSpace(x.Email))
+                .ToDictionary(x => x.Email, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var email in emails)
+            {
+                if (!recipientsByEmail.TryGetValue(email, out var recipient))
+                {
+                    continue;
+                }
+
+                if (!CanRecipientAccessTransfert(recipient))
+                {
+                    throw new CustomMessageException(
+                        string.Format(
+                            _translator.Common["Transfert.Document.RecipientNotAuthorizedTransfer"],
+                            email));
+                }
+            }
+        }
         #endregion
-        
+
         #region Page principale
-        
+
         [Route("{culture:required}/transfert/document/{mode?}")]
         public IActionResult Index(string mode = "all")
         {
@@ -126,17 +170,17 @@ namespace BacaratWeb.Areas.Transfert.Controllers
 
             return View();
         }
-        
+
         #endregion
 
         #region Alimentation des dataGrids
-       
-       [HttpGet]
+
+        [HttpGet]
         public async Task<IActionResult> GetAllDocuments(CancellationToken token = default)
         {
             if (!CanReadTransfert())
                 return Forbidden();
-            
+
             var documents = await _documentService.GetAllDocumentsAsync(
                 CurrentUser.Id,
                 CurrentUser.Email,
@@ -152,7 +196,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         {
             if (!CanWriteTransfert())
                 return Forbidden();
-            
+
             var documents = await _documentService.GetMyDocumentsAsync(CurrentUser.Id, token);
 
             var data = _mapper.Map<IEnumerable<DocumentViewModel>>(documents);
@@ -165,7 +209,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         {
             if (!CanReadTransfert())
                 return Forbidden();
-            
+
             var documentShares = await _documentService.GetSharedWithMeDocumentsAsync(
                 CurrentUser.Id,
                 CurrentUser.Email,
@@ -175,7 +219,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
 
             return Json(data);
         }
-        
+
         #endregion
 
         #region Ajout document
@@ -205,13 +249,21 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                 if (!new[] { 24, 48, 72 }.Contains(model.ExpiryDelayHours))
                     return BadRequest(_translator.Common["Transfert.Document.ExpiryDelayHoursRange"]);
 
-                var extension = Path.GetExtension(model.File.FileName).ToLowerInvariant();
+                var extension = Path.GetExtension(model.File.FileName)?.ToLowerInvariant();
 
                 if (!IsAllowedDocumentExtension(extension))
                     return BadRequest(_translator.Common["Transfert.Document.FileExtension"]);
 
                 if (model.File.Length > 10 * 1024 * 1024)
                     return BadRequest(_translator.Common["Transfert.Document.FileSize"]);
+
+                var emails = ExtractShareEmails(model.Emails);
+
+                var recipients = await GetShareRecipientsAsync(emails, token);
+
+                ValidateShareRecipients(emails, recipients);
+
+                ValidateRecipientsTransfertAccess(emails, recipients);
 
                 var statutActif = await _documentService.GetStatutDocumentByCodeAsync(
                     nameof(StatutDocumentTransfert.Active),
@@ -224,6 +276,10 @@ namespace BacaratWeb.Areas.Transfert.Controllers
 
                 var now = DateTimeOffset.Now;
 
+                var expiryDate = CalculateBusinessExpiryDate(
+                    now,
+                    model.ExpiryDelayHours);
+
                 var document = new Document
                 {
                     Name = model.Name,
@@ -234,19 +290,39 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                     FileContent = fileContent,
                     FileSize = model.File.Length,
                     UploadDate = now,
-                    ExpiryDate = CalculateBusinessExpiryDate(now, model.ExpiryDelayHours),
+                    ExpiryDate = expiryDate,
                     OwnerId = CurrentUser.Id,
                     StatutDocumentId = statutActif.Id,
                     SecurityCode = GenerateSecurityCode(),
                     EncryptionKey = model.EncryptionKey
                 };
 
-                var saved = await _documentService.AddDocumentAsync(document, token);
+                var shares = BuildDocumentShares(
+                    recipients,
+                    now,
+                    expiryDate);
+
+                var saved = await _documentService.AddDocumentWithSharesAsync(
+                    document,
+                    shares,
+                    token);
 
                 if (!saved)
                     return BadRequest(_translator.Common["Transfert.Document.ErrorWhileSavingDocument"]);
 
+                var notificationsSent = await SendNotificationDocumentPartage(
+                    document,
+                    shares,
+                    token);
+
+                if (!notificationsSent)
+                    return BadRequest(_translator.Common["Transfert.Document.ShareNotificationError"]);
+
                 return Ok(new { success = true });
+            }
+            catch (CustomMessageException ex)
+            {
+                return BadRequest(ex.Message);
             }
             catch (Exception ex)
             {
@@ -325,9 +401,9 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         }
 
         #endregion
-        
+
         #region Suppression document
-        
+
         [HttpPost("{culture:required}/transfert/delete-document")]
         public async Task<IActionResult> DeleteDocument(
             int documentId,
@@ -337,7 +413,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             {
                 if (!CanWriteTransfert())
                     return Forbidden();
-                
+
                 var document = await _documentService.GetAsync(documentId, true, token);
 
                 if (document == null)
@@ -374,7 +450,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                     _translator.Common["Transfert.Document.DeleteUnauthorized"]);
             }
         }
-        
+
         #endregion
 
         #region Téléchargement document
@@ -385,8 +461,12 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             CancellationToken token = default)
         {
             if (!CanReadTransfert())
-                return Forbidden();
-            
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    _translator.Common["Transfert.Document.UserNotAuthorizedTransfer"]);
+            }
+
             var document = await _documentService.GetDocumentForDownloadAsync(id, token);
 
             if (IsDocumentUnavailableForDownload(document))
@@ -395,13 +475,17 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             if (IsCurrentUserDocumentOwner(document))
                 return BuildDownloadFileResult(document);
 
-            var canDownloadSharedDocument = await CanCurrentUserDownloadSharedDocumentAsync(id, token);
+            var share = await _documentService.GetCurrentUserActiveDocumentShareAsync(
+                id,
+                CurrentUser.Id,
+                CurrentUser.Email,
+                token);
 
-            if (!canDownloadSharedDocument)
+            if (share == null)
             {
                 return StatusCode(
                     StatusCodes.Status403Forbidden,
-                    _translator.Common["Transfert.Document.DownloadUnauthorized"]);
+                    _translator.Common["Transfert.Document.ShareInactive"]);
             }
 
             var vm = new DownloadDocumentViewModel
@@ -423,7 +507,11 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             try
             {
                 if (!CanReadTransfert())
-                    return Forbidden();
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        _translator.Common["Transfert.Document.UserNotAuthorizedTransfer"]);
+                }
 
                 if (!ModelState.IsValid)
                     return BadRequest(GetModelStateErrorMessage());
@@ -433,15 +521,17 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                 if (IsDocumentUnavailableForDownload(document))
                     return BadRequest(_translator.Common["Transfert.Document.Expired"]);
 
-                var canDownloadSharedDocument = await CanCurrentUserDownloadSharedDocumentAsync(
+                var share = await _documentService.GetCurrentUserActiveDocumentShareAsync(
                     model.DocumentId,
+                    CurrentUser.Id,
+                    CurrentUser.Email,
                     token);
 
-                if (!canDownloadSharedDocument)
+                if (share == null)
                 {
                     return StatusCode(
                         StatusCodes.Status403Forbidden,
-                        _translator.Common["Transfert.Document.DownloadUnauthorized"]);
+                        _translator.Common["Transfert.Document.ShareInactive"]);
                 }
 
                 if (!IsValidSecurityCode(document, model.SecurityCode))
@@ -481,8 +571,12 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             try
             {
                 if (!CanReadTransfert())
-                    return Forbidden();
-                
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        _translator.Common["Transfert.Document.UserNotAuthorizedTransfer"]);
+                }
+
                 var document = await _documentService.GetDocumentForDownloadAsync(id, token);
 
                 if (IsDocumentUnavailableForDownload(document))
@@ -491,21 +585,29 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                 if (IsCurrentUserDocumentOwner(document))
                 {
                     await LogDocumentDownloadEvent(token);
-
                     return BuildDownloadFileResult(document);
                 }
 
-                var canDownloadSharedDocument = await CanCurrentUserDownloadSharedDocumentAsync(id, token);
+                var share = await _documentService.GetCurrentUserActiveDocumentShareAsync(
+                    id,
+                    CurrentUser.Id,
+                    CurrentUser.Email,
+                    token);
 
-                if (!canDownloadSharedDocument)
+                if (share == null)
                 {
                     return StatusCode(
                         StatusCodes.Status403Forbidden,
-                        _translator.Common["Transfert.Document.DownloadUnauthorized"]);
+                        _translator.Common["Transfert.Document.ShareInactive"]);
                 }
 
                 if (!IsValidSecurityCode(document, securityCode))
                     return BadRequest(_translator.Common["Transfert.Document.InvalidSecurityCode"]);
+
+                await _documentService.UpdateDocumentShareLastDownloadDateAsync(
+                    share.Id,
+                    DateTimeOffset.UtcNow,
+                    token);
 
                 await LogDocumentDownloadEvent(token);
 
@@ -626,15 +728,15 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         }
 
         #endregion
-        
+
         #region Ajout/Modification Partage
-        
+
         [HttpGet("{culture:required}/transfert/share-document")]
         public async Task<IActionResult> ShareDocument(
             int documentId,
             CancellationToken token = default)
         {
-            
+
             if (!CanWriteTransfert())
                 return Forbidden();
 
@@ -684,6 +786,8 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                 var recipients = await GetShareRecipientsAsync(emails, token);
 
                 ValidateShareRecipients(emails, recipients);
+
+                ValidateRecipientsTransfertAccess(emails, recipients);
 
                 var shares = BuildDocumentShares(document, recipients, model);
 
@@ -827,7 +931,26 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                     CreateurId = CurrentUser.Id,
                     Email = recipient.Email,
                     SharedDate = model.StartDate,
-                    ExpiryDate = model.ExpiryDate
+                    ExpiryDate = model.ExpiryDate,
+                    IsActive = true
+                })
+                .ToList();
+        }
+
+        private List<DocumentShare> BuildDocumentShares(
+            IEnumerable<Utilisateur> recipients,
+            DateTimeOffset sharedDate,
+            DateTimeOffset expiryDate)
+        {
+            return recipients
+                .Select(recipient => new DocumentShare
+                {
+                    SharedWithUserId = recipient.Id,
+                    CreateurId = CurrentUser.Id,
+                    Email = recipient.Email,
+                    SharedDate = sharedDate,
+                    ExpiryDate = expiryDate,
+                    IsActive = true
                 })
                 .ToList();
         }
@@ -939,9 +1062,9 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         }
 
         #endregion
-        
+
         #region Paramètres de partage
-        
+
         [HttpGet("{culture:required}/transfert/share-settings")]
         public async Task<IActionResult> ShareSettings(
             int documentId,
@@ -949,7 +1072,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         {
             if (!CanWriteTransfert())
                 return Forbidden();
-            
+
             var document = await GetDocumentForShare(documentId, token);
 
             EnsureCanManageDocumentShares(document);
@@ -972,7 +1095,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         {
             if (!CanWriteTransfert())
                 return Forbidden();
-            
+
             var document = await GetDocumentForShare(documentId, token);
 
             EnsureCanManageDocumentShares(document);
@@ -991,7 +1114,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
         {
             if (!CanWriteTransfert())
                 return Forbidden();
-            
+
             var share = await _documentService.GetDocumentShareAsync(documentShareId, token);
 
             if (share == null)
@@ -1023,7 +1146,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             {
                 if (!CanWriteTransfert())
                     return Forbidden();
-                
+
                 var share = await _documentService.GetDocumentShareAsync(documentShareId, token);
 
                 if (share == null)
@@ -1070,8 +1193,47 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             }
         }
 
+        [HttpPost("{culture:required}/transfert/disable-share-document")]
+        public async Task<IActionResult> DisableShareDocument(
+            int documentShareId,
+            CancellationToken token = default)
+        {
+            try
+            {
+                if (!CanWriteTransfert())
+                    return Forbidden();
+
+                var share = await _documentService.GetDocumentShareAsync(documentShareId, token);
+
+                if (share == null)
+                    return BadRequest(_translator.Common["Transfert.Document.ShareNotFound"]);
+
+                EnsureCanManageDocumentShares(share.Document);
+
+                var disabled = await _documentService.DisableDocumentShareAsync(
+                    documentShareId,
+                    token);
+
+                if (!disabled)
+                    return BadRequest(_translator.Common["Transfert.Document.ShareDeleteError"]);
+
+                return Ok(new { success = true });
+            }
+            catch (CustomMessageException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.TraceError(ex);
+
+                return StatusCode(
+                    500,
+                    _translator.Common["Transfert.Document.ShareDeleteError"]);
+            }
+        }
         #endregion
-        
+
         #region Helpers Communs
 
         private string GetModelStateErrorMessage()
