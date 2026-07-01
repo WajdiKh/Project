@@ -1,38 +1,114 @@
-IF NOT EXISTS
-(
-    SELECT 1
-    FROM [Transfert].[StatutDocument]
-    WHERE [Code] IN (N'Active', N'Expired')
-)
-BEGIN
-    INSERT INTO [Transfert].[StatutDocument]
-    (
-        [Code],
-        [FrenchName],
-        [EnglishName],
-        [FrenchDescription],
-        [EnglishDescription],
-        [DateCreation],
-        [IsActive]
-    )
-    VALUES
-    (
-        N'Active',
-        N'Actif',
-        N'Active',
-        N'Document actif et disponible au téléchargement.',
-        N'Active document available for download.',
-        SYSDATETIMEOFFSET(),
-        1
-    ),
-    (
-        N'Expired',
-        N'Expiré',
-        N'Expired',
-        N'Document expiré et non disponible au téléchargement.',
-        N'Expired document unavailable for download.',
-        SYSDATETIMEOFFSET(),
-        1
-    );
-END
+USE [BacaratWeb]
 GO
+
+INSERT INTO [Commun].[EmailNotificationType]
+           ([Code]
+           ,[Libelle]
+           ,[Description]
+           ,[DateCreation]
+           ,[DateModification]
+           ,[ModificateurId]
+           ,[CreateurId]
+           ,[IsActive])
+     VALUES
+           ('DocumentPartage'
+           ,'DocumentPartage'
+           ,'DocumentPartage'
+           ,SYSDATETIMEOFFSET()
+           ,NULL
+           ,NULL
+           ,NULL
+           ,'TRUE')
+GO
+
+INSERT INTO [Commun].[EmailNotificationTemplate]
+           ([Subject]
+           ,[Body]
+           ,[EmailNotificationTypeId]
+           ,[ActiviteId]
+           ,[DirectionId]
+           ,[LangueId]
+           ,[DateCreation]
+           ,[DateModification]
+           ,[ModificateurId]
+           ,[CreateurId]
+           ,[IsActive]
+           ,[ScopeId])
+     VALUES
+           ('BacaratWeb Transfert : Document partagé avec vous sur la plateforme BacaratWeb'
+           ,'<html xmlns:v="urn:schemas-microsoft-com:vml"   xmlns:o ="urn:schemas-microsoft-com:office:office"  xmlns:w ="urn:schemas-microsoft-com:office:word"   xmlns:m ="http://schemas.microsoft.com/office/2004/12/omml"   xmlns="http://www.w3.org/TR/REC-html40">     
+				<body lang=FR style=''tab-interval:35.4pt''>   
+					<div class=WordSection1>   
+						<p>Bonjour,</p>
+						<p>Nous vous informons qu''un document a été partagé avec vous sur la plateforme BacaratWeb.</p>
+						<p><strong>Détails du document :</strong></p>
+						<ul>
+							<li>Nom : {0}</li>
+							<li>Partagé par : {1}</li>
+							<li>Date de partage : de {2} à {3}</li>
+							<li>URL de téléchargement : {4}</li>
+							<li>Code de sécurité pour téléchargement : {5}</li>
+							<li>Clé de chiffrement : {6}</li>
+						</ul>
+						<p>Nous vous souhaitons une bonne réception. </p>
+						<p>Cordialement</p>
+						<p><strong>L''équipe BacaratWeb<strong></p> 			
+					</div>  
+				</body>  
+			</html>'
+           ,86
+           ,5
+           ,NULL
+           ,1
+           ,SYSDATETIMEOFFSET()
+           ,NULL
+           ,NULL
+           ,NULL
+           ,'TRUE'
+           ,1)
+GO
+INSERT INTO [Commun].[EmailNotificationTemplate]
+           ([Subject]
+           ,[Body]
+           ,[EmailNotificationTypeId]
+           ,[ActiviteId]
+           ,[DirectionId]
+           ,[LangueId]
+           ,[DateCreation]
+           ,[DateModification]
+           ,[ModificateurId]
+           ,[CreateurId]
+           ,[IsActive]
+           ,[ScopeId])
+     VALUES
+           ('BacaratWeb Transfert : Document shared with you on the BacaratWeb platform'
+           ,'<html xmlns:v="urn:schemas-microsoft-com:vml"   xmlns:o ="urn:schemas-microsoft-com:office:office"  xmlns:w ="urn:schemas-microsoft-com:office:word"   xmlns:m ="http://schemas.microsoft.com/office/2004/12/omml"   xmlns="http://www.w3.org/TR/REC-html40">     
+				<body lang=FR style=''tab-interval:35.4pt''>   
+					<div class=WordSection1>   
+						<p>Hello,</p>
+						<p>We would like to inform you that a document has been shared with you on the BacaratWeb platform.</p>
+						<p><strong>Document details:</strong></p>
+						<ul>
+							<li>Name: {0}</li>
+							<li>Shared by: {1}</li>
+							<li>Sharing date: from {2} to {3}</li>
+							<li>Download URL: {4}</li>
+							<li>Download security code: {5}</li>
+							<li>Encryption key: {6}</li>
+						</ul>
+						<p>We hope you receive it in good order.</p>
+						<p>Sincerely</p>
+						<p><strong>The BacaratWeb team<strong></p> 			
+					</div>  
+				</body>  
+			</html>'
+           ,86
+           ,5
+           ,NULL
+           ,2
+           ,SYSDATETIMEOFFSET()
+           ,NULL
+           ,NULL
+           ,NULL
+           ,'TRUE'
+           ,1)
