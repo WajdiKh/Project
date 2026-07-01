@@ -271,6 +271,34 @@ Transfert.Document.initAddDocumentValidators = function () {
             { type: "stringLength", max: 255, message: _transfertTranslatableDocumentEncryptionKeyMaxLength }
         ]
     });
+
+    $("#Emails").dxValidator({
+        validationGroup: _transfertAddNewDocumentFormValidationGroupName,
+        validationRules: [
+            {
+                type: "required",
+                message: _transfertTranslatableDocumentShareEmailRequired
+            },
+            {
+                type: "custom",
+                message: _transfertTranslatableDocumentShareEmailInvalid,
+                validationCallback: function (e) {
+                    if (!e.value) {
+                        return false;
+                    }
+
+                    var emails = e.value
+                        .split(";")
+                        .map(x => x.trim())
+                        .filter(x => x !== "");
+
+                    var regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                    return emails.length > 0 && emails.every(x => regex.test(x));
+                }
+            }
+        ]
+    });
 };
 
 Transfert.Document.validateSelectedFile = function () {
@@ -407,9 +435,9 @@ Transfert.Document.shareDocument = function () {
 
             DevExpress.ui.notify(
                 xhr.responseText ||
-                    (documentShareId
-                        ? _transfertTranslatableDocumentShareUpdateError
-                        : _transfertDocumentShareError),
+                (documentShareId
+                    ? _transfertTranslatableDocumentShareUpdateError
+                    : _transfertDocumentShareError),
                 "error",
                 5000);
         }
@@ -549,10 +577,17 @@ Transfert.Document.onShareSettingsSelectionChanged = function (e) {
     var selectedRows = e.selectedRowsData;
 
     Transfert.Document.selectedDocumentShare =
-        selectedRows && selectedRows.length > 0 ? selectedRows[0] : null;
+        selectedRows && selectedRows.length > 0
+            ? selectedRows[0]
+            : null;
 
-    Transfert.Document.setButtonDisabled("btnEditDocumentShare", !Transfert.Document.selectedDocumentShare);
-    Transfert.Document.setButtonDisabled("btnDeleteDocumentShare", !Transfert.Document.selectedDocumentShare);
+    var canDisable =
+        Transfert.Document.selectedDocumentShare
+        && Transfert.Document.selectedDocumentShare.IsActive === true;
+
+    Transfert.Document.setButtonDisabled(
+        "btnDisableDocumentShare",
+        !canDisable);
 };
 
 Transfert.Document.openEditSharePopup = function () {
@@ -798,3 +833,70 @@ Transfert.Document.handleAjaxError = function (e) {
     DevExpress.ui.notify(e.responseText || _commonTranslatableMessageErrorLoadForm, "error");
 };
 
+Transfert.Document.confirmDisableShare = function () {
+    if (!Transfert.Document.selectedDocumentShare || !_transfertCanWrite) {
+        return;
+    }
+
+    var dialog = DevExpress.ui.dialog.custom({
+        title: _transfertTranslatableDocumentShareSettings,
+        messageHtml: _transfertDocumentDisableShareConfirm,
+        buttons: [
+            {
+                text: _transfertTranslatableDocumentYes,
+                onClick: function () {
+                    return true;
+                }
+            },
+            {
+                text: _transfertTranslatableDocumentNo,
+                onClick: function () {
+                    return false;
+                }
+            }
+        ]
+    });
+
+    dialog.show().done(function (dialogResult) {
+        if (dialogResult) {
+            Transfert.Document.disableShareDocument();
+        }
+    });
+};
+
+Transfert.Document.disableShareDocument = function () {
+    if (!Transfert.Document.selectedDocumentShare || !_transfertCanWrite) {
+        return;
+    }
+
+    $.ajax({
+        url: "/" + culture + "/transfert/disable-share-document",
+        type: "POST",
+        data: {
+            documentShareId: Transfert.Document.selectedDocumentShare.Id
+        },
+        success: function () {
+            DevExpress.ui.notify(
+                _transfertDocumentShareDisabledSuccess,
+                "success",
+                3000);
+
+            Transfert.Document.selectedDocumentShare = null;
+
+            Transfert.Document.refreshShareSettingsGrid();
+
+            Transfert.Document.setButtonDisabled(
+                "btnDisableDocumentShare",
+                true);
+
+            Transfert.Document.refreshGrid("allDocumentsGrid");
+            Transfert.Document.refreshGrid("sharedDocumentsGrid");
+        },
+        error: function (xhr) {
+            DevExpress.ui.notify(
+                xhr.responseText || _transfertTranslatableDocumentShareDeleteError,
+                "error",
+                5000);
+        }
+    });
+};
