@@ -91,14 +91,22 @@ namespace BacaratWeb.Services.Transfert
                 .ToListAsync(token);
         }
 
-        public async Task<IEnumerable<DocumentShare>> GetSharedWithMeDocumentsAsync(int userId, string email, CancellationToken token = default)
+        public async Task<List<DocumentShare>> GetSharedWithMeDocumentsAsync(
+            int userId,
+            string email,
+            CancellationToken token = default)
         {
             return await Context.DocumentShares
                 .Include(x => x.Document)
                     .ThenInclude(x => x.Owner)
                 .Include(x => x.Document)
                     .ThenInclude(x => x.StatutDocument)
-                .Where(x => x.SharedWithUserId == userId || x.Email == email)
+                .Where(x =>
+                    x.IsActive
+                    && (
+                        x.SharedWithUserId == userId
+                        || x.Email == email
+                    ))
                 .OrderByDescending(x => x.SharedDate)
                 .ToListAsync(token)
                 .ConfigureAwait(false);
@@ -192,7 +200,10 @@ namespace BacaratWeb.Services.Transfert
             return await Context.SaveChangesAsync(token) > 0;
         }
 
-        public async Task<IEnumerable<Document>> GetAllDocumentsAsync(int userId, string email, CancellationToken token = default)
+        public async Task<List<Document>> GetAllDocumentsAsync(
+            int userId,
+            string email,
+            CancellationToken token = default)
         {
             return await Context.Documents
                 .Include(x => x.Owner)
@@ -200,10 +211,12 @@ namespace BacaratWeb.Services.Transfert
                 .Include(x => x.DocumentShares)
                 .Where(x =>
                     x.OwnerId == userId
-                    ||
-                    x.DocumentShares.Any(s =>
-                        s.SharedWithUserId == userId
-                        || s.Email == email))
+                    || x.DocumentShares.Any(s =>
+                        s.IsActive
+                        && (
+                            s.SharedWithUserId == userId
+                            || s.Email == email
+                        )))
                 .Distinct()
                 .OrderByDescending(x => x.UploadDate)
                 .ToListAsync(token);
@@ -217,7 +230,11 @@ namespace BacaratWeb.Services.Transfert
                 .FirstOrDefaultAsync(x => x.Id == documentId, token);
         }
 
-        public async Task<bool> CanUserDownloadSharedDocumentAsync(int documentId, int userId, string email, CancellationToken token = default)
+        public async Task<bool> CanUserDownloadSharedDocumentAsync(
+            int documentId,
+            int userId,
+            string email,
+            CancellationToken token = default)
         {
             var now = DateTimeOffset.Now;
 
@@ -225,20 +242,16 @@ namespace BacaratWeb.Services.Transfert
                 .Include(x => x.Document)
                 .AnyAsync(x =>
                     x.DocumentId == documentId
-                    &&
-                    (
+                    && x.IsActive
+                    && (
                         x.SharedWithUserId == userId
                         || x.Email == email
                     )
-                    &&
-                    x.SharedDate <= now
-                    &&
-                    x.ExpiryDate >= now
-                    &&
-                    x.Document.ExpiryDate >= now,
+                    && x.SharedDate <= now
+                    && x.ExpiryDate >= now
+                    && x.Document.ExpiryDate >= now,
                     token);
         }
-
         public async Task<bool> DeleteDocumentAsync(int documentId, CancellationToken token = default)
         {
             var document = await Context.Documents
@@ -252,6 +265,84 @@ namespace BacaratWeb.Services.Transfert
                 Context.DocumentShares.RemoveRange(document.DocumentShares);
 
             Context.Documents.Remove(document);
+
+            return await Context.SaveChangesAsync(token) > 0;
+        }
+
+        public async Task<bool> AddDocumentWithSharesAsync(
+            Document document,
+            IEnumerable<DocumentShare> shares,
+            CancellationToken token = default)
+        {
+            var sharesToAdd = shares?.ToList() ?? new List<DocumentShare>();
+
+            if (!sharesToAdd.Any())
+                return false;
+
+            await Context.Documents.AddAsync(document, token);
+
+            foreach (var share in sharesToAdd)
+            {
+                share.Document = document;
+                share.IsActive = true;
+            }
+
+            await Context.DocumentShares.AddRangeAsync(sharesToAdd, token);
+
+            return await Context.SaveChangesAsync(token) > 0;
+        }
+
+        public async Task<DocumentShare> GetCurrentUserActiveDocumentShareAsync(
+            int documentId,
+            int userId,
+            string email,
+            CancellationToken token = default)
+        {
+            var now = DateTimeOffset.Now;
+
+            return await Context.DocumentShares
+                .Include(x => x.Document)
+                    .ThenInclude(x => x.Owner)
+                .FirstOrDefaultAsync(x =>
+                    x.DocumentId == documentId
+                    && x.IsActive
+                    && x.SharedDate <= now
+                    && x.ExpiryDate >= now
+                    && x.Document.ExpiryDate >= now
+                    && (
+                        x.SharedWithUserId == userId
+                        || x.Email == email
+                    ),
+                    token);
+        }
+
+        public async Task<bool> DisableDocumentShareAsync(
+            int documentShareId,
+            CancellationToken token = default)
+        {
+            var share = await Context.DocumentShares
+                .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+
+            if (share == null)
+                return false;
+
+            share.IsActive = false;
+
+            return await Context.SaveChangesAsync(token) > 0;
+        }
+
+        public async Task<bool> UpdateDocumentShareLastDownloadDateAsync(
+            int documentShareId,
+            DateTimeOffset lastDownloadDate,
+            CancellationToken token = default)
+        {
+            var share = await Context.DocumentShares
+                .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+
+            if (share == null)
+                return false;
+
+            share.LastDownloadDate = lastDownloadDate;
 
             return await Context.SaveChangesAsync(token) > 0;
         }
