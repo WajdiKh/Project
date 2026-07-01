@@ -1,37 +1,286 @@
+1) document.js
+
+Remplacer onMyDocumentsSelectionChanged par :
+
+Transfert.Document.onMyDocumentsSelectionChanged = function (e) {
+    var selectedRows = e.selectedRowsData;
+
+    Transfert.Document.selectedDocument =
+        selectedRows && selectedRows.length > 0
+            ? selectedRows[0]
+            : null;
+
+    var hasSelection = !!Transfert.Document.selectedDocument;
+
+    Transfert.Document.setButtonVisible("btnShareSettingsDocument", hasSelection && _transfertCanWrite);
+};
+
+Remplacer initShareButton par :
+
+Transfert.Document.initShareButton = function () {
+    $("#btnShareDocument").hide();
+};
+
+Remplacer initShareSettingsButton par :
+
+Transfert.Document.initShareSettingsButton = function () {
+    if (!_transfertCanWrite) {
+        $("#btnShareSettingsDocument").hide();
+        return;
+    }
+
+    $("#btnShareSettingsDocument").dxButton({
+        text: _transfertTranslatableDocumentShareHistory,
+        icon: "preferences",
+        visible: false,
+        elementAttr: {
+            class: "color-blue"
+        },
+        onClick: function () {
+            Transfert.Document.openShareSettingsPopup();
+        }
+    });
+};
+
+Dans initAddDocumentValidators, ne remets PAS de stringLength sur #Emails.
+Garder seulement required + custom email format.
+
+Supprimer / ne plus appeler les fonctions liées à la suppression document :
+- confirmDeleteDocument
+- deleteDocument
+- tout bouton Delete dans les datagrids.
+
+Dans le popup historique, supprimer les boutons :
+- Modifier
+- Supprimer
+
+Garder uniquement :
+- Désactiver
+
+
+============================================================
+2) _PartialAddNewDocument.cshtml
+============================================================
+
+Remplacer le libellé "Emails de partage" par "Emails".
+
+Remplacer l'ancien texte d'aide affiché à côté du champ par un tooltip.
+
+Exemple :
+
+<label class="control-label">
+    @translator.Common["Transfert.Document.Emails"]
+
+    <i class="dx-icon-info color-blue"
+       title="@translator.Common["Transfert.Document.EmailsTooltip"]">
+    </i>
+</label>
+
+@(Html.DevExtreme()
+    .TextArea()
+    .ID("Emails")
+    .Name("Emails")
+    .Height(70)
+    .Width("100%"))
+
+Supprimer l'ancien affichage texte :
+@translator.Common["Transfert.Document.EmailsHelp"]
+
+
+============================================================
+3) _PartialShareSettingsDocument.cshtml
+============================================================
+
+Le titre doit utiliser :
+
+@translator.Common["Transfert.Document.ShareHistory"]
+
+La première colonne de la grille doit être :
+
+columns.AddFor(m => m.Email)
+    .Caption(translator.Common["Transfert.Document.Email"]);
+
+Supprimer les boutons :
+- Modifier
+- Supprimer
+
+Garder uniquement le bouton :
+- Désactiver
+
+
+============================================================
+4) DocumentController.cs
+============================================================
+
+Remplacer ValidateShareRecipients + ValidateRecipientsTransfertAccess par une seule méthode groupée :
+
+private void ValidateTransferRecipients(
+    IEnumerable<string> emails,
+    IEnumerable<Utilisateur> recipients)
+{
+    var recipientEmails = recipients
+        .Where(x => !string.IsNullOrWhiteSpace(x.Email))
+        .Select(x => x.Email)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    var invalidEmails = emails
+        .Where(x => !recipientEmails.Contains(x))
+        .ToList();
+
+    var unauthorizedEmails = recipients
+        .Where(x => !CanRecipientAccessTransfert(x))
+        .Select(x => x.Email)
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .ToList();
+
+    var rejectedEmails = invalidEmails
+        .Concat(unauthorizedEmails)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    if (rejectedEmails.Any())
+    {
+        throw new CustomMessageException(
+            string.Format(
+                _translator.Common["Transfert.Document.RecipientsNotAuthorizedTransfer"],
+                string.Join(", ", rejectedEmails)));
+    }
+}
+
+Garder CanRecipientAccessTransfert avec IUtilisateurDirectionService :
+
+private bool CanRecipientAccessTransfert(Utilisateur recipient)
+{
+    if (recipient == null)
+        return false;
+
+    return _utilisateurDirectionService.CanViewDossier(recipient.Id)
+        || _utilisateurDirectionService.CanCreateDossier(recipient.Id);
+}
+
+Dans SaveDocument, remplacer :
+
+ValidateShareRecipients(emails, recipients);
+ValidateRecipientsTransfertAccess(emails, recipients);
+
+par :
+
+ValidateTransferRecipients(emails, recipients);
+
+Dans SaveShareDocument, remplacer :
+
+ValidateShareRecipients(emails, recipients);
+ValidateRecipientsTransfertAccess(emails, recipients);
+
+par :
+
+ValidateTransferRecipients(emails, recipients);
+
+
+============================================================
+5) Notification DocumentPartage
+============================================================
+
+Remplacer la construction bodyArgs dans BuildShareEmailNotification / SendNotificationDocumentPartage par :
+
+var expiryDelayLabel = GetDocumentExpiryDelayLabel(document, cultureInfo);
+
+var bodyArgs = new object[]
+{
+    document.Name,
+    UtilisateurHelper.FormatUserName(CurrentUser.Prenom, CurrentUser.Nom),
+    expiryDelayLabel,
+    GetTransfertUrl(),
+    document.SecurityCode,
+    document.EncryptionKey
+};
+
+Ajouter cette méthode helper :
+
+private static string GetDocumentExpiryDelayLabel(
+    Document document,
+    CultureInfo cultureInfo)
+{
+    var delayHours = (int)Math.Round(
+        (document.ExpiryDate - document.UploadDate).TotalHours,
+        MidpointRounding.AwayFromZero);
+
+    return string.Format(
+        cultureInfo,
+        "{0} h",
+        delayHours);
+}
+
+
+============================================================
+6) SQL traductions + template notification
+============================================================
+
 USE [BacaratWeb]
 GO
 
-IF NOT EXISTS
+DECLARE @Traductions TABLE
 (
-    SELECT 1
-    FROM [Commun].[EmailNotificationType]
-    WHERE [Code] = 'DocumentPartage'
+    Id NVARCHAR(250) NOT NULL,
+    FrenchTranslate VARCHAR(MAX) NOT NULL,
+    EnglishTranslate VARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @Traductions
+(
+    Id,
+    FrenchTranslate,
+    EnglishTranslate
 )
-BEGIN
-    INSERT INTO [Commun].[EmailNotificationType]
+VALUES
+(
+    N'Transfert.Document.Emails',
+    'Emails',
+    'Emails'
+),
+(
+    N'Transfert.Document.Email',
+    'Email',
+    'Email'
+),
+(
+    N'Transfert.Document.EmailsTooltip',
+    'Veuillez ajouter un point-virgule après chaque adresse e-mail.',
+    'Please add a semicolon following each email address.'
+),
+(
+    N'Transfert.Document.ShareHistory',
+    'Historique de partage',
+    'Share history'
+),
+(
+    N'Transfert.Document.RecipientsNotAuthorizedTransfer',
+    'Les utilisateurs suivants n''existent pas dans BacaratWeb Transfert : {0}. Merci d''effectuer une demande d''habilitation pour les destinataires.',
+    'The following users do not exist in BacaratWeb Transfert: {0}. Please request access for the recipients.'
+);
+
+MERGE [Commun].[Traduction] AS target
+USING @Traductions AS source
+    ON target.Id = source.Id
+WHEN MATCHED THEN
+    UPDATE SET
+        target.FrenchTranslate = source.FrenchTranslate,
+        target.EnglishTranslate = source.EnglishTranslate
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT
     (
-        [Code],
-        [Libelle],
-        [Description],
-        [DateCreation],
-        [DateModification],
-        [ModificateurId],
-        [CreateurId],
-        [IsActive]
+        Id,
+        FrenchTranslate,
+        EnglishTranslate
     )
     VALUES
     (
-        'DocumentPartage',
-        'DocumentPartage',
-        'DocumentPartage',
-        SYSDATETIMEOFFSET(),
-        NULL,
-        NULL,
-        NULL,
-        1
+        source.Id,
+        source.FrenchTranslate,
+        source.EnglishTranslate
     );
-END
 GO
+
 
 DECLARE @EmailNotificationTypeId INT;
 
@@ -39,67 +288,37 @@ SELECT @EmailNotificationTypeId = [Id]
 FROM [Commun].[EmailNotificationType]
 WHERE [Code] = 'DocumentPartage';
 
-IF NOT EXISTS
-(
-    SELECT 1
-    FROM [Commun].[EmailNotificationTemplate]
-    WHERE [EmailNotificationTypeId] = @EmailNotificationTypeId
-      AND [ActiviteId] = 5
-      AND [LangueId] = 1
-      AND [ScopeId] = 1
-)
-BEGIN
-    INSERT INTO [Commun].[EmailNotificationTemplate]
-    (
-        [Subject],
-        [Body],
-        [EmailNotificationTypeId],
-        [ActiviteId],
-        [DirectionId],
-        [LangueId],
-        [DateCreation],
-        [DateModification],
-        [ModificateurId],
-        [CreateurId],
-        [IsActive],
-        [ScopeId]
-    )
-    VALUES
-    (
-        'BacaratWeb Transfert : Document partagé avec vous sur la plateforme BacaratWeb',
+
+UPDATE [Commun].[EmailNotificationTemplate]
+SET
+    [Body] =
         '<html xmlns:v="urn:schemas-microsoft-com:vml"   xmlns:o ="urn:schemas-microsoft-com:office:office"  xmlns:w ="urn:schemas-microsoft-com:office:word"   xmlns:m ="http://schemas.microsoft.com/office/2004/12/omml"   xmlns="http://www.w3.org/TR/REC-html40">     
-				<body lang=FR style=''tab-interval:35.4pt''>   
-					<div class=WordSection1>   
-						<p>Bonjour,</p>
-						<p>Nous vous informons qu''un document a été partagé avec vous sur la plateforme BacaratWeb.</p>
-						<p><strong>Détails du document :</strong></p>
-						<ul>
-							<li>Nom : {0}</li>
-							<li>Partagé par : {1}</li>
-							<li>Date de partage : de {2} à {3}</li>
-							<li>URL de téléchargement : {4}</li>
-							<li>Code de sécurité pour téléchargement : {5}</li>
-							<li>Clé de chiffrement : {6}</li>
-						</ul>
-						<p>Nous vous souhaitons une bonne réception. </p>
-						<p>Cordialement</p>
-						<p><strong>L''équipe BacaratWeb<strong></p> 			
-					</div>  
-				</body>  
-			</html>',
-        @EmailNotificationTypeId,
-        5,
-        NULL,
-        1,
-        SYSDATETIMEOFFSET(),
-        NULL,
-        NULL,
-        NULL,
-        1,
-        1
-    );
-END
+            <body lang=FR style=''tab-interval:35.4pt''>   
+                <div class=WordSection1>   
+                    <p>Bonjour,</p>
+                    <p>Nous vous informons qu''un document a été partagé avec vous sur la plateforme BacaratWeb.</p>
+                    <p><strong>Détails du document :</strong></p>
+                    <ul>
+                        <li>Nom : {0}</li>
+                        <li>Partagé par : {1}</li>
+                        <li>Délai d''expiration : {2}</li>
+                        <li>URL de téléchargement : {3}</li>
+                        <li>Code de sécurité pour téléchargement : {4}</li>
+                        <li>Clé de chiffrement : {5}</li>
+                    </ul>
+                    <p>Nous vous souhaitons une bonne réception. </p>
+                    <p>Cordialement</p>
+                    <p><strong>L''équipe BacaratWeb<strong></p>             
+                </div>  
+            </body>  
+        </html>',
+    [DateModification] = SYSDATETIMEOFFSET()
+WHERE [EmailNotificationTypeId] = @EmailNotificationTypeId
+  AND [ActiviteId] = 5
+  AND [LangueId] = 1
+  AND [ScopeId] = 1;
 GO
+
 
 DECLARE @EmailNotificationTypeId INT;
 
@@ -107,64 +326,33 @@ SELECT @EmailNotificationTypeId = [Id]
 FROM [Commun].[EmailNotificationType]
 WHERE [Code] = 'DocumentPartage';
 
-IF NOT EXISTS
-(
-    SELECT 1
-    FROM [Commun].[EmailNotificationTemplate]
-    WHERE [EmailNotificationTypeId] = @EmailNotificationTypeId
-      AND [ActiviteId] = 5
-      AND [LangueId] = 2
-      AND [ScopeId] = 1
-)
-BEGIN
-    INSERT INTO [Commun].[EmailNotificationTemplate]
-    (
-        [Subject],
-        [Body],
-        [EmailNotificationTypeId],
-        [ActiviteId],
-        [DirectionId],
-        [LangueId],
-        [DateCreation],
-        [DateModification],
-        [ModificateurId],
-        [CreateurId],
-        [IsActive],
-        [ScopeId]
-    )
-    VALUES
-    (
-        'BacaratWeb Transfert : Document shared with you on the BacaratWeb platform',
+
+UPDATE [Commun].[EmailNotificationTemplate]
+SET
+    [Body] =
         '<html xmlns:v="urn:schemas-microsoft-com:vml"   xmlns:o ="urn:schemas-microsoft-com:office:office"  xmlns:w ="urn:schemas-microsoft-com:office:word"   xmlns:m ="http://schemas.microsoft.com/office/2004/12/omml"   xmlns="http://www.w3.org/TR/REC-html40">     
-				<body lang=FR style=''tab-interval:35.4pt''>   
-					<div class=WordSection1>   
-						<p>Hello,</p>
-						<p>We would like to inform you that a document has been shared with you on the BacaratWeb platform.</p>
-						<p><strong>Document details:</strong></p>
-						<ul>
-							<li>Name: {0}</li>
-							<li>Shared by: {1}</li>
-							<li>Sharing date: from {2} to {3}</li>
-							<li>Download URL: {4}</li>
-							<li>Download security code: {5}</li>
-							<li>Encryption key: {6}</li>
-						</ul>
-						<p>We hope you receive it in good order.</p>
-						<p>Sincerely</p>
-						<p><strong>The BacaratWeb team<strong></p> 			
-					</div>  
-				</body>  
-			</html>',
-        @EmailNotificationTypeId,
-        5,
-        NULL,
-        2,
-        SYSDATETIMEOFFSET(),
-        NULL,
-        NULL,
-        NULL,
-        1,
-        1
-    );
-END
+            <body lang=EN style=''tab-interval:35.4pt''>   
+                <div class=WordSection1>   
+                    <p>Hello,</p>
+                    <p>We would like to inform you that a document has been shared with you on the BacaratWeb platform.</p>
+                    <p><strong>Document details:</strong></p>
+                    <ul>
+                        <li>Name: {0}</li>
+                        <li>Shared by: {1}</li>
+                        <li>Expiration delay: {2}</li>
+                        <li>Download URL: {3}</li>
+                        <li>Download security code: {4}</li>
+                        <li>Encryption key: {5}</li>
+                    </ul>
+                    <p>We hope you receive it in good order.</p>
+                    <p>Sincerely</p>
+                    <p><strong>The BacaratWeb team<strong></p>             
+                </div>  
+            </body>  
+        </html>',
+    [DateModification] = SYSDATETIMEOFFSET()
+WHERE [EmailNotificationTypeId] = @EmailNotificationTypeId
+  AND [ActiviteId] = 5
+  AND [LangueId] = 2
+  AND [ScopeId] = 1;
 GO
