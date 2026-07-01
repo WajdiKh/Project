@@ -1,81 +1,109 @@
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE TABLE [Transfert].[Document]
+CREATE TABLE [Commun].[AccesPiecesJointesDirection]
 (
     [Id] INT IDENTITY(1,1) NOT NULL,
-    [Name] NVARCHAR(255) NOT NULL,
-    [Description] NVARCHAR(1000) NULL,
-    [OriginalFileName] NVARCHAR(255) NOT NULL,
-    [FileExtension] NVARCHAR(20) NOT NULL,
-    [ContentType] NVARCHAR(100) NULL,
-    [FileContent] VARBINARY(MAX) NOT NULL,
-    [FileSize] BIGINT NOT NULL,
-    [UploadDate] DATETIMEOFFSET(7) NOT NULL,
-    [ExpiryDate] DATETIMEOFFSET(7) NOT NULL,
-    [OwnerId] INT NOT NULL,
-    [StatutDocumentId] INT NOT NULL,
-    [SecurityCode] NVARCHAR(6) NOT NULL,
-    [EncryptionKey] NVARCHAR(255) NULL,
-
-    CONSTRAINT [PK_Document]
-    PRIMARY KEY CLUSTERED ([Id] ASC)
-);
-GO
-
-CREATE NONCLUSTERED INDEX [IX_Document_OwnerId_UploadDate]
-ON [Transfert].[Document] ([OwnerId], [UploadDate] DESC)
-INCLUDE ([Id], [Name], [Description], [FileExtension], [ContentType], [FileSize], [ExpiryDate], [StatutDocumentId]);
-GO
-
-CREATE NONCLUSTERED INDEX [IX_Document_ExpiryDate]
-ON [Transfert].[Document] ([ExpiryDate])
-INCLUDE ([Id], [OwnerId], [Name], [OriginalFileName]);
-GO
-
-CREATE NONCLUSTERED INDEX [IX_Document_StatutDocumentId]
-ON [Transfert].[Document] ([StatutDocumentId]);
-GO
-
-
-SET QUOTED_IDENTIFIER ON
-GO
-
-CREATE TABLE [Transfert].[DocumentShare]
-(
-    [Id] INT IDENTITY(1,1) NOT NULL,
-    [DocumentId] INT NOT NULL,
-    [SharedWithUserId] INT NOT NULL,
-    [Email] NVARCHAR(320) NOT NULL,
-    [SharedDate] DATETIMEOFFSET(7) NOT NULL,
-    [ExpiryDate] DATETIMEOFFSET(7) NOT NULL,
+    [DirectionSourceId] INT NOT NULL,
+    [DirectionCibleId] INT NOT NULL,
+    [TypeDocumentLabId] INT NOT NULL,
+    [AutoriserRecherche] BIT NOT NULL CONSTRAINT [DF_AccesPiecesJointesDirection_AutoriserRecherche] DEFAULT(0),
+    [AutoriserTelechargement] BIT NOT NULL CONSTRAINT [DF_AccesPiecesJointesDirection_AutoriserTelechargement] DEFAULT(0),
+    [DateCreation] DATETIMEOFFSET(7) NOT NULL CONSTRAINT [DF_AccesPiecesJointesDirection_DateCreation] DEFAULT(SYSDATETIMEOFFSET()),
+    [DateModification] DATETIMEOFFSET(7) NULL,
     [CreateurId] INT NULL,
+    [ModificateurId] INT NULL,
+    [IsActive] BIT NOT NULL CONSTRAINT [DF_AccesPiecesJointesDirection_IsActive] DEFAULT(1),
 
-    CONSTRAINT [PK_DocumentShare]
-    PRIMARY KEY CLUSTERED ([Id] ASC)
+    CONSTRAINT [PK_AccesPiecesJointesDirection] PRIMARY KEY CLUSTERED ([Id] ASC),
+
+    CONSTRAINT [FK_AccesPiecesJointesDirection_Direction_Source]
+        FOREIGN KEY ([DirectionSourceId]) REFERENCES [Commun].[Direction]([Id]),
+
+    CONSTRAINT [FK_AccesPiecesJointesDirection_Direction_Cible]
+        FOREIGN KEY ([DirectionCibleId]) REFERENCES [Commun].[Direction]([Id]),
+
+    CONSTRAINT [FK_AccesPiecesJointesDirection_TypeDocumentLab]
+        FOREIGN KEY ([TypeDocumentLabId]) REFERENCES [Lab].[TypeDocumentLab]([Id]),
+
+    CONSTRAINT [FK_AccesPiecesJointesDirection_Utilisateur_Createur]
+        FOREIGN KEY ([CreateurId]) REFERENCES [Commun].[Utilisateur]([Id]),
+
+    CONSTRAINT [FK_AccesPiecesJointesDirection_Utilisateur_Modificateur]
+        FOREIGN KEY ([ModificateurId]) REFERENCES [Commun].[Utilisateur]([Id]),
+
+    CONSTRAINT [CK_AccesPiecesJointesDirection_DirectionsDifferentes]
+        CHECK ([DirectionSourceId] <> [DirectionCibleId])
 );
 GO
 
-CREATE NONCLUSTERED INDEX [IX_DocumentShare_DocumentId]
-ON [Transfert].[DocumentShare] ([DocumentId])
-INCLUDE ([Id], [Email], [SharedWithUserId], [CreateurId], [SharedDate], [ExpiryDate]);
+CREATE UNIQUE NONCLUSTERED INDEX [UX_AccesPiecesJointesDirection_Source_Cible_TypeDocument]
+ON [Commun].[AccesPiecesJointesDirection]
+(
+    [DirectionSourceId],
+    [DirectionCibleId],
+    [TypeDocumentLabId]
+);
 GO
 
-CREATE NONCLUSTERED INDEX [IX_DocumentShare_SharedWithUserId_ExpiryDate]
-ON [Transfert].[DocumentShare] ([SharedWithUserId], [ExpiryDate])
-INCLUDE ([Id], [DocumentId], [Email], [SharedDate]);
+CREATE NONCLUSTERED INDEX [IX_AccesPiecesJointesDirection_Recherche]
+ON [Commun].[AccesPiecesJointesDirection]
+(
+    [DirectionSourceId],
+    [AutoriserRecherche],
+    [IsActive],
+    [DirectionCibleId],
+    [TypeDocumentLabId]
+);
 GO
 
-CREATE NONCLUSTERED INDEX [IX_DocumentShare_Email_ExpiryDate]
-ON [Transfert].[DocumentShare] ([Email], [ExpiryDate])
-INCLUDE ([Id], [DocumentId], [SharedWithUserId], [SharedDate]);
+CREATE NONCLUSTERED INDEX [IX_AccesPiecesJointesDirection_Telechargement]
+ON [Commun].[AccesPiecesJointesDirection]
+(
+    [DirectionSourceId],
+    [DirectionCibleId],
+    [AutoriserTelechargement],
+    [IsActive],
+    [TypeDocumentLabId]
+);
 GO
 
-CREATE NONCLUSTERED INDEX [IX_DocumentShare_DocumentId_SharedWithUserId_Email]
-ON [Transfert].[DocumentShare] ([DocumentId], [SharedWithUserId], [Email])
-INCLUDE ([Id], [SharedDate], [ExpiryDate]);
+
+CREATE TABLE [Lab].[DocumentDossierLab]
+(
+    [Id] INT IDENTITY(1,1) NOT NULL,
+    [DocumentLabId] INT NOT NULL,
+    [DossierLabId] INT NOT NULL,
+    [TransmettreTracfin] BIT NOT NULL,
+    [DocumentName] NVARCHAR(1000) NOT NULL,
+    [IsDeleted] BIT NOT NULL,
+    [FileName] NVARCHAR(1000) NOT NULL,
+    [CategorieDocumentId] INT NULL,
+    [Precision_if_OtherType] NVARCHAR(400) NULL,
+    [IdentityNumber] NVARCHAR(400) NULL,
+    [CountryRelaseId] INT NULL,
+    [DateDocument] DATETIMEOFFSET(7) NULL,
+    [DateValidity] DATETIMEOFFSET(7) NULL,
+    [SourceFileDocument] NVARCHAR(400) NULL,
+    [LevelCNI] BIT NULL,
+    [AuthorityRelease] NVARCHAR(400) NULL,
+    [TypeDocumentLabId] INT NULL,
+    [PersonneAssocieId] UNIQUEIDENTIFIER NULL,
+
+    CONSTRAINT [PK_DocumentDossierLab] PRIMARY KEY CLUSTERED ([Id] ASC),
+    CONSTRAINT [FK_DocumentDossierLab_CategorieDocument_CategorieDocumentId]
+        FOREIGN KEY ([CategorieDocumentId]) REFERENCES [Commun].[CategorieDocument]([Id]),
+    CONSTRAINT [FK_DocumentDossierLab_DocumentLab_DocumentLabId]
+        FOREIGN KEY ([DocumentLabId]) REFERENCES [Lab].[DocumentLab]([Id]),
+    CONSTRAINT [FK_DocumentDossierLab_DossierLab_DossierLabId]
+        FOREIGN KEY ([DossierLabId]) REFERENCES [Lab].[DossierLab]([Id]),
+    CONSTRAINT [FK_DocumentDossierLab_Pays_CountryRelaseId]
+        FOREIGN KEY ([CountryRelaseId]) REFERENCES [Commun].[Pays]([Id]),
+    CONSTRAINT [FK_DocumentDossierLab_TypeDocumentLab_TypeDocumentLabId]
+        FOREIGN KEY ([TypeDocumentLabId]) REFERENCES [Lab].[TypeDocumentLab]([Id])
+);
 GO
 
-CREATE NONCLUSTERED INDEX [IX_DocumentShare_CreateurId]
-ON [Transfert].[DocumentShare] ([CreateurId]);
+CREATE NONCLUSTERED INDEX [IX_DocumentDossierLab_DocumentLabId]
+ON [Lab].[DocumentDossierLab]([DocumentLabId] ASC);
 GO
+
+CREATE NONCLUSTERED INDEX [IX_DocumentDossierLab_DossierLabId]
+ON [
