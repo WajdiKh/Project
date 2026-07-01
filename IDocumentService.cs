@@ -3,6 +3,7 @@ using BacaratWeb.Entities.Transfert;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System;
 
 namespace BacaratWeb.Services.Transfert.Interfaces
 {
@@ -12,7 +13,7 @@ namespace BacaratWeb.Services.Transfert.Interfaces
 
         Task<IEnumerable<Document>> GetMyDocumentsAsync(int ownerId, CancellationToken token = default);
 
-        Task<IEnumerable<DocumentShare>> GetSharedWithMeDocumentsAsync(int userId, string email, CancellationToken token = default);
+        Task<List<DocumentShare>> GetSharedWithMeDocumentsAsync(int userId, string email, CancellationToken token = default);
 
         Task<StatutDocument> GetStatutDocumentByCodeAsync(string code, CancellationToken token = default);
 
@@ -31,7 +32,7 @@ namespace BacaratWeb.Services.Transfert.Interfaces
         Task<bool> DeleteDocumentShareAsync(int documentShareId, CancellationToken token = default);
 
         // Nouveau : documents de l'utilisateur connecté + documents partagés avec lui
-        Task<IEnumerable<Document>> GetAllDocumentsAsync(
+        Task<List<Document>> GetAllDocumentsAsync(
             int userId,
             string email,
             CancellationToken token = default);
@@ -51,6 +52,25 @@ namespace BacaratWeb.Services.Transfert.Interfaces
         // Nouveau : suppression physique du document + partages
         Task<bool> DeleteDocumentAsync(
             int documentId,
+            CancellationToken token = default);
+        Task<bool> AddDocumentWithSharesAsync(
+            Document document,
+            IEnumerable<DocumentShare> shares,
+            CancellationToken token = default);
+
+        Task<DocumentShare> GetCurrentUserActiveDocumentShareAsync(
+            int documentId,
+            int userId,
+            string email,
+            CancellationToken token = default);
+
+        Task<bool> DisableDocumentShareAsync(
+            int documentShareId,
+            CancellationToken token = default);
+
+        Task<bool> UpdateDocumentShareLastDownloadDateAsync(
+            int documentShareId,
+            DateTimeOffset lastDownloadDate,
             CancellationToken token = default);
     }
 }
