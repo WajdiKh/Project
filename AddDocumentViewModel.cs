@@ -20,5 +20,8 @@ namespace BacaratWeb.ViewModel.Transfert
 
         [Range(24, 72, ErrorMessage = "Transfert.Document.ExpiryDelayHoursRange")]
         public int ExpiryDelayHours { get; set; } = 48;
+        
+        [Required(ErrorMessage = "Transfert.Document.ShareEmailRequired")]
+        public string Emails { get; set; }
     }
 }
