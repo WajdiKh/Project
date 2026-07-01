@@ -16,5 +16,7 @@ namespace BacaratWeb.ViewModel.Transfert
         public DateTimeOffset SharedDate { get; set; }
 
         public DateTimeOffset ExpiryDate { get; set; }
+        public bool IsActive { get; set; }
+        public DateTimeOffset? LastDownloadDate { get; set; }
     }
 }
