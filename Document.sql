@@ -23,29 +23,37 @@ CREATE TABLE [Transfert].[Document]
 );
 GO
 
-ALTER TABLE [Transfert].[Document]
-ADD CONSTRAINT [DF_Document_UploadDate]
-DEFAULT (SYSDATETIMEOFFSET()) FOR [UploadDate];
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_Document_OwnerId_UploadDate'
+      AND object_id = OBJECT_ID('[Transfert].[Document]')
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_Document_OwnerId_UploadDate]
+    ON [Transfert].[Document] ([OwnerId], [UploadDate] DESC)
+    INCLUDE ([Id], [Name], [Description], [FileExtension], [ContentType], [FileSize], [ExpiryDate], [StatutDocumentId]);
+END
 GO
 
-ALTER TABLE [Transfert].[Document]
-ADD CONSTRAINT [FK_Document_Utilisateur_OwnerId]
-FOREIGN KEY ([OwnerId]) REFERENCES [Commun].[Utilisateur]([Id]);
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_Document_ExpiryDate'
+      AND object_id = OBJECT_ID('[Transfert].[Document]')
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_Document_ExpiryDate]
+    ON [Transfert].[Document] ([ExpiryDate])
+    INCLUDE ([Id], [OwnerId], [Name], [OriginalFileName]);
+END
 GO
 
-ALTER TABLE [Transfert].[Document]
-ADD CONSTRAINT [FK_Document_StatutDocument_StatutDocumentId]
-FOREIGN KEY ([StatutDocumentId]) REFERENCES [Transfert].[StatutDocument]([Id]);
-GO
-
-CREATE NONCLUSTERED INDEX [IX_Document_OwnerId]
-ON [Transfert].[Document]([OwnerId]);
-GO
-
-CREATE NONCLUSTERED INDEX [IX_Document_StatutDocumentId]
-ON [Transfert].[Document]([StatutDocumentId]);
-GO
-
-CREATE NONCLUSTERED INDEX [IX_Document_ExpiryDate]
-ON [Transfert].[Document]([ExpiryDate]);
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_Document_StatutDocumentId'
+      AND object_id = OBJECT_ID('[Transfert].[Document]')
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_Document_StatutDocumentId]
+    ON [Transfert].[Document] ([StatutDocumentId]);
+END
 GO
