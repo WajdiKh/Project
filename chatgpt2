@@ -1,30 +1,38 @@
-INSERT INTO [Transfert].[StatutDocument]
+IF NOT EXISTS
 (
-    [Code],
-    [FrenchName],
-    [EnglishName],
-    [FrenchDescription],
-    [EnglishDescription],
-    [DateCreation],
-    [IsActive]
+    SELECT 1
+    FROM [Transfert].[StatutDocument]
+    WHERE [Code] IN (N'Active', N'Expired')
 )
-VALUES
-(
-    N'Active',
-    N'Actif',
-    N'Active',
-    N'Document actif et disponible au téléchargement.',
-    N'Active document available for download.',
-    SYSDATETIMEOFFSET(),
-    1
-),
-(
-    N'Expired',
-    N'Expiré',
-    N'Expired',
-    N'Document expiré et non disponible au téléchargement.',
-    N'Expired document unavailable for download.',
-    SYSDATETIMEOFFSET(),
-    1
-);
+BEGIN
+    INSERT INTO [Transfert].[StatutDocument]
+    (
+        [Code],
+        [FrenchName],
+        [EnglishName],
+        [FrenchDescription],
+        [EnglishDescription],
+        [DateCreation],
+        [IsActive]
+    )
+    VALUES
+    (
+        N'Active',
+        N'Actif',
+        N'Active',
+        N'Document actif et disponible au téléchargement.',
+        N'Active document available for download.',
+        SYSDATETIMEOFFSET(),
+        1
+    ),
+    (
+        N'Expired',
+        N'Expiré',
+        N'Expired',
+        N'Document expiré et non disponible au téléchargement.',
+        N'Expired document unavailable for download.',
+        SYSDATETIMEOFFSET(),
+        1
+    );
+END
 GO
