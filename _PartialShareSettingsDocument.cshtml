@@ -58,6 +58,14 @@
                         .Caption(translator.Common["Transfert.Document.EndDate"])
                         .DataType(GridColumnDataType.DateTime)
                         .Format("dd/MM/yyyy HH:mm");
+
+                    columns.AddFor(m => m.IsActive)
+                        .Caption(translator.Common["Transfert.Document.Active"]);
+
+                    columns.AddFor(m => m.LastDownloadDate)
+                        .Caption(translator.Common["Transfert.Document.LastDownloadDate"])
+                        .DataType(GridColumnDataType.DateTime)
+                        .Format("dd/MM/yyyy HH:mm");
                 })
                 .DataSource(ds => ds.Mvc()
                     .RouteName("apiRoute")
@@ -73,25 +81,13 @@
             <div class="mr-2">
                 @(Html.DevExtreme()
                     .Button()
-                    .ID("btnEditDocumentShare")
-                    .Text(translator.Common["Edit"])
-                    .Icon("edit")
-                    .Disabled(true)
-                    .ElementAttr("class", "color-blue")
-                    .OnClick("Transfert.Document.openEditSharePopup"))
-            </div>
-
-            <div class="mr-2">
-                @(Html.DevExtreme()
-                    .Button()
-                    .ID("btnDeleteDocumentShare")
-                    .Text(translator.Common["Delete"])
-                    .Icon("trash")
+                    .ID("btnDisableDocumentShare")
+                    .Text(translator.Common["Transfert.Document.DisableShare"])
+                    .Icon("close")
                     .Disabled(true)
                     .ElementAttr("class", "color-red")
-                    .OnClick("Transfert.Document.confirmDeleteShare"))
+                    .OnClick("Transfert.Document.confirmDisableShare"))
             </div>
-
             <div>
                 @(Html.DevExtreme()
                     .Button()
