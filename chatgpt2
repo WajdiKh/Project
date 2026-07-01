@@ -106,4 +106,19 @@ ON [Lab].[DocumentDossierLab]([DocumentLabId] ASC);
 GO
 
 CREATE NONCLUSTERED INDEX [IX_DocumentDossierLab_DossierLabId]
-ON [
+ON [Lab].[DocumentDossierLab]([DossierLabId] ASC);
+GO
+
+CREATE NONCLUSTERED INDEX [IX_DocumentDossierLab_PiecesIdentite]
+ON [Lab].[DocumentDossierLab]
+(
+    [DossierLabId],
+    [PersonneAssocieId],
+    [TypeDocumentLabId]
+)
+INCLUDE
+(
+    [DocumentLabId]
+)
+WHERE [IsDeleted] = 0;
+GO
