@@ -33,6 +33,10 @@ création du document avec entre parenthèse Hors weekend
 
 - La désactivation de partage ne marche pas (DisableDocumentShareAsync). par défaut efcore utilise notracking. est ce à cause de ça ? 
 
+- Après le téléchargement la date de dernier téléchargement n'est pas affichée 
+
+- 
+
 -  Pas de régression sur l'existant
 
 - clean code
