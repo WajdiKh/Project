@@ -22,6 +22,11 @@ Ajouter uniquement :
     opt => opt.MapFrom(src => src.ExpiryDate < DateTimeOffset.Now)
 )
 
+CreateMap<DocumentShare, DocumentViewModel>()
+    .ForMember(
+        dest => dest.IsExpired,
+        opt => opt.MapFrom(src => src.Document.ExpiryDate < DateTimeOffset.UtcNow)
+    );
 Ne pas mapper de libellé.
 
 
