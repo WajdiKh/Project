@@ -97,6 +97,80 @@ Ajouter :
     'Statut',
     'Status'
 )
+
+============================================================
+1. SQL TRADUCTION
+============================================================
+
+Ajouter :
+
+INSERT INTO @Traductions
+(
+    Id,
+    FrenchTranslate,
+    EnglishTranslate
+)
+VALUES
+(
+    N'Transfert.Document.ExpirationDelayWithoutWeekend',
+    'Hors weekend',
+    'Excluding weekends'
+);
+
+
+============================================================
+2. DocumentController.cs
+============================================================
+
+Remplacer GetDocumentExpiryDelayLabel par :
+
+private string GetDocumentExpiryDelayLabel(int expiryDelayHours)
+{
+    return string.Format(
+        "{0} h ({1})",
+        expiryDelayHours,
+        _translator.Common["Transfert.Document.ExpirationDelayWithoutWeekend"]);
+}
+
+
+============================================================
+3. SendNotificationDocumentPartage
+============================================================
+
+Remplacer :
+
+var expiryDelayLabel = GetDocumentExpiryDelayLabel(document, cultureInfo);
+
+par :
+
+var expiryDelayLabel = GetDocumentExpiryDelayLabel(model.ExpiryDelayHours);
+
+
+Puis les arguments du template deviennent :
+
+var bodyArgs = new object[]
+{
+    document.Name,
+    UtilisateurHelper.FormatUserName(CurrentUser.Prenom, CurrentUser.Nom),
+    expiryDelayLabel,
+    downloadUrl,
+    document.SecurityCode,
+    document.EncryptionKey
+};
+
+
+============================================================
+4. Résultat mail FR
+============================================================
+
+Délai d'expiration : 48 h (Hors weekend)
+
+
+============================================================
+5. Résultat mail EN
+============================================================
+
+Expiration delay: 48 h (Excluding weekends)
 - Quand la description est vide une chaine "null" est affichée dans les datagrids
 
 -  Pas de régression sur l'existant
