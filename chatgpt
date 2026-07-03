@@ -1,3 +1,97 @@
+============================================================
+1. DocumentViewModel.cs
+============================================================
+
+Supprimer si ajouté :
+
+public string StatutLibelle { get; set; }
+
+Garder uniquement :
+
+public bool IsExpired { get; set; }
+
+
+============================================================
+2. TransfertMappingProfile.cs
+============================================================
+
+Ajouter uniquement :
+
+.ForMember(
+    dest => dest.IsExpired,
+    opt => opt.MapFrom(src => src.ExpiryDate < DateTimeOffset.Now)
+)
+
+Ne pas mapper de libellé.
+
+
+============================================================
+3. Index.cshtml — variables JS traductions
+============================================================
+
+Ajouter :
+
+var _transfertTranslatableDocumentActive =
+    "@Html.Raw(translator.Common["Transfert.Document.Active"])";
+
+var _transfertTranslatableDocumentExpired =
+    "@Html.Raw(translator.Common["Transfert.Document.Expired"])";
+
+
+============================================================
+4. Datagrid colonne statut
+============================================================
+
+Remplacer l'ancien :
+
+columns.AddFor(m => m.StatutDocumentLibelle)
+
+par une colonne calculée :
+
+columns.Add()
+    .Caption(translator.Common["Transfert.Document.Status"])
+    .CalculateCellValue("calculateDocumentStatus");
+
+
+============================================================
+5. document.js
+============================================================
+
+Ajouter :
+
+function calculateDocumentStatus(rowData) {
+
+    if (!rowData) {
+        return "";
+    }
+
+    return rowData.IsExpired
+        ? _transfertTranslatableDocumentExpired
+        : _transfertTranslatableDocumentActive;
+}
+
+
+============================================================
+6. SQL Traductions
+============================================================
+
+Ajouter :
+
+(
+    N'Transfert.Document.Active',
+    'Actif',
+    'Active'
+),
+(
+    N'Transfert.Document.Expired',
+    'Expiré',
+    'Expired'
+),
+(
+    N'Transfert.Document.Status',
+    'Statut',
+    'Status'
+)
 - Quand la description est vide une chaine "null" est affichée dans les datagrids
 
 -  Pas de régression sur l'existant
