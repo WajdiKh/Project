@@ -1,4 +1,4 @@
-1. Pour le tooltip je veux utiliser un truc exactement comme ça. Il faut juste changer les id et pour e
+- Pour le tooltip je veux utiliser un truc exactement comme ça. Il faut juste changer les id et pour e
 (Html.DevExtreme().Tooltip().Width(500)
                                                 .ID("ToolTip-IdFiscal" + Model.Item2)
                                                 .Target("#targetIdFiscal" + Model.Item2)
@@ -25,3 +25,16 @@
     white-space: normal;
     max-width: 300px;
 }
+- Pour le statut du document, on va pas se baser sur une colonne de la base de données. On va plutôt se baser sur la date d'expiration pour déduire le statut.
+Je sais pas quel est la solution la plus simple.
+
+- Je veux pas afficher le délai réel (qui tient compte des weekends aussi) dans la notification de partage. Je veux plutôt afficher le délai sélectionné lors de la 
+création du document avec entre parenthèse Hors weekend
+
+- La désactivation de partage ne marche pas (DisableDocumentShareAsync). par défaut efcore utilise notracking. est ce à cause de ça ? 
+
+-  Pas de régression sur l'existant
+
+- clean code
+
+- réponse dans un seul bloc 
