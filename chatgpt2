@@ -1,36 +1,227 @@
+MODIFICATIONS TRANSFERT — CORRECTIFS SUITE AUX TESTS
+
+============================================================
+1. TOOLTIP EMAILS — _PartialAddNewDocument.cshtml
+============================================================
+
+Remplacer l'ancien texte d'aide affiché à côté du champ Emails par ce pattern DevExtreme Tooltip.
+
+Exemple :
+
+<label class="control-label">
+    @translator.Common["Transfert.Document.Emails"]
+
+    <span id="targetEmails"
+          class="dx-icon-info color-blue"
+          style="cursor:pointer;">
+    </span>
+</label>
+
+@(Html.DevExtreme().Tooltip()
+    .Width(500)
+    .ID("ToolTip-Emails")
+    .Target("#targetEmails")
+    .ShowEvent("mouseenter")
+    .HideEvent("mouseleave")
+    .CloseOnOutsideClick(false)
+    .Position(Position.Bottom)
+    .ContentTemplate(@<text>
+        <div class="smallCaps text-green toolTipSearch text-justify" style="max-width: 500px;">
+            @Html.Raw(translator.Common["Transfert.Document.EmailsTooltip"])
+        </div>
+    </text>)
+)
+
+@(Html.DevExtreme()
+    .TextArea()
+    .ID("Emails")
+    .Name("Emails")
+    .Height(70)
+    .Width("100%"))
+
+Ne pas afficher directement :
+@translator.Common["Transfert.Document.EmailsTooltip"]
+
+
+============================================================
+2. CSS TOOLTIP
+============================================================
+
+Ajouter ou garder une seule fois :
+
+.toolTipSearch {
+    color: #064970;
+    font-size: 11px;
+    white-space: normal;
+    max-width: 300px;
+}
+
+
+============================================================
+3. STATUT DOCUMENT DÉDUIT DE LA DATE D'EXPIRATION
+============================================================
+
+On ne se base plus sur une colonne/statut DB pour l'affichage.
+
+Dans DocumentViewModel.cs, ajouter si absent :
+
+public string StatutLibelle { get; set; }
+public bool IsExpired { get; set; }
+
+Dans TransfertMappingProfile.cs, dans le mapping Document -> DocumentViewModel :
+
+.ForMember(dest => dest.IsExpired,
+    opt => opt.MapFrom(src => src.ExpiryDate < DateTimeOffset.Now))
+.ForMember(dest => dest.StatutLibelle,
+    opt => opt.MapFrom(src =>
+        src.ExpiryDate < DateTimeOffset.Now
+            ? "Expiré"
+            : "Actif"))
+
+Si tu veux absolument utiliser les traductions côté JS/grille, garde plutôt IsExpired dans le ViewModel et calcule le libellé dans document.js.
+
+Exemple JS colonne Statut :
+
+customizeText: function (cellInfo) {
+    return cellInfo.data && cellInfo.data.IsExpired
+        ? _transfertTranslatableDocumentExpired
+        : _transfertTranslatableDocumentActive;
+}
+
+
+============================================================
+4. NOTIFICATION PARTAGE — AFFICHER LE DÉLAI SÉLECTIONNÉ
+============================================================
+
+Objectif :
+Afficher le délai choisi par l'utilisateur :
+- 24 h (Hors weekend)
+- 48 h (Hors weekend)
+- 72 h (Hors weekend)
+
+et non pas le délai réel entre UploadDate et ExpiryDate.
+
+Le plus simple et clean :
+ajouter une propriété non mappée dans Document.cs.
+
+Ajouter dans Document.cs :
+
+[NotMapped]
+public int? ExpiryDelayHours { get; set; }
+
+Puis dans SaveDocument, au moment de construire Document :
+
+var document = new Document
+{
+    Name = model.Name,
+    Description = model.Description,
+    OriginalFileName = model.File.FileName,
+    FileExtension = extension,
+    ContentType = model.File.ContentType,
+    FileContent = fileContent,
+    FileSize = model.File.Length,
+    UploadDate = now,
+    ExpiryDate = expiryDate,
+    OwnerId = CurrentUser.Id,
+    StatutDocumentId = statutActif.Id,
+    SecurityCode = GenerateSecurityCode(),
+    EncryptionKey = model.EncryptionKey,
+
+    // Non mappé DB : utilisé uniquement pour la notification juste après création.
+    ExpiryDelayHours = model.ExpiryDelayHours
+};
+
+Ajouter le helper dans DocumentController.cs :
+
+private string GetDocumentExpiryDelayLabel(
+    Document document,
+    CultureInfo cultureInfo)
+{
+    var delayHours = document.ExpiryDelayHours;
+
+    if (!delayHours.HasValue)
+    {
+        delayHours = (int)Math.Round(
+            (document.ExpiryDate - document.UploadDate).TotalHours,
+            MidpointRounding.AwayFromZero);
+    }
+
+    var horsWeekendLabel =
+        cultureInfo.TwoLetterISOLanguageName.Equals("fr", StringComparison.OrdinalIgnoreCase)
+            ? "Hors weekend"
+            : "Excluding weekends";
+
+    return string.Format(
+        cultureInfo,
+        "{0} h ({1})",
+        delayHours.Value,
+        horsWeekendLabel);
+}
+
+Dans BuildShareEmailNotification ou SendNotificationDocumentPartage, remplacer les bodyArgs par :
+
+var expiryDelayLabel = GetDocumentExpiryDelayLabel(document, cultureInfo);
+
+var bodyArgs = new object[]
+{
+    document.Name,
+    UtilisateurHelper.FormatUserName(CurrentUser.Prenom, CurrentUser.Nom),
+    expiryDelayLabel,
+    GetTransfertUrl(),
+    document.SecurityCode,
+    document.EncryptionKey
+};
+
+Le template mail doit donc utiliser :
+{0} Nom
+{1} Partagé par
+{2} Délai d'expiration
+{3} URL
+{4} Code sécurité
+{5} Clé chiffrement
+
+
+============================================================
+5. SQL TEMPLATE NOTIFICATION PARTAGE
+============================================================
+
 USE [BacaratWeb]
 GO
 
-IF NOT EXISTS
-(
-    SELECT 1
-    FROM [Commun].[EmailNotificationType]
-    WHERE [Code] = 'DocumentPartage'
-)
-BEGIN
-    INSERT INTO [Commun].[EmailNotificationType]
-    (
-        [Code],
-        [Libelle],
-        [Description],
-        [DateCreation],
-        [DateModification],
-        [ModificateurId],
-        [CreateurId],
-        [IsActive]
-    )
-    VALUES
-    (
-        'DocumentPartage',
-        'DocumentPartage',
-        'DocumentPartage',
-        SYSDATETIMEOFFSET(),
-        NULL,
-        NULL,
-        NULL,
-        1
-    );
-END
+DECLARE @EmailNotificationTypeId INT;
+
+SELECT @EmailNotificationTypeId = [Id]
+FROM [Commun].[EmailNotificationType]
+WHERE [Code] = 'DocumentPartage';
+
+UPDATE [Commun].[EmailNotificationTemplate]
+SET
+    [Body] =
+        '<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:m="http://schemas.microsoft.com/office/2004/12/omml" xmlns="http://www.w3.org/TR/REC-html40">
+            <body lang=FR style=''tab-interval:35.4pt''>
+                <div class=WordSection1>
+                    <p>Bonjour,</p>
+                    <p>Nous vous informons qu''un document a été partagé avec vous sur la plateforme BacaratWeb.</p>
+                    <p><strong>Détails du document :</strong></p>
+                    <ul>
+                        <li>Nom : {0}</li>
+                        <li>Partagé par : {1}</li>
+                        <li>Délai d''expiration : {2}</li>
+                        <li>URL de téléchargement : {3}</li>
+                        <li>Code de sécurité pour téléchargement : {4}</li>
+                        <li>Clé de chiffrement : {5}</li>
+                    </ul>
+                    <p>Nous vous souhaitons une bonne réception.</p>
+                    <p>Cordialement</p>
+                    <p><strong>L''équipe BacaratWeb</strong></p>
+                </div>
+            </body>
+        </html>',
+    [DateModification] = SYSDATETIMEOFFSET()
+WHERE [EmailNotificationTypeId] = @EmailNotificationTypeId
+  AND [ActiviteId] = 5
+  AND [LangueId] = 1
+  AND [ScopeId] = 1;
 GO
 
 DECLARE @EmailNotificationTypeId INT;
@@ -39,132 +230,435 @@ SELECT @EmailNotificationTypeId = [Id]
 FROM [Commun].[EmailNotificationType]
 WHERE [Code] = 'DocumentPartage';
 
-IF NOT EXISTS
+UPDATE [Commun].[EmailNotificationTemplate]
+SET
+    [Body] =
+        '<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:m="http://schemas.microsoft.com/office/2004/12/omml" xmlns="http://www.w3.org/TR/REC-html40">
+            <body lang=EN style=''tab-interval:35.4pt''>
+                <div class=WordSection1>
+                    <p>Hello,</p>
+                    <p>We would like to inform you that a document has been shared with you on the BacaratWeb platform.</p>
+                    <p><strong>Document details:</strong></p>
+                    <ul>
+                        <li>Name: {0}</li>
+                        <li>Shared by: {1}</li>
+                        <li>Expiration delay: {2}</li>
+                        <li>Download URL: {3}</li>
+                        <li>Download security code: {4}</li>
+                        <li>Encryption key: {5}</li>
+                    </ul>
+                    <p>We hope you receive it in good order.</p>
+                    <p>Sincerely</p>
+                    <p><strong>The BacaratWeb team</strong></p>
+                </div>
+            </body>
+        </html>',
+    [DateModification] = SYSDATETIMEOFFSET()
+WHERE [EmailNotificationTypeId] = @EmailNotificationTypeId
+  AND [ActiviteId] = 5
+  AND [LangueId] = 2
+  AND [ScopeId] = 1;
+GO
+
+
+============================================================
+6. DÉSACTIVATION PARTAGE — CORRECTION EF CORE NO TRACKING
+============================================================
+
+Oui, si ton Repository/Context est configuré en NoTracking par défaut, la modification :
+
+share.IsActive = false
+
+peut ne pas être persistée si l'entité n'est pas trackée.
+
+Remplacer DisableDocumentShareAsync par cette version robuste :
+
+public async Task<bool> DisableDocumentShareAsync(
+    int documentShareId,
+    CancellationToken token = default)
+{
+    var share = await Context.DocumentShares
+        .IgnoreQueryFilters()
+        .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+
+    if (share == null)
+        return false;
+
+    share.IsActive = false;
+    share.DateModification = DateTimeOffset.Now;
+
+    Context.DocumentShares.Update(share);
+
+    return await Context.SaveChangesAsync(token) > 0;
+}
+
+Si DateModification n'existe pas dans DocumentShare, utiliser cette version :
+
+public async Task<bool> DisableDocumentShareAsync(
+    int documentShareId,
+    CancellationToken token = default)
+{
+    var share = await Context.DocumentShares
+        .IgnoreQueryFilters()
+        .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+
+    if (share == null)
+        return false;
+
+    share.IsActive = false;
+
+    Context.DocumentShares.Update(share);
+
+    return await Context.SaveChangesAsync(token) > 0;
+}
+
+
+============================================================
+7. LAST DOWNLOAD DATE — CORRECTION EF CORE NO TRACKING
+============================================================
+
+Même problème possible.
+
+Remplacer UpdateDocumentShareLastDownloadDateAsync par :
+
+public async Task<bool> UpdateDocumentShareLastDownloadDateAsync(
+    int documentShareId,
+    DateTimeOffset lastDownloadDate,
+    CancellationToken token = default)
+{
+    var share = await Context.DocumentShares
+        .IgnoreQueryFilters()
+        .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+
+    if (share == null)
+        return false;
+
+    share.LastDownloadDate = lastDownloadDate;
+    share.DateModification = DateTimeOffset.Now;
+
+    Context.DocumentShares.Update(share);
+
+    return await Context.SaveChangesAsync(token) > 0;
+}
+
+Si DateModification n'existe pas :
+
+public async Task<bool> UpdateDocumentShareLastDownloadDateAsync(
+    int documentShareId,
+    DateTimeOffset lastDownloadDate,
+    CancellationToken token = default)
+{
+    var share = await Context.DocumentShares
+        .IgnoreQueryFilters()
+        .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+
+    if (share == null)
+        return false;
+
+    share.LastDownloadDate = lastDownloadDate;
+
+    Context.DocumentShares.Update(share);
+
+    return await Context.SaveChangesAsync(token) > 0;
+}
+
+
+============================================================
+8. LAST DOWNLOAD DATE NON AFFICHÉE
+============================================================
+
+Vérifier 3 points.
+
+1) DocumentShareViewModel.cs :
+
+public DateTimeOffset? LastDownloadDate { get; set; }
+
+2) TransfertMappingProfile.cs :
+
+.ForMember(dest => dest.LastDownloadDate,
+    opt => opt.MapFrom(src => src.LastDownloadDate))
+
+3) _PartialShareSettingsDocument.cshtml :
+
+columns.AddFor(m => m.LastDownloadDate)
+    .Caption(translator.Common["Transfert.Document.LastDownloadDate"])
+    .DataType(GridColumnDataType.DateTime)
+    .Format("dd/MM/yyyy HH:mm");
+
+4) Après téléchargement, le popup historique doit être rechargé.
+Si la grille est déjà ouverte, ajouter après désactivation/téléchargement côté JS si applicable :
+
+Transfert.Document.refreshShareSettingsGrid();
+
+
+============================================================
+9. UTILISATEUR NON HABILITÉ AU CLIC SUR URL MAIL
+============================================================
+
+Dans DocumentController.cs, modifier Download.
+
+Remplacer le début de Download par :
+
+[HttpGet("{culture:required}/transfert/download-document/{id:int}")]
+public async Task<IActionResult> Download(
+    int id,
+    CancellationToken token = default)
+{
+    if (!CanReadTransfert())
+    {
+        return View(
+            "/Areas/Transfert/Views/Document/UnauthorizedTransfert.cshtml",
+            _translator.Common["Transfert.Document.UserNotAuthorizedTransfer"]);
+    }
+
+    var document = await _documentService.GetDocumentForDownloadAsync(id, token);
+
+    if (IsDocumentUnavailableForDownload(document))
+        return BadRequest(_translator.Common["Transfert.Document.Expired"]);
+
+    if (IsCurrentUserDocumentOwner(document))
+        return BuildDownloadFileResult(document);
+
+    var share = await _documentService.GetCurrentUserActiveDocumentShareAsync(
+        id,
+        CurrentUser.Id,
+        CurrentUser.Email,
+        token);
+
+    if (share == null)
+    {
+        return StatusCode(
+            StatusCodes.Status403Forbidden,
+            _translator.Common["Transfert.Document.ShareInactive"]);
+    }
+
+    var vm = new DownloadDocumentViewModel
+    {
+        DocumentId = id
+    };
+
+    return View("/Areas/Transfert/Views/Document/Download.cshtml", vm);
+}
+
+Créer la vue :
+
+/Areas/Transfert/Views/Document/UnauthorizedTransfert.cshtml
+
+Contenu :
+
+@model string
+
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container mt-4">
+    <div class="alert alert-warning">
+        @Model
+    </div>
+</div>
+
+Pourquoi une vue plutôt qu'un StatusCode texte ?
+Parce que le destinataire clique depuis un mail. Il doit voir un message propre dans BacaratWeb, pas une page technique ou un texte brut.
+
+
+============================================================
+10. ValidateSecurityCode — GARDER LE CONTRÔLE AUSSI
+============================================================
+
+Dans ValidateSecurityCode, garder :
+
+if (!CanReadTransfert())
+{
+    return StatusCode(
+        StatusCodes.Status403Forbidden,
+        _translator.Common["Transfert.Document.UserNotAuthorizedTransfer"]);
+}
+
+Ici c'est un appel Ajax, donc StatusCode + message texte est correct.
+
+
+============================================================
+11. DownloadFile — GARDER LE CONTRÔLE AUSSI
+============================================================
+
+Dans DownloadFile, garder :
+
+if (!CanReadTransfert())
+{
+    return StatusCode(
+        StatusCodes.Status403Forbidden,
+        _translator.Common["Transfert.Document.UserNotAuthorizedTransfer"]);
+}
+
+Puis après récupération du share actif et validation code :
+
+await _documentService.UpdateDocumentShareLastDownloadDateAsync(
+    share.Id,
+    DateTimeOffset.Now,
+    token);
+
+Utiliser DateTimeOffset.Now si l'application affiche les dates localement.
+Utiliser DateTimeOffset.UtcNow seulement si tout le module Transfert stocke en UTC.
+
+
+============================================================
+12. MESSAGE GROUPÉ UTILISATEURS INEXISTANTS OU NON HABILITÉS
+============================================================
+
+DocumentController.cs :
+
+private void ValidateTransferRecipients(
+    IEnumerable<string> emails,
+    IEnumerable<Utilisateur> recipients)
+{
+    var recipientEmails = recipients
+        .Where(x => !string.IsNullOrWhiteSpace(x.Email))
+        .Select(x => x.Email)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    var invalidEmails = emails
+        .Where(x => !recipientEmails.Contains(x))
+        .ToList();
+
+    var unauthorizedEmails = recipients
+        .Where(x => !CanRecipientAccessTransfert(x))
+        .Select(x => x.Email)
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .ToList();
+
+    var rejectedEmails = invalidEmails
+        .Concat(unauthorizedEmails)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    if (rejectedEmails.Any())
+    {
+        throw new CustomMessageException(
+            string.Format(
+                _translator.Common["Transfert.Document.RecipientsNotAuthorizedTransfer"],
+                string.Join(", ", rejectedEmails)));
+    }
+}
+
+private bool CanRecipientAccessTransfert(Utilisateur recipient)
+{
+    if (recipient == null)
+        return false;
+
+    return _utilisateurDirectionService.CanViewDossier(recipient.Id)
+        || _utilisateurDirectionService.CanCreateDossier(recipient.Id);
+}
+
+Dans SaveDocument et SaveShareDocument :
+
+var emails = ExtractShareEmails(model.Emails);
+var recipients = await GetShareRecipientsAsync(emails, token);
+
+ValidateTransferRecipients(emails, recipients);
+
+
+============================================================
+13. SQL TRADUCTIONS À AJOUTER / METTRE À JOUR
+============================================================
+
+USE [BacaratWeb]
+GO
+
+DECLARE @Traductions TABLE
 (
-    SELECT 1
-    FROM [Commun].[EmailNotificationTemplate]
-    WHERE [EmailNotificationTypeId] = @EmailNotificationTypeId
-      AND [ActiviteId] = 5
-      AND [LangueId] = 1
-      AND [ScopeId] = 1
+    Id NVARCHAR(250) NOT NULL,
+    FrenchTranslate VARCHAR(MAX) NOT NULL,
+    EnglishTranslate VARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @Traductions
+(
+    Id,
+    FrenchTranslate,
+    EnglishTranslate
 )
-BEGIN
-    INSERT INTO [Commun].[EmailNotificationTemplate]
+VALUES
+(
+    N'Transfert.Document.Emails',
+    'Emails',
+    'Emails'
+),
+(
+    N'Transfert.Document.Email',
+    'Email',
+    'Email'
+),
+(
+    N'Transfert.Document.EmailsTooltip',
+    'Veuillez ajouter un point-virgule après chaque adresse e-mail.',
+    'Please add a semicolon following each email address.'
+),
+(
+    N'Transfert.Document.UserNotAuthorizedTransfer',
+    'Vous n''avez pas les droits d''accès à BacaratWeb Transfert. Merci d''effectuer une demande d''habilitation.',
+    'You are not authorized to access BacaratWeb Transfert. Please request access.'
+),
+(
+    N'Transfert.Document.RecipientsNotAuthorizedTransfer',
+    'Les utilisateurs suivants n''existent pas dans BacaratWeb Transfert : {0}. Merci d''effectuer une demande d''habilitation pour les destinataires.',
+    'The following users do not exist in BacaratWeb Transfert: {0}. Please request access for the recipients.'
+),
+(
+    N'Transfert.Document.ShareInactive',
+    'Ce partage a été désactivé.',
+    'This share has been disabled.'
+),
+(
+    N'Transfert.Document.LastDownloadDate',
+    'Date de dernier téléchargement',
+    'Last download date'
+),
+(
+    N'Transfert.Document.ShareHistory',
+    'Historique de partage',
+    'Share history'
+),
+(
+    N'Transfert.Document.Active',
+    'Actif',
+    'Active'
+),
+(
+    N'Transfert.Document.Expired',
+    'Expiré',
+    'Expired'
+);
+
+MERGE [Commun].[Traduction] AS target
+USING @Traductions AS source
+    ON target.Id = source.Id
+WHEN MATCHED THEN
+    UPDATE SET
+        target.FrenchTranslate = source.FrenchTranslate,
+        target.EnglishTranslate = source.EnglishTranslate
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT
     (
-        [Subject],
-        [Body],
-        [EmailNotificationTypeId],
-        [ActiviteId],
-        [DirectionId],
-        [LangueId],
-        [DateCreation],
-        [DateModification],
-        [ModificateurId],
-        [CreateurId],
-        [IsActive],
-        [ScopeId]
+        Id,
+        FrenchTranslate,
+        EnglishTranslate
     )
     VALUES
     (
-        'BacaratWeb Transfert : Document partagé avec vous sur la plateforme BacaratWeb',
-        '<html xmlns:v="urn:schemas-microsoft-com:vml"   xmlns:o ="urn:schemas-microsoft-com:office:office"  xmlns:w ="urn:schemas-microsoft-com:office:word"   xmlns:m ="http://schemas.microsoft.com/office/2004/12/omml"   xmlns="http://www.w3.org/TR/REC-html40">     
-				<body lang=FR style=''tab-interval:35.4pt''>   
-					<div class=WordSection1>   
-						<p>Bonjour,</p>
-						<p>Nous vous informons qu''un document a été partagé avec vous sur la plateforme BacaratWeb.</p>
-						<p><strong>Détails du document :</strong></p>
-						<ul>
-							<li>Nom : {0}</li>
-							<li>Partagé par : {1}</li>
-							<li>Date de partage : de {2} à {3}</li>
-							<li>URL de téléchargement : {4}</li>
-							<li>Code de sécurité pour téléchargement : {5}</li>
-							<li>Clé de chiffrement : {6}</li>
-						</ul>
-						<p>Nous vous souhaitons une bonne réception. </p>
-						<p>Cordialement</p>
-						<p><strong>L''équipe BacaratWeb<strong></p> 			
-					</div>  
-				</body>  
-			</html>',
-        @EmailNotificationTypeId,
-        5,
-        NULL,
-        1,
-        SYSDATETIMEOFFSET(),
-        NULL,
-        NULL,
-        NULL,
-        1,
-        1
+        source.Id,
+        source.FrenchTranslate,
+        source.EnglishTranslate
     );
-END
 GO
 
-DECLARE @EmailNotificationTypeId INT;
 
-SELECT @EmailNotificationTypeId = [Id]
-FROM [Commun].[EmailNotificationType]
-WHERE [Code] = 'DocumentPartage';
+============================================================
+14. POINTS À NE PAS MODIFIER
+============================================================
 
-IF NOT EXISTS
-(
-    SELECT 1
-    FROM [Commun].[EmailNotificationTemplate]
-    WHERE [EmailNotificationTypeId] = @EmailNotificationTypeId
-      AND [ActiviteId] = 5
-      AND [LangueId] = 2
-      AND [ScopeId] = 1
-)
-BEGIN
-    INSERT INTO [Commun].[EmailNotificationTemplate]
-    (
-        [Subject],
-        [Body],
-        [EmailNotificationTypeId],
-        [ActiviteId],
-        [DirectionId],
-        [LangueId],
-        [DateCreation],
-        [DateModification],
-        [ModificateurId],
-        [CreateurId],
-        [IsActive],
-        [ScopeId]
-    )
-    VALUES
-    (
-        'BacaratWeb Transfert : Document shared with you on the BacaratWeb platform',
-        '<html xmlns:v="urn:schemas-microsoft-com:vml"   xmlns:o ="urn:schemas-microsoft-com:office:office"  xmlns:w ="urn:schemas-microsoft-com:office:word"   xmlns:m ="http://schemas.microsoft.com/office/2004/12/omml"   xmlns="http://www.w3.org/TR/REC-html40">     
-				<body lang=FR style=''tab-interval:35.4pt''>   
-					<div class=WordSection1>   
-						<p>Hello,</p>
-						<p>We would like to inform you that a document has been shared with you on the BacaratWeb platform.</p>
-						<p><strong>Document details:</strong></p>
-						<ul>
-							<li>Name: {0}</li>
-							<li>Shared by: {1}</li>
-							<li>Sharing date: from {2} to {3}</li>
-							<li>Download URL: {4}</li>
-							<li>Download security code: {5}</li>
-							<li>Encryption key: {6}</li>
-						</ul>
-						<p>We hope you receive it in good order.</p>
-						<p>Sincerely</p>
-						<p><strong>The BacaratWeb team<strong></p> 			
-					</div>  
-				</body>  
-			</html>',
-        @EmailNotificationTypeId,
-        5,
-        NULL,
-        2,
-        SYSDATETIMEOFFSET(),
-        NULL,
-        NULL,
-        NULL,
-        1,
-        1
-    );
-END
-GO
+- Ne pas remettre le contrôle max length sur Emails.
+- Ne pas modifier le calcul des jours ouvrables.
+- Ne pas supprimer DocumentShare.ExpiryDate maintenant si tu as décidé de reporter ce chantier.
+- Ne pas toucher aux menus.
+- Ne pas refactorer les datagrids hors modifications demandées.
