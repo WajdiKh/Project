@@ -35,7 +35,9 @@ création du document avec entre parenthèse Hors weekend
 
 - Après le téléchargement la date de dernier téléchargement n'est pas affichée 
 
-- 
+- Tu n'as pas fait la modif. suivante : En cas d'un destinataire non habilité au module "transfer" 
+=> ajouter le texte suivant quand qu'il clique sur l'URL dans le mail de notification :" Vous n'avez pas les droits d'accès à BacaratWeb Transfert. Merci d'effectuer une demande d'habilitation. "/ English version :"You are not authorized to access BacaratWeb Transfert. Please request access."
+Tu peux voir ce qui est affiché dans la capture d'écran
 
 -  Pas de régression sur l'existant
 
