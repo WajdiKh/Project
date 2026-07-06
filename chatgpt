@@ -1,5 +1,7 @@
 - Quand la description est vide une chaine "null" est affichée dans les datagrids
 
+- Est ce que c'est possible de changer les libellé vrai et faux par Actif et Inactif dans le filtre du tableau historique du partage
+
 -  Pas de régression sur l'existant
 
 - clean code
