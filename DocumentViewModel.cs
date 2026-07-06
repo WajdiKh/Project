@@ -14,7 +14,6 @@ namespace BacaratWeb.ViewModel.Transfert
         public DateTimeOffset ExpiryDate { get; set; }
         public string OwnerName { get; set; }
         public string Email { get; set; }
-        public string StatutDocumentNameFr { get; set; }
-        public string StatutDocumentNameEn { get; set; }
+        public bool IsExpired { get; set; }
     }
 }
