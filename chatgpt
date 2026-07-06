@@ -1,41 +1,237 @@
-Pour faire ces corrections sans régression, j’ai besoin des dernières versions de :
+MODIFICATIONS À APPLIQUER
 
-1. Index.cshtml
-   - pour la règle d’accès à /fr/transfert/document/all
-   - pour les variables JS de traduction
+============================================================
+1. DocumentController.cs — Index
+============================================================
 
-2. DocumentController.cs
-   - pour modifier proprement l’action Index
-   - pour vérifier ce qui est retourné quand CanReadTransfert() est false
+Remplacer l’action Index par :
 
-3. document.js
-   - pour corriger l’affichage null de Description
-   - pour modifier le filtre Actif/Inactif dans l’historique de partage
+[Route("{culture:required}/transfert/document/{mode?}")]
+public IActionResult Index(string mode = "all")
+{
+    if (!CanReadTransfert())
+    {
+        return View(
+            "/Areas/Transfert/Views/Document/UnauthorizedTransfert.cshtml",
+            _translator.Common["Transfert.Document.UserNotAuthorizedTransfer"]);
+    }
 
-4. _PartialShareSettingsDocument.cshtml
-   - pour changer la colonne IsActive / filtre vrai-faux → Actif-Inactif
+    if (mode == "mine" && !CanWriteTransfert())
+        mode = "all";
 
-5. DocumentViewModel.cs
-   - pour voir comment Description est exposée
+    ViewBag.Mode = mode;
+    ViewBag.NomCurrentUser = CurrentUser.Nom;
+    ViewBag.PrenomCurrentUser = CurrentUser.Prenom;
+    ViewBag.CanReadTransfert = CanReadTransfert();
+    ViewBag.CanWriteTransfert = CanWriteTransfert();
+    ViewBag.IsAdminGlobal = IsAdminGlobal();
 
-6. DocumentShareViewModel.cs
-   - pour voir comment IsActive est exposé dans l’historique
+    return View();
+}
 
-7. TransfertMappingProfile.cs
-   - pour corriger Description null côté mapping si c’est le meilleur endroit
 
-8. Les traductions SQL actuelles si elles ont changé
-   - sinon je repartirai du format MERGE [Commun].[Traduction]
+============================================================
+2. Nouvelle vue UnauthorizedTransfert.cshtml
+============================================================
 
-Pour la règle d’accès non habilité, la correction sera probablement dans `DocumentController.Index` :
+Créer :
 
-- si utilisateur non habilité Transfert
-- au lieu de Forbidden() brut
-- retourner une vue/message propre avec :
-  “Vous n'avez pas les droits d'accès à BacaratWeb Transfert. Merci d'effectuer une demande d'habilitation.”
+/Areas/Transfert/Views/Document/UnauthorizedTransfert.cshtml
 
-Pour `null` dans Description, je corrigerai soit :
-- dans le mapping : Description = src.Description ?? ""
-- soit dans le template JS : data.Description || ""
+Contenu :
 
-Le plus propre est probablement le mapping pour éviter le problème dans tous les datagrids.
+@model string
+
+@{
+    ViewData["Title"] = "BacaratWeb Transfert";
+}
+
+<div class="container mt-4">
+    <div class="alert alert-warning">
+        @Model
+    </div>
+</div>
+
+
+============================================================
+3. TransfertMappingProfile.cs — Description null
+============================================================
+
+Dans le mapping Document -> DocumentViewModel, ajouter :
+
+.ForMember(
+    dest => dest.Description,
+    opt => opt.MapFrom(src => src.Description ?? string.Empty)
+)
+
+Dans le mapping DocumentShare -> DocumentViewModel, ajouter aussi :
+
+.ForMember(
+    dest => dest.Description,
+    opt => opt.MapFrom(src => src.Document.Description ?? string.Empty)
+)
+
+
+============================================================
+4. Index.cshtml — traductions JS
+============================================================
+
+Ajouter avec les autres variables JS :
+
+var _transfertTranslatableDocumentActive =
+    "@Html.Raw(translator.Common["Transfert.Document.Active"])";
+
+var _transfertTranslatableDocumentInactive =
+    "@Html.Raw(translator.Common["Transfert.Document.Inactive"])";
+
+var _transfertTranslatableDocumentUserNotAuthorizedTransfer =
+    "@Html.Raw(translator.Common["Transfert.Document.UserNotAuthorizedTransfer"])";
+
+
+============================================================
+5. document.js — helpers propres
+============================================================
+
+Ajouter :
+
+Transfert.Document.formatNullableText = function (value) {
+    return value || "";
+};
+
+Transfert.Document.formatActiveLabel = function (value) {
+    return value === true
+        ? _transfertTranslatableDocumentActive
+        : _transfertTranslatableDocumentInactive;
+};
+
+
+============================================================
+6. document.js — description vide dans les datagrids
+============================================================
+
+Dans toutes les colonnes Description des datagrids, remplacer l’affichage direct par :
+
+cellTemplate: function (container, options) {
+    $("<div>")
+        .addClass("document-description-cell")
+        .text(Transfert.Document.formatNullableText(options.value))
+        .appendTo(container);
+}
+
+Ne pas utiliser :
+
+data.Description
+
+directement dans un template, car si la valeur est null, DevExtreme peut afficher "null".
+
+
+============================================================
+7. document.css
+============================================================
+
+Ajouter si absent :
+
+.document-description-cell {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+}
+
+
+============================================================
+8. _PartialShareSettingsDocument.cshtml — colonne IsActive
+============================================================
+
+Remplacer la colonne IsActive par :
+
+columns.AddFor(m => m.IsActive)
+    .Caption(translator.Common["Transfert.Document.Active"])
+    .Lookup(lookup => lookup
+        .DataSource(new[]
+        {
+            new { Value = true, Text = translator.Common["Transfert.Document.Active"] },
+            new { Value = false, Text = translator.Common["Transfert.Document.Inactive"] }
+        })
+        .ValueExpr("Value")
+        .DisplayExpr("Text")
+    );
+
+Résultat :
+- dans la grille : Actif / Inactif
+- dans le filtre : Actif / Inactif
+- plus de true / false
+
+
+============================================================
+9. _PartialShareSettingsDocument.cshtml — première colonne
+============================================================
+
+La première colonne doit être :
+
+columns.AddFor(m => m.Email)
+    .Caption(translator.Common["Transfert.Document.Email"]);
+
+
+============================================================
+10. SQL traductions
+============================================================
+
+USE [BacaratWeb]
+GO
+
+DECLARE @Traductions TABLE
+(
+    Id NVARCHAR(250) NOT NULL,
+    FrenchTranslate VARCHAR(MAX) NOT NULL,
+    EnglishTranslate VARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @Traductions
+(
+    Id,
+    FrenchTranslate,
+    EnglishTranslate
+)
+VALUES
+(
+    N'Transfert.Document.Active',
+    'Actif',
+    'Active'
+),
+(
+    N'Transfert.Document.Inactive',
+    'Inactif',
+    'Inactive'
+),
+(
+    N'Transfert.Document.Email',
+    'Email',
+    'Email'
+),
+(
+    N'Transfert.Document.UserNotAuthorizedTransfer',
+    'Vous n''avez pas les droits d''accès à BacaratWeb Transfert. Merci d''effectuer une demande d''habilitation.',
+    'You are not authorized to access BacaratWeb Transfert. Please request access.'
+);
+
+MERGE [Commun].[Traduction] AS target
+USING @Traductions AS source
+    ON target.Id = source.Id
+WHEN MATCHED THEN
+    UPDATE SET
+        target.FrenchTranslate = source.FrenchTranslate,
+        target.EnglishTranslate = source.EnglishTranslate
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT
+    (
+        Id,
+        FrenchTranslate,
+        EnglishTranslate
+    )
+    VALUES
+    (
+        source.Id,
+        source.FrenchTranslate,
+        source.EnglishTranslate
+    );
+GO
