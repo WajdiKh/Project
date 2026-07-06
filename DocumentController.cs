@@ -68,7 +68,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             _emailNotificationTemplateService = emailNotificationTemplateService ?? throw new ArgumentNullException(nameof(emailNotificationTemplateService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _eventDossierLogger = eventDossierLogger ?? throw new ArgumentNullException(nameof(eventDossierLogger));
-           _utilisateurDirectionService = utilisateurDirectionService ?? throw new ArgumentNullException(nameof(utilisateurDirectionService)); 
+            _utilisateurDirectionService = utilisateurDirectionService ?? throw new ArgumentNullException(nameof(utilisateurDirectionService));
         }
 
         #region Droits Transfert
@@ -120,33 +120,8 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                 return false;
 
             return _roleAccessUser.HasRolesById(recipient.AspNetUsersId, null, null, RoleUser.AdminGlobal)
-                || _utilisateurDirectionService.CanViewDossier((int)ActiviteModule.TRANSFERT, recipient.Id)
-                || _utilisateurDirectionService.CanCreateDossier((int)ActiviteModule.TRANSFERT, recipient.Id);
-        }
-
-        private void ValidateRecipientsTransfertAccess(
-            IEnumerable<string> emails,
-            IEnumerable<Utilisateur> recipients)
-        {
-            var recipientsByEmail = recipients
-                .Where(x => !string.IsNullOrWhiteSpace(x.Email))
-                .ToDictionary(x => x.Email, StringComparer.OrdinalIgnoreCase);
-
-            foreach (var email in emails)
-            {
-                if (!recipientsByEmail.TryGetValue(email, out var recipient))
-                {
-                    continue;
-                }
-
-                if (!CanRecipientAccessTransfert(recipient))
-                {
-                    throw new CustomMessageException(
-                        string.Format(
-                            _translator.Common["Transfert.Document.RecipientNotAuthorizedTransfer"],
-                            email));
-                }
-            }
+                || _utilisateurDirectionService.CanViewDossier(recipient.Id, (int)ActiviteModule.TRANSFERT)
+                || _utilisateurDirectionService.CanCreateDossier(recipient.Id, (int)ActiviteModule.TRANSFERT);
         }
         #endregion
 
@@ -261,9 +236,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
 
                 var recipients = await GetShareRecipientsAsync(emails, token);
 
-                ValidateShareRecipients(emails, recipients);
-
-                ValidateRecipientsTransfertAccess(emails, recipients);
+                ValidateTransferRecipients(emails, recipients);
 
                 var statutActif = await _documentService.GetStatutDocumentByCodeAsync(
                     nameof(StatutDocumentTransfert.Active),
@@ -294,7 +267,8 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                     OwnerId = CurrentUser.Id,
                     StatutDocumentId = statutActif.Id,
                     SecurityCode = GenerateSecurityCode(),
-                    EncryptionKey = model.EncryptionKey
+                    EncryptionKey = model.EncryptionKey,
+                    ExpiryDelayHours = model.ExpiryDelayHours
                 };
 
                 var shares = BuildDocumentShares(
@@ -331,6 +305,39 @@ namespace BacaratWeb.Areas.Transfert.Controllers
                 return StatusCode(
                     500,
                     _translator.Common["Transfert.Document.ErrorWhileSavingDocument"]);
+            }
+        }
+
+        private void ValidateTransferRecipients(
+            IEnumerable<string> emails,
+            IEnumerable<Utilisateur> recipients)
+        {
+            var recipientEmails = recipients
+                .Where(x => !string.IsNullOrWhiteSpace(x.Email))
+                .Select(x => x.Email)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var invalidEmails = emails
+                .Where(x => !recipientEmails.Contains(x))
+                .ToList();
+
+            var unauthorizedEmails = recipients
+                .Where(x => !CanRecipientAccessTransfert(x))
+                .Select(x => x.Email)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+
+            var rejectedEmails = invalidEmails
+                .Concat(unauthorizedEmails)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (rejectedEmails.Any())
+            {
+                throw new CustomMessageException(
+                    string.Format(
+                        _translator.Common["Transfert.Document.RecipientsNotAuthorizedTransfer"],
+                        string.Join(", ", rejectedEmails)));
             }
         }
 
@@ -785,9 +792,7 @@ namespace BacaratWeb.Areas.Transfert.Controllers
 
                 var recipients = await GetShareRecipientsAsync(emails, token);
 
-                ValidateShareRecipients(emails, recipients);
-
-                ValidateRecipientsTransfertAccess(emails, recipients);
+                ValidateTransferRecipients(emails, recipients);
 
                 var shares = BuildDocumentShares(document, recipients, model);
 
@@ -895,27 +900,6 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             }
 
             return recipients;
-        }
-
-        private void ValidateShareRecipients(
-            IEnumerable<string> emails,
-            IEnumerable<Utilisateur> recipients)
-        {
-            var recipientEmails = recipients
-                .Select(x => x.Email)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            var invalidEmails = emails
-                .Where(x => !recipientEmails.Contains(x))
-                .ToList();
-
-            if (invalidEmails.Any())
-            {
-                throw new CustomMessageException(
-                    string.Format(
-                        _translator.Common["Transfert.Document.ShareUserNotFound"],
-                        string.Join(", ", invalidEmails)));
-            }
         }
 
         private List<DocumentShare> BuildDocumentShares(
@@ -1027,12 +1011,13 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             EmailNotificationTemplate template,
             CultureInfo cultureInfo)
         {
+            var expiryDelayLabel = GetDocumentExpiryDelayLabel(document.ExpiryDelayHours.Value);
+
             var bodyArgs = new object[]
             {
                 document.Name,
                 UtilisateurHelper.FormatUserName(CurrentUser.Prenom, CurrentUser.Nom),
-                share.SharedDate.ToString("dddd d MMMM yyyy 'à' HH:mm '(UTC'zzz')'", cultureInfo),
-                share.ExpiryDate.ToString("dddd d MMMM yyyy 'à' HH:mm '(UTC'zzz')'", cultureInfo),
+                expiryDelayLabel,
                 GetTransfertUrl(),
                 document.SecurityCode,
                 document.EncryptionKey
@@ -1047,6 +1032,14 @@ namespace BacaratWeb.Areas.Transfert.Controllers
             };
         }
 
+        private string GetDocumentExpiryDelayLabel(int expiryDelayHours)
+        {
+            return string.Format(
+                "{0} h ({1})",
+                expiryDelayHours,
+                _translator.Common["Transfert.Document.ExpirationDelayWithoutWeekend"]);
+        }
+        
         private string GetTransfertUrl(string mode = "all")
         {
             return Url.Action(
