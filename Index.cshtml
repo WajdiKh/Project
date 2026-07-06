@@ -64,7 +64,12 @@
                     .Caption(translator.Common["Transfert.Document.Name"]);
 
                 columns.AddFor(m => m.Description)
-                    .Caption(translator.Common["Description"]);
+                    .Caption(translator.Common["Description"])
+                    .CellTemplate(@<text>
+                        <div class="document-description-cell">
+                            <%- data.Description %>
+                        </div>
+                    </text>);
 
                 columns.AddFor(m => m.ContentType)
                     .Caption(translator.Common["Transfert.Document.FileType"]);
@@ -87,8 +92,8 @@
                         .Caption(translator.Common["Owner"]);
 
                 columns.Add()
-                    .Caption(translator.Common["Transfert.Document.Status"])
-                    .DataField($"StatutDocumentName{language}");
+                        .Caption(translator.Common["Transfert.Document.Status"])
+                        .CalculateCellValue("calculateDocumentStatus");
 
                 columns.Add()
                     .Caption("")
@@ -165,7 +170,12 @@
                         .Caption(translator.Common["Transfert.Document.Name"]);
 
                     columns.AddFor(m => m.Description)
-                        .Caption(translator.Common["Description"]);
+                        .Caption(translator.Common["Description"])
+                        .CellTemplate(@<text>
+                                <div class="document-description-cell">
+                                    <%- data.Description %>
+                                </div>
+                            </text>);
 
                     columns.AddFor(m => m.ContentType)
                         .Caption(translator.Common["Transfert.Document.FileType"]);
@@ -189,7 +199,7 @@
 
                     columns.Add()
                         .Caption(translator.Common["Transfert.Document.Status"])
-                        .DataField($"StatutDocumentName{language}");
+                        .CalculateCellValue("calculateDocumentStatus");
 
                     columns.Add()
                         .Caption("")
@@ -206,12 +216,6 @@
                                 title="@translator.Common["Download"]"
                                 onclick="Transfert.Document.downloadDocument(<%= data.Id %>)">
                                     <i class="fas fa-download color-blue2"></i>
-                                </a>
-
-                                <a href="javascript:void(0)"
-                                title="@translator.Common["Delete"]"
-                                onclick="Transfert.Document.confirmDeleteDocument(<%= data.Id %>)">
-                                    <i class="fas fa-trash color-red2"></i>
                                 </a>
                             </div>
                         </text>);
@@ -268,7 +272,12 @@
                     .Caption(translator.Common["Transfert.Document.Name"]);
 
                 columns.AddFor(m => m.Description)
-                    .Caption(translator.Common["Description"]);
+                    .Caption(translator.Common["Description"])
+                    .CellTemplate(@<text>
+                        <div class="document-description-cell">
+                            <%- data.Description %>
+                        </div>
+                    </text>);
 
                 columns.AddFor(m => m.ContentType)
                     .Caption(translator.Common["Transfert.Document.FileType"]);
@@ -291,8 +300,8 @@
                     .Caption(translator.Common["Owner"]);
 
                 columns.Add()
-                    .Caption(translator.Common["Transfert.Document.Status"])
-                    .DataField($"StatutDocumentName{language}");
+                        .Caption(translator.Common["Transfert.Document.Status"])
+                        .CalculateCellValue("calculateDocumentStatus");
 
                 columns.Add()
                     .Caption("")
