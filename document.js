@@ -171,7 +171,6 @@ Transfert.Document.onMyDocumentsSelectionChanged = function (e) {
 
     var hasSelection = !!Transfert.Document.selectedDocument;
 
-    Transfert.Document.setButtonVisible("btnShareDocument", hasSelection && _transfertCanWrite);
     Transfert.Document.setButtonVisible("btnShareSettingsDocument", hasSelection && _transfertCanWrite);
 };
 
@@ -354,22 +353,7 @@ Transfert.Document.initFileUploaderChange = function () {
 // Share Document
 
 Transfert.Document.initShareButton = function () {
-    if (!_transfertCanWrite) {
-        $("#btnShareDocument").hide();
-        return;
-    }
-
-    $("#btnShareDocument").dxButton({
-        text: _transfertTranslatableDocumentShareWith,
-        icon: "share",
-        visible: false,
-        elementAttr: {
-            class: "color-blue"
-        },
-        onClick: function () {
-            Transfert.Document.openSharePopup();
-        }
-    });
+    $("#btnShareDocument").hide();
 };
 
 Transfert.Document.openSharePopup = function () {
@@ -536,7 +520,7 @@ Transfert.Document.initShareSettingsButton = function () {
     }
 
     $("#btnShareSettingsDocument").dxButton({
-        text: _transfertTranslatableDocumentShareSettings,
+        text: _transfertTranslatableDocumentShareHistory,
         icon: "preferences",
         visible: false,
         elementAttr: {
@@ -684,73 +668,6 @@ Transfert.Document.downloadDocument = function (documentId) {
         "_blank");
 };
 
-Transfert.Document.confirmDeleteDocument = function (documentId) {
-    if (!_transfertCanWrite) {
-        return;
-    }
-
-    var dialog = DevExpress.ui.dialog.custom({
-        title: _transfertTranslatableDocumentDelete,
-        messageHtml: _transfertDocumentDeleteConfirmation,
-        buttons: [
-            {
-                text: _transfertTranslatableDocumentYes,
-                onClick: function () {
-                    return true;
-                }
-            },
-            {
-                text: _transfertTranslatableDocumentNo,
-                onClick: function () {
-                    return false;
-                }
-            }
-        ]
-    });
-
-    dialog.show().done(function (dialogResult) {
-        if (dialogResult) {
-            Transfert.Document.deleteDocument(documentId);
-        }
-    });
-};
-
-Transfert.Document.deleteDocument = function (documentId) {
-    if (!_transfertCanWrite) {
-        return;
-    }
-
-    $.ajax({
-        url: "/" + culture + "/transfert/delete-document",
-        type: "POST",
-        data: {
-            documentId: documentId
-        },
-        success: function () {
-            DevExpress.ui.notify(
-                _transfertDocumentDeleteSuccess,
-                "success",
-                3000);
-
-            Transfert.Document.refreshGrid("allDocumentsGrid");
-            Transfert.Document.refreshGrid("myDocumentsGrid");
-            Transfert.Document.refreshGrid("sharedDocumentsGrid");
-
-            Transfert.Document.selectedDocument = null;
-            Transfert.Document.setButtonVisible("btnShareDocument", false);
-            Transfert.Document.setButtonVisible("btnShareSettingsDocument", false);
-        },
-        error: function (xhr) {
-            DevExpress.ui.notify(
-                xhr.responseText || _transfertDocumentDeleteError,
-                "error",
-                5000);
-        }
-    });
-};
-
-
-
 // UI Helpers
 
 Transfert.Document.buildPopupTitle = function (suffix) {
@@ -775,7 +692,7 @@ Transfert.Document.setSharePopupTitles = function () {
     );
 
     $("#shareSettingsDocumentPopupTitle").text(
-        Transfert.Document.buildPopupTitle(_transfertTranslatableDocumentShareSettings)
+        Transfert.Document.buildPopupTitle(_transfertTranslatableDocumentShareHistory)
     );
 };
 
@@ -900,3 +817,14 @@ Transfert.Document.disableShareDocument = function () {
         }
     });
 };
+
+function calculateDocumentStatus(rowData) 
+{
+    if (!rowData) {
+        return "";
+    }
+
+    return rowData.IsExpired
+        ? _transfertTranslatableDocumentExpired
+        : _transfertTranslatableDocumentActive;
+}
