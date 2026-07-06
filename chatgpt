@@ -2,6 +2,10 @@
 
 - Est ce que c'est possible de changer les libellé vrai et faux par Actif et Inactif dans le filtre du tableau historique du partage
 
+- Comme illustré dans la capture d'écran quand un utilisateur qui n'est pas habilité à accéder à l'url https://localhost:5001/fr/transfert/document/all tu n'as pas
+appliqué cette règle :
+En cas d'un destinataire non habilité au module "transfer" => ajouter le texte suivant quand qu'il clique sur l'URL du mail :" Vous n'avez pas les droits d'accès à BacaratWeb Transfert. Merci d'effectuer une demande d'habilitation. "/ English version :"You are not authorized to access BacaratWeb Transfert. Please request access."
+
 -  Pas de régression sur l'existant
 
 - clean code
