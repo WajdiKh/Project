@@ -1,6 +1,7 @@
 using AutoMapper;
 using BacaratWeb.Entities.Transfert;
 using BacaratWeb.ViewModel.Transfert;
+using System;
 
 namespace BacaratWeb.Mappers
 {
@@ -23,13 +24,7 @@ namespace BacaratWeb.Mappers
                 .ForMember(dest => dest.ContentType,
                            opt => opt
                             .MapFrom(src => string.IsNullOrWhiteSpace(src.FileExtension) ? string.Empty : src.FileExtension.Replace(".", string.Empty).ToLower()))
-
-                .ForMember(dest => dest.StatutDocumentNameFr,
-                    opt => opt.MapFrom(src =>
-                        src.StatutDocument != null ? src.StatutDocument.FrenchName : string.Empty))
-                .ForMember(dest => dest.StatutDocumentNameEn,
-                    opt => opt.MapFrom(src =>
-                        src.StatutDocument != null ? src.StatutDocument.EnglishName : string.Empty));
+                .ForMember(dest => dest.IsExpired, opt => opt.MapFrom(src => src.ExpiryDate < DateTimeOffset.Now));
 
             CreateMap<DocumentShare, DocumentViewModel>()
                 .ForMember(dest => dest.Id,
@@ -51,12 +46,7 @@ namespace BacaratWeb.Mappers
                         src.Document.Owner != null
                             ? ((src.Document.Owner.Prenom ?? string.Empty) + " " + (src.Document.Owner.Nom ?? string.Empty).ToUpper())
                             : string.Empty))
-                .ForMember(dest => dest.StatutDocumentNameFr,
-                    opt => opt.MapFrom(src =>
-                        src.Document.StatutDocument != null ? src.Document.StatutDocument.FrenchName : string.Empty))
-                .ForMember(dest => dest.StatutDocumentNameEn,
-                    opt => opt.MapFrom(src =>
-                        src.Document.StatutDocument != null ? src.Document.StatutDocument.EnglishName : string.Empty));
+                .ForMember(dest => dest.IsExpired, opt => opt.MapFrom(src => src.Document.ExpiryDate < DateTimeOffset.Now));
 
 
             CreateMap<DocumentShare, DocumentShareViewModel>()
