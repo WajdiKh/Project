@@ -1,35 +1,47 @@
+CREATE TABLE [Gda].[DossierGdaOsc] (
+    [Id] INT IDENTITY (1, 1) NOT NULL,
+    [DossierGdaId] INT NULL,
 
-16:43:31.068 +02:00 [Error] An exception occurred while iterating over the results of a query for context type '"BacaratWeb.Model.Entities.BacaratWebContext"'."\r\n""System.Data.SqlTypes.SqlNullValueException: Data is Null. This method or property cannot be called on Null values.\r\n   at Microsoft.Data.SqlClient.SqlBuffer.get_Boolean()\r\n   at lambda_method1161(Closure , QueryContext , DbDataReader , ResultContext , SingleQueryResultCoordinator )\r\n   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()"
-System.Data.SqlTypes.SqlNullValueException: Data is Null. This method or property cannot be called on Null values.
-   at Microsoft.Data.SqlClient.SqlBuffer.get_Boolean()
-   at lambda_method1161(Closure , QueryContext , DbDataReader , ResultContext , SingleQueryResultCoordinator )
-   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
-2
-Exception thrown: 'System.Data.SqlTypes.SqlNullValueException' in System.Private.CoreLib.dll
-16:43:31.111 +02:00 [Error] An unhandled exception has occurred while executing the request.
-System.Data.SqlTypes.SqlNullValueException: Data is Null. This method or property cannot be called on Null values.
-   at Microsoft.Data.SqlClient.SqlBuffer.get_Boolean()
-   at lambda_method1161(Closure , QueryContext , DbDataReader , ResultContext , SingleQueryResultCoordinator )
-   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
-2
-   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
-   at BacaratWeb.Services.Gda.DossierGdaService.GetAsync(Int32 entityId, Boolean include, CancellationToken token) in C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb.Services.Gda\Services\DossierGdaService.cs:line 696
-   at BacaratWeb.Areas.Gda.Controllers.DossierController.ProlongationGda(String id, CancellationToken cancellationToken) in C:\Users\khemirw\source\repos\BacaratWeb\BacaratWeb\Areas\Gda\Controllers\DossierController.cs:line 523
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.TaskOfIActionResultExecutor.Execute(IActionResultTypeMapper mapper, ObjectMethodExecutor executor, Object controller, Object[] arguments)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeActionMethodAsync>g__Awaited|12_0(ControllerActionInvoker invoker, ValueTask`1 actionResultValueTask)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeNextActionFilterAsync>g__Awaited|10_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Rethrow(ActionExecutedContextSealed context)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeInnerFilterAsync>g__Awaited|13_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeNextResourceFilter>g__Awaited|24_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Rethrow(ResourceExecutedContextSealed context)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|19_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
-   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
-   at Microsoft.AspNetCore.Builder.RouterMiddleware.Invoke(HttpContext httpContext)
-   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
-   at Microsoft.AspNetCore.Localization.RequestLocalizationMiddleware.Invoke(HttpContext context)
-   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
-2
-   at Microsoft.AspNetCore.Session.SessionMiddleware.Invoke(HttpContext context)
-   at Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware.<Invoke>g__Awaited|6_0(ExceptionHandlerMiddleware middleware, HttpContext context, Task task)
+    [OperationsSurCompte] NVARCHAR (MAX) NULL,
+
+    [Commentaire] NVARCHAR (MAX) NULL,
+
+    [DateCreation] DATETIMEOFFSET (7) NOT NULL,
+
+    [DateModification] DATETIMEOFFSET (7) NULL,
+
+    [DateResiliation] DATETIMEOFFSET (7) NULL,
+
+    [DateDeclaration] DATETIMEOFFSET (7) NULL,
+
+    [CreateurId] INT NOT NULL,
+
+    [ModificateurId] INT NULL,
+
+    [StatutOscId] INT NULL,
+
+    [CodeIdentifiant] NVARCHAR (40) NULL,
+
+    [DebitCreditId] INT NULL,
+
+    [Montant] DECIMAL (18, 2) NULL,
+    [ResponsableMoe] NVARCHAR (60) NULL,
+
+    [IsRealise] BIT NOT NULL CONSTRAINT [DF_DossierGdaOsc_IsRealise] DEFAULT (0),
+
+    [IsRetablis] BIT NOT NULL CONSTRAINT [DF_DossierGdaOsc_IsRetablis] DEFAULT (0),
+
+    [IsManquementDgt] BIT NOT NULL CONSTRAINT [DF_DossierGdaOsc_IsManquementDgt] DEFAULT (0),
+
+    CONSTRAINT [PK_DossierGdaOsc] PRIMARY KEY CLUSTERED ([Id] ASC),
+
+    CONSTRAINT [FK_DossierGdaOsc_DebitCreditOsc_DossierGdaId] FOREIGN KEY ([DebitCreditId]) REFERENCES [Gda].[DebitCreditOsc] ([Id]),
+
+    CONSTRAINT [FK_DossierGdaOsc_DossierGda_DossierGdaId] FOREIGN KEY ([DossierGdaId]) REFERENCES [Gda].[DossierGda] ([Id]),
+    CONSTRAINT [FK_DossierGdaOsc_StatutActionsGda_DossierGdaId] FOREIGN KEY ([StatutOscId]) REFERENCES [Gda].[StatutActionsGda] ([Id]),
+
+    CONSTRAINT [FK_DossierGdaOsc_Utilisateur_CreateurId] FOREIGN KEY ([CreateurId]) REFERENCES [Commun].[Utilisateur] ([Id]),
+
+    CONSTRAINT [FK_DossierGdaOsc_Utilisateur_ModificateurId] FOREIGN KEY ([ModificateurId]) REFERENCES [Commun].[Utilisateur] ([Id])
+);
+GO
