@@ -1,8 +1,1 @@
-- Si la relation d'affaire "Cessation de relations avec le blocage de vente" est sélectionné dans l'onglet "Relation Client" (voir captures d'écran) 
-il faut ajouter la case à cocher "REA / REJ" après le champ "Date cessation relation"
-Quand la case est cochée la Date cessation relation n'est plus obligatoire.
-
-- Idem pour le popup Mise à jour numéro transmission au parquet etc..
-- Pas de régressions
-- Réponse dans un seul bloc 
-- Dis moi de quels fichiers tu as besoin
+- popup affiché dans la function dans dossier lab gridTransmissionUpdateARSelected_Lab_OnClick
