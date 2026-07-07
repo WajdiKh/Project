@@ -27,6 +27,8 @@ function addPhysicalPerson() {
 
         resetIdentificationSpecifique();
 
+        refreshPiecesIdentiteButtonsVisibility();
+
     }).fail(function (e) {
         if (e.status == 401) {
             var popup = $("#modalReconnect").dxPopup('instance');
@@ -100,6 +102,8 @@ function addMoralPerson() {
         resetIdentificationSpecifique();
 
         setRelationAffaireValidator();
+
+        refreshPiecesIdentiteButtonsVisibility();
 
     }).fail(function (e) {
         if (e.status == 401) {
@@ -2821,7 +2825,7 @@ function categorieGroupeLab_OnValueChanged(existTracfin, callback) {
         if ((categorieGroupeLabId == 1 || categorieGroupeLabId == 2) && direction.IsTracfin === false) {
             $("#date-declaration-locale").removeClass("dx-hidden");
 
-            if (!dateValidator ) {
+            if (!dateValidator) {
                 $("#DateDeclarationLocale").dxValidator({
                     validationRules: [{
                         type: "required",
@@ -2843,7 +2847,7 @@ function categorieGroupeLab_OnValueChanged(existTracfin, callback) {
             if (dateValidator) {
                 dateValidator.option("validationRules", []);
             }
-           
+
 
         }
         if (!isDs && callback) {
@@ -4923,12 +4927,16 @@ function isPieceJointeValid(index) {
         return Promise.reject();
     }
 
+    var CategorieDocumentId = $("#CategorieDocumentId" + index).dxSelectBox("instance").option("value");
+
     if (newFileUploaded) // a new file was uploaded
     {
         var newFile = uploadedFiles[0];
 
-        if (newFile.size > _labTailleMaxPieceJointeOctets) {
-            return Promise.reject(_labTranslatableMessageMaxFileSizeExceededError);
+        const tailleMaxOctets = getMaxFileSize(CategorieDocumentId);
+
+        if (newFile.size > tailleMaxOctets) {
+            return Promise.reject(_labTranslatableMessageMaxFileSizeExceededError.format(tailleMaxOctets / (1024 * 1024)));
         }
 
         var fileExtension = getFileExtension(newFile.name.toUpperCase());
@@ -4937,12 +4945,21 @@ function isPieceJointeValid(index) {
         }
     }
 
-    var CategorieDocumentId = $("#CategorieDocumentId" + index).dxSelectBox("instance").option("value");
+
     if (CategorieDocumentId == _labEnvoiTracfinCategorieDocumentId) {
         return validatePieceJointeDossierLabEnvoiTracfin(newAttachment, index);
     }
 
     return Promise.resolve(); // Uploading a new file is not necessary for existing attachment
+}
+
+
+
+
+function getMaxFileSize(CategorieDocumentId) {
+    return CategorieDocumentId == _labEnvoiTracfinCategorieDocumentId ?
+        _labTailleMaxPieceJointeEnvoiTracfinOctets :
+        _labTailleMaxPieceJointeOctets;
 }
 
 function isNewAttachment(index) {
@@ -5576,6 +5593,7 @@ function filterAllDataSourcesTypesReferencesFinanciere() {
 function _panelPersonneOnContentReady() {
     console.log('_panelPersonneOnContentReady');
     $('#panelPersonnes').dxTabPanel('instance').option('selectedIndex', 0);
+    refreshPiecesIdentiteAccess();
 }
 
 function statutId_OnSelectionChanged() {
@@ -5624,13 +5642,13 @@ function btnSearchReportings_onClick(anneeEncours, anneePrecedente) {
         dataType: "json",
         url: '/' + culture + '/lab/ServiceLab/SearchReportings/?isAnneeEnCours=' + isAnneeEnCours + ' &isAnneePrecedente=' + isAnneePrecedente,
     }).done(function (data) {
-        if (isAnneeEnCours) {           
-            $("#startDateReporting").dxDateBox({ value: new Date(today.getFullYear(),0,1)});
-            $("#endDateReporting").dxDateBox({ value: new Date(today)});
+        if (isAnneeEnCours) {
+            $("#startDateReporting").dxDateBox({ value: new Date(today.getFullYear(), 0, 1) });
+            $("#endDateReporting").dxDateBox({ value: new Date(today) });
         }
         if (isAnneePrecedente) {
             $("#startDateReporting").dxDateBox({ value: new Date(today.getFullYear() - 1, 0, 1) });
-            $("#endDateReporting").dxDateBox({ value: new Date(today.getFullYear()- 1, 11,31) });
+            $("#endDateReporting").dxDateBox({ value: new Date(today.getFullYear() - 1, 11, 31) });
         }
         var pivotGridDossiersLabQLBReporting = $("#pivotGridDossiersLabQLBReporting").dxPivotGrid("instance");
         if (pivotGridDossiersLabQLBReporting) {
@@ -10655,3 +10673,307 @@ function chargeListeQlb() {
     });
 }
 
+var canSearchPiecesIdentite = false;
+
+function refreshPiecesIdentiteAccess() {
+
+    var directionId = getSelectedDirectionId();
+
+    if (!directionId) {
+
+        canSearchPiecesIdentite = false;
+
+        refreshPiecesIdentiteButtonsVisibility();
+
+        return;
+    }
+
+    $.ajax({
+        method: "GET",
+        cache: false,
+        url: "/Lab/ServiceLab/HasAccesRecherchePiecesIdentite",
+        data: {
+            directionId: directionId
+        }
+    })
+        .done(function (result) {
+
+            canSearchPiecesIdentite =
+                result &&
+                result.hasAccess === true;
+
+            refreshPiecesIdentiteButtonsVisibility();
+        })
+        .fail(function () {
+
+            canSearchPiecesIdentite = false;
+
+            refreshPiecesIdentiteButtonsVisibility();
+        });
+}
+
+function getSelectedDirectionId() {
+    var direction = $("#DirectionId").dxSelectBox("instance");
+
+    if (!direction) {
+        return null;
+    }
+
+    return direction.option("value");
+}
+
+function refreshPiecesIdentiteButtonsVisibility() {
+
+    $(".btn-pieces-identite")
+        .toggle(canDisplayPiecesIdentite());
+}
+
+function canDisplayPiecesIdentite() {
+
+    return canSearchPiecesIdentite
+        && isDeclarationSoupconChecked();
+}
+
+function isDeclarationSoupconChecked() {
+    var checkBox = $("#IsDeclarationSoupcon").dxCheckBox("instance");
+
+    if (!checkBox) {
+        return false;
+    }
+
+    return checkBox.option("value") === true;
+}
+
+function searchPiecesIdentitePersonnePhysique(index) {
+    var directionId = getSelectedDirectionId();
+
+    var nom = $("#PersonnePhysiqueLabNomNaissance" + index)
+        .dxTextBox("instance")
+        .option("value");
+
+    var prenoms = $("#PersonnePhysiqueLabPrenoms" + index)
+        .dxTextBox("instance")
+        .option("value");
+
+    var dateNaissance = $("#PersonnePhysiqueLabDateNaissance" + index)
+        .dxDateBox("instance")
+        .option("value");
+
+    if (!isNullOrUndefined(dateNaissance)) {
+        dateNaissance = new Date
+            (Date.UTC(
+                dateNaissance.getFullYear(),
+                dateNaissance.getMonth(),
+                dateNaissance.getDate(),
+                0,
+                0,
+                0,
+                0)).toISOString();
+    }
+
+    if (!directionId) {
+        DevExpress.ui.notify(_labPiecesIdentiteDirectionRequired, "error", 3000);
+        return;
+    }
+
+    $.ajax({
+        method: "GET",
+        cache: false,
+        url: "/Lab/ServiceLab/SearchPiecesIdentitePersonnePhysique",
+        data: {
+            directionId: directionId,
+            nom: nom,
+            prenoms: prenoms,
+            dateNaissance: dateNaissance
+        }
+    }).done(function (data) {
+        showPiecesIdentitePopup(data, false);
+    }).fail(function (xhr) {
+        DevExpress.ui.notify(xhr.responseText || _labPiecesIdentiteErrorSearch, "error", 5000);
+    });
+}
+
+function searchPiecesIdentitePersonneMorale(index) {
+    var directionId = getSelectedDirectionId();
+
+    var raisonSociale = $("#PersonneMoraleLabRaisonSociale" + index)
+        .dxTextBox("instance")
+        .option("value");
+
+    var numeroImmatriculation = $("#PersonneMoraleLabNumeroImmatriculation" + index)
+        .dxTextBox("instance")
+        .option("value");
+
+    if (!directionId) {
+        DevExpress.ui.notify(_labPiecesIdentiteDirectionRequired, "error", 3000);
+        return;
+    }
+
+    $.ajax({
+        method: "GET",
+        cache: false,
+        url: "/Lab/ServiceLab/SearchPiecesIdentitePersonneMorale",
+        data: {
+            directionId: directionId,
+            raisonSociale: raisonSociale,
+            numeroImmatriculation: numeroImmatriculation
+        }
+    }).done(function (data) {
+        showPiecesIdentitePopup(data, true);
+    }).fail(function (xhr) {
+        DevExpress.ui.notify(xhr.responseText || _labPiecesIdentiteErrorSearch, "error", 5000);
+    });
+}
+
+function showPiecesIdentitePopup(data, isPersonneMorale) {
+    if (!data || data.length === 0) {
+        DevExpress.ui.notify(_labPiecesIdentiteNoResult, "info", 3000);
+        return;
+    }
+
+    if ($("#piecesIdentitePopup").length === 0) {
+        $("body").append('<div id="piecesIdentitePopup"></div>');
+    }
+
+    $("#piecesIdentitePopup").dxPopup({
+        title: _labPiecesIdentiteTitle,
+        width: "80%",
+        height: "auto",
+        showTitle: true,
+        dragEnabled: true,
+        showCloseButton: true,
+        onShown: function (e) {
+            $(e.element)
+                .find(".dx-popup-title")
+                .addClass("font-size-16px text-green text-font-weight-600 smallCaps pieces-identite-popup-title");
+        },
+        contentTemplate: function (contentElement) {
+            $("<div>")
+                .dxDataGrid({
+                    dataSource: data,
+                    showBorders: true,
+                    columnAutoWidth: true,
+                    columns: getPiecesIdentiteColumns(isPersonneMorale)
+                })
+                .appendTo(contentElement);
+        }
+    }).dxPopup("instance").show();
+}
+
+function getPiecesIdentiteColumns(isPersonneMorale) {
+    var columns = [];
+
+    if (isPersonneMorale) {
+        columns.push({ dataField: "RaisonSociale", caption: _labPiecesIdentiteColumnRaisonSociale });
+        columns.push({ dataField: "NumeroImmatriculation", caption: _labPiecesIdentiteColumnNumeroImmatriculation });
+    } else {
+        columns.push({ dataField: "Nom", caption: _labPiecesIdentiteColumnNom });
+        columns.push({ dataField: "Prenom", caption: _labPiecesIdentiteColumnPrenom });
+        columns.push({ dataField: "DateNaissance", caption: _labPiecesIdentiteColumnDateNaissance, dataType: "date", format: "dd/MM/yyyy" });
+    }
+
+    columns.push({ dataField: "CodeDossier", caption: _labPiecesIdentiteColumnCodeDossier });
+    columns.push({ dataField: "DirectionName", caption: _labPiecesIdentiteColumnDirection });
+    columns.push({
+        caption: _labPiecesIdentiteColumnPieceIdentite,
+        alignment: "center",
+        cellTemplate: function (container, options) {
+            $("<div>").dxButton({
+                icon: "download",
+                text: _labPiecesIdentiteDownload,
+                elementAttr: {
+                    class: "color-blue"
+                },
+                onClick: function () {
+                    downloadPiecesIdentite(options.data);
+                }
+            }).appendTo(container);
+        }
+    });
+
+    return columns;
+}
+
+function downloadPiecesIdentite(row) {
+    var directionId = getSelectedDirectionId();
+
+    if (!directionId) {
+        DevExpress.ui.notify(_labPiecesIdentiteDirectionRequired, "error", 3000);
+        return;
+    }
+
+    var url =
+        "/Lab/ServiceLab/DownloadPiecesIdentiteZip" +
+        "?directionId=" + encodeURIComponent(directionId) +
+        "&dossierLabId=" + encodeURIComponent(row.DossierLabId) +
+        "&personneId=" + encodeURIComponent(row.PersonneId) +
+        "&directionCibleId=" + encodeURIComponent(row.DirectionId);
+
+    fetch(url)
+        .then(async function (response) {
+
+            if (!response.ok) {
+                var message = await response.text();
+
+                DevExpress.ui.notify(
+                    message || _labPiecesIdentiteNoResult,
+                    "warning",
+                    3000);
+
+                return null;
+            }
+
+            return {
+                blob: await response.blob(),
+                fileName: getFileNameFromDisposition(
+                    response.headers.get("Content-Disposition"))
+            };
+        })
+        .then(function (result) {
+
+            if (!result) {
+                return;
+            }
+
+            var downloadUrl = window.URL.createObjectURL(result.blob);
+
+            var link = document.createElement("a");
+            link.href = downloadUrl;
+            link.download = result.fileName || "PiecesIdentite.zip";
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            window.URL.revokeObjectURL(downloadUrl);
+        })
+        .catch(function () {
+            DevExpress.ui.notify(
+                _labPiecesIdentiteDownloadError,
+                "error",
+                3000);
+        });
+}
+
+function getFileNameFromDisposition(contentDisposition) {
+
+    if (!contentDisposition) {
+        return null;
+    }
+
+    var match = /filename="?([^"]+)"?/i.exec(contentDisposition);
+
+    return match ? match[1] : null;
+}
+
+function setPersonneMoraleFieldsValidators(index)
+{
+    $("#PersonneMoraleLabActivite" + index)
+        .dxValidator({
+            validationRules: [{
+                type: "stringLength",
+                max: 200,
+                message: _labPersonneMoraleActiviteMaxLength
+            }]
+        });
+}
