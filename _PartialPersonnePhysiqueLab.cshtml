@@ -98,6 +98,22 @@
             {
                 <div class="pr-1">
                     @(Html.DevExtreme().Button()
+                        .Icon(Url.Content("~/images/person-vcard.svg"))
+                        .Hint(translator.Common["Lab.PiecesIdentite.SearchAndDownload"])
+                        .ElementAttr(new Dictionary<string, object>
+                        {
+                            { "class", "btn-pieces-identite" }
+                        })
+                        .ID("btnPiecesIdentitePersonnePhysiqueLab" + Model.Item2)
+                        .Visible(true)
+                        .OnClick(@<text>
+                            function () {
+                                searchPiecesIdentitePersonnePhysique('@(Model.Item2)');
+                            }
+                        </text>))
+                </div>
+                <div class="pr-1">
+                    @(Html.DevExtreme().Button()
                         .Icon("search")
                         .ElementAttr("class", "color-blue")
                         .ID("CriblagePersonnePhysiqueLab" + Model.Item2)
