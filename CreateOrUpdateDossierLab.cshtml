@@ -111,8 +111,9 @@
                         .OnValueChanged(@<text>
                                              function ()
                                              {
-                                             directionOnValueChangedCreateUpdateDossierLab('@Model.CryptedId','@_isReadOnly.ToString().ToLower()');
-                                             categorieGroupeLab_OnValueChanged(@(Model.DeclarationTracfins.Any().ToString().ToLower()));
+                                                directionOnValueChangedCreateUpdateDossierLab('@Model.CryptedId','@_isReadOnly.ToString().ToLower()');
+                                                categorieGroupeLab_OnValueChanged(@(Model.DeclarationTracfins.Any().ToString().ToLower()));
+                                                refreshPiecesIdentiteAccess();
                                              }
                                          </text>)
                         .SearchEnabled(true)
@@ -186,7 +187,20 @@
                             <span class="smallCaps text-green"> @translator.Common["DeclarationSoupcon"]</span>
                         </div>
                         <div class="adjust-padding-top-check-box">
-                            @Html.DevExtreme().CheckBoxFor(x => x.IsDeclarationSoupcon).ID("IsDeclarationSoupcon").Height(30).Name("IsDeclarationSoupcon").ReadOnly(true)
+                            @(Html.DevExtreme()
+                                .CheckBoxFor(x => x.IsDeclarationSoupcon)
+                                .ID("IsDeclarationSoupcon")
+                                .Height(30)
+                                .Name("IsDeclarationSoupcon")
+                                .ReadOnly(true)
+                                .OnValueChanged(
+                                    @<text>
+                                        function()
+                                        {
+                                            refreshPiecesIdentiteButtonsVisibility();
+                                        }
+                                    </text>
+                                ))
                         </div>
                     </div>
                 </div>
