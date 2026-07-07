@@ -1,1 +1,69 @@
-- popup affiché dans la function dans dossier lab gridTransmissionUpdateARSelected_Lab_OnClick
+USE [BacaratWeb]
+GO
+/****** Object:  Table [Lab].[TypeRelationAffaireLab]    Script Date: 07/07/2026 11:36:18 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [Lab].[TypeRelationAffaireLab](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[FrenchName] [nvarchar](500) NOT NULL,
+	[EnglishName] [nvarchar](500) NULL,
+	[FrenchDescription] [nvarchar](1000) NOT NULL,
+	[EnglishDescription] [nvarchar](1000) NULL,
+	[DateCreation] [datetimeoffset](7) NOT NULL,
+	[DateModification] [datetimeoffset](7) NULL,
+	[ModificateurId] [int] NULL,
+	[CreateurId] [int] NULL,
+	[IsActive] [bit] NOT NULL,
+	[Code] [varchar](50) NULL,
+ CONSTRAINT [PK_TypeRelationAffaireLab] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+SET IDENTITY_INSERT [Lab].[TypeRelationAffaireLab] ON 
+
+INSERT [Lab].[TypeRelationAffaireLab] ([Id], [FrenchName], [EnglishName], [FrenchDescription], [EnglishDescription], [DateCreation], [DateModification], [ModificateurId], [CreateurId], [IsActive], [Code]) VALUES (1, N'Maintien de la relation avec restriction (ex: blocage vente...)', N'Maintaining the relationship with restrictions (e.g., sales block...)', N'Maintien de la relation avec restriction (ex: blocage vente...)', N'Maintaining the relationship with restrictions (e.g., sales block...)', CAST(N'2020-01-16T16:51:00.2000000+00:00' AS DateTimeOffset), NULL, 1, 1, 1, N'TRA1')
+INSERT [Lab].[TypeRelationAffaireLab] ([Id], [FrenchName], [EnglishName], [FrenchDescription], [EnglishDescription], [DateCreation], [DateModification], [ModificateurId], [CreateurId], [IsActive], [Code]) VALUES (2, N'Maintien de la relation sans restriction', N'Continuation of the relationship without restriction', N'Maintien de la relation sans restriction', N'Continuation of the relationship without restriction', CAST(N'2020-01-16T16:51:00.2000000+00:00' AS DateTimeOffset), NULL, 1, 1, 1, N'TRA2')
+INSERT [Lab].[TypeRelationAffaireLab] ([Id], [FrenchName], [EnglishName], [FrenchDescription], [EnglishDescription], [DateCreation], [DateModification], [ModificateurId], [CreateurId], [IsActive], [Code]) VALUES (3, N'Cessation de relation avec blocage vente', N'Termination of relationship with block sale', N'Cessation de relation avec blocage vente', N'Termination of relationship with block sale', CAST(N'2020-01-16T16:51:00.2000000+00:00' AS DateTimeOffset), NULL, 1, 1, 1, N'TRA3')
+INSERT [Lab].[TypeRelationAffaireLab] ([Id], [FrenchName], [EnglishName], [FrenchDescription], [EnglishDescription], [DateCreation], [DateModification], [ModificateurId], [CreateurId], [IsActive], [Code]) VALUES (4, N'Relation terminée', N'Relationship ended', N'Relation terminée', N'Relationship ended', CAST(N'2020-01-16T16:51:00.2000000+00:00' AS DateTimeOffset), NULL, 1, 1, 1, N'TRA4')
+SET IDENTITY_INSERT [Lab].[TypeRelationAffaireLab] OFF
+GO
+ALTER TABLE [Lab].[TypeRelationAffaireLab] ADD  DEFAULT ((1)) FOR [IsActive]
+GO
+ALTER TABLE [Lab].[TypeRelationAffaireLab]  WITH CHECK ADD  CONSTRAINT [FK_TypeRelationAffaireLab_Utilisateur_CreateurId] FOREIGN KEY([CreateurId])
+REFERENCES [Commun].[Utilisateur] ([Id])
+GO
+ALTER TABLE [Lab].[TypeRelationAffaireLab] CHECK CONSTRAINT [FK_TypeRelationAffaireLab_Utilisateur_CreateurId]
+GO
+ALTER TABLE [Lab].[TypeRelationAffaireLab]  WITH CHECK ADD  CONSTRAINT [FK_TypeRelationAffaireLab_Utilisateur_ModificateurId] FOREIGN KEY([ModificateurId])
+REFERENCES [Commun].[Utilisateur] ([Id])
+GO
+// Enum TypeRelationAffaire 
+namespace BacaratWeb.Shared
+{
+    public enum TypeRelationAffaire
+    {
+        /// <summary>
+        /// Maintien de la relation avec restriction type blocage vente
+        /// </summary>
+        TRA1,
+        /// <summary>
+        /// Maintien de la relation sans restriction
+        /// </summary>
+        TRA2,
+        /// <summary>
+        /// Cessation de relation avec blocage vente
+        /// </summary>
+        TRA3,
+        /// <summary>
+        /// Relation terminée
+        /// </summary>
+        TRA4
+    }
+}
+
+ALTER TABLE [Lab].[TypeRelationAffaireLab] CHECK CONSTRAINT [FK_TypeRelationAffaireLab_Utilisateur_ModificateurId]
+GO
