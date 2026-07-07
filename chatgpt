@@ -1,69 +1,564 @@
+MODIFICATIONS LAB — REA / REJ PERSONNE PHYSIQUE
+
+Objectif :
+- Si Relation d’affaire = TypeRelationAffaire.TRA3
+  "Cessation de relation avec blocage vente"
+- Alors afficher une checkbox "REA / REJ" après "Date cessation relation"
+- Si REA / REJ est cochée :
+  Date cessation relation n’est plus obligatoire
+- Périmètre : Personnes physiques uniquement
+- La valeur IsReaRej doit être persistée
+- Personnes morales : pas de modification pour l’instant
+
+
+============================================================
+1. SQL — AJOUT COLONNE IsReaRej
+============================================================
+
 USE [BacaratWeb]
 GO
-/****** Object:  Table [Lab].[TypeRelationAffaireLab]    Script Date: 07/07/2026 11:36:18 ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [Lab].[TypeRelationAffaireLab](
-	[Id] [int] IDENTITY(1,1) NOT NULL,
-	[FrenchName] [nvarchar](500) NOT NULL,
-	[EnglishName] [nvarchar](500) NULL,
-	[FrenchDescription] [nvarchar](1000) NOT NULL,
-	[EnglishDescription] [nvarchar](1000) NULL,
-	[DateCreation] [datetimeoffset](7) NOT NULL,
-	[DateModification] [datetimeoffset](7) NULL,
-	[ModificateurId] [int] NULL,
-	[CreateurId] [int] NULL,
-	[IsActive] [bit] NOT NULL,
-	[Code] [varchar](50) NULL,
- CONSTRAINT [PK_TypeRelationAffaireLab] PRIMARY KEY CLUSTERED 
-(
-	[Id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-SET IDENTITY_INSERT [Lab].[TypeRelationAffaireLab] ON 
 
-INSERT [Lab].[TypeRelationAffaireLab] ([Id], [FrenchName], [EnglishName], [FrenchDescription], [EnglishDescription], [DateCreation], [DateModification], [ModificateurId], [CreateurId], [IsActive], [Code]) VALUES (1, N'Maintien de la relation avec restriction (ex: blocage vente...)', N'Maintaining the relationship with restrictions (e.g., sales block...)', N'Maintien de la relation avec restriction (ex: blocage vente...)', N'Maintaining the relationship with restrictions (e.g., sales block...)', CAST(N'2020-01-16T16:51:00.2000000+00:00' AS DateTimeOffset), NULL, 1, 1, 1, N'TRA1')
-INSERT [Lab].[TypeRelationAffaireLab] ([Id], [FrenchName], [EnglishName], [FrenchDescription], [EnglishDescription], [DateCreation], [DateModification], [ModificateurId], [CreateurId], [IsActive], [Code]) VALUES (2, N'Maintien de la relation sans restriction', N'Continuation of the relationship without restriction', N'Maintien de la relation sans restriction', N'Continuation of the relationship without restriction', CAST(N'2020-01-16T16:51:00.2000000+00:00' AS DateTimeOffset), NULL, 1, 1, 1, N'TRA2')
-INSERT [Lab].[TypeRelationAffaireLab] ([Id], [FrenchName], [EnglishName], [FrenchDescription], [EnglishDescription], [DateCreation], [DateModification], [ModificateurId], [CreateurId], [IsActive], [Code]) VALUES (3, N'Cessation de relation avec blocage vente', N'Termination of relationship with block sale', N'Cessation de relation avec blocage vente', N'Termination of relationship with block sale', CAST(N'2020-01-16T16:51:00.2000000+00:00' AS DateTimeOffset), NULL, 1, 1, 1, N'TRA3')
-INSERT [Lab].[TypeRelationAffaireLab] ([Id], [FrenchName], [EnglishName], [FrenchDescription], [EnglishDescription], [DateCreation], [DateModification], [ModificateurId], [CreateurId], [IsActive], [Code]) VALUES (4, N'Relation terminée', N'Relationship ended', N'Relation terminée', N'Relationship ended', CAST(N'2020-01-16T16:51:00.2000000+00:00' AS DateTimeOffset), NULL, 1, 1, 1, N'TRA4')
-SET IDENTITY_INSERT [Lab].[TypeRelationAffaireLab] OFF
+IF COL_LENGTH('[Lab].[DossierLabPersonnePhysique]', 'IsReaRej') IS NULL
+BEGIN
+    ALTER TABLE [Lab].[DossierLabPersonnePhysique]
+    ADD [IsReaRej] BIT NOT NULL
+        CONSTRAINT [DF_DossierLabPersonnePhysique_IsReaRej] DEFAULT (0);
+END
 GO
-ALTER TABLE [Lab].[TypeRelationAffaireLab] ADD  DEFAULT ((1)) FOR [IsActive]
-GO
-ALTER TABLE [Lab].[TypeRelationAffaireLab]  WITH CHECK ADD  CONSTRAINT [FK_TypeRelationAffaireLab_Utilisateur_CreateurId] FOREIGN KEY([CreateurId])
-REFERENCES [Commun].[Utilisateur] ([Id])
-GO
-ALTER TABLE [Lab].[TypeRelationAffaireLab] CHECK CONSTRAINT [FK_TypeRelationAffaireLab_Utilisateur_CreateurId]
-GO
-ALTER TABLE [Lab].[TypeRelationAffaireLab]  WITH CHECK ADD  CONSTRAINT [FK_TypeRelationAffaireLab_Utilisateur_ModificateurId] FOREIGN KEY([ModificateurId])
-REFERENCES [Commun].[Utilisateur] ([Id])
-GO
-// Enum TypeRelationAffaire 
-namespace BacaratWeb.Shared
-{
-    public enum TypeRelationAffaire
+
+
+============================================================
+2. ENTITÉ DossierLabPersonnePhysique.cs
+============================================================
+
+Ajouter :
+
+public bool IsReaRej { get; set; }
+
+
+============================================================
+3. VIEWMODEL DossierLabPersonnePhysiqueViewModel.cs
+============================================================
+
+Ajouter :
+
+public bool IsReaRej { get; set; }
+
+
+============================================================
+4. LabMappingProfile.cs
+============================================================
+
+Dans le mapping DossierLabPersonnePhysique -> DossierLabPersonnePhysiqueViewModel, ajouter si nécessaire :
+
+.ForMember(dest => dest.IsReaRej,
+    opt => opt.MapFrom(src => src.IsReaRej))
+
+Dans le mapping DossierLabPersonnePhysiqueViewModel -> DossierLabPersonnePhysique, ajouter si nécessaire :
+
+.ForMember(dest => dest.IsReaRej,
+    opt => opt.MapFrom(src => src.IsReaRej))
+
+
+============================================================
+5. _PartialPersonnePhysiqueLab.cshtml
+============================================================
+
+Ajouter le using si absent :
+
+@using BacaratWeb.Shared
+
+Puis localiser le champ DateCessationRelation dans l’onglet Relation Client.
+
+Juste après le champ DateCessationRelation, ajouter la checkbox :
+
+<div class="col-md-2 rea-rej-container"
+     id="reaRejContainer@(Model.Item2)"
+     style="display:none;">
+
+    <label class="control-label smallCaps">
+        REA / REJ
+    </label>
+
+    @(Html.DevExtreme()
+        .CheckBoxFor(m => m.Item1.IsReaRej)
+        .ID("PersonnePhysiqueLabIsReaRej" + Model.Item2)
+        .OnValueChanged("function(e) { onReaRejPersonnePhysiqueChanged(" + Model.Item2 + "); }")
+    )
+</div>
+
+
+Sur le champ Relation d’affaire personne physique, ajouter / compléter le OnValueChanged existant.
+
+Si tu as déjà un OnValueChanged, il ne faut pas le remplacer brutalement.
+Il faut ajouter à la fin du handler existant :
+
+onRelationAffairePersonnePhysiqueChanged(@(Model.Item2));
+
+Si tu peux remplacer directement, utiliser :
+
+.OnValueChanged("function(e) { onRelationAffairePersonnePhysiqueChanged(" + Model.Item2 + "); }")
+
+
+Sur le champ DateCessationRelation, s’il y a un validator required existant, lui donner un id stable.
+
+Exemple :
+
+@(Html.DevExtreme().Validator()
+    .ID("DateCessationRelationValidator" + Model.Item2)
+    .ValidationRules(rules =>
     {
-        /// <summary>
-        /// Maintien de la relation avec restriction type blocage vente
-        /// </summary>
-        TRA1,
-        /// <summary>
-        /// Maintien de la relation sans restriction
-        /// </summary>
-        TRA2,
-        /// <summary>
-        /// Cessation de relation avec blocage vente
-        /// </summary>
-        TRA3,
-        /// <summary>
-        /// Relation terminée
-        /// </summary>
-        TRA4
+        rules.AddRequired()
+            .Message(translator.Common["Lab.DateCessationRelation.Required"]);
+    })
+)
+
+Si le validator existe déjà mais sans ID, ajouter seulement :
+
+.ID("DateCessationRelationValidator" + Model.Item2)
+
+
+============================================================
+6. dossierlab.js — CONSTANTE RELATION AFFAIRE TRA3
+============================================================
+
+Ajouter en haut du fichier ou avec les constantes existantes :
+
+var TYPE_RELATION_AFFAIRE_CESSATION_BLOCAGE_VENTE = "TRA3";
+
+
+============================================================
+7. dossierlab.js — HELPER RELATION AFFAIRE PP
+============================================================
+
+Ajouter :
+
+function getRelationAffairePersonnePhysiqueValue(index) {
+
+    var relationAffaire = $("#PersonnePhysiqueLabTypeRelationAffaireId" + index);
+
+    if (relationAffaire.length === 0) {
+        relationAffaire = $("#DossierLabPersonnePhysiquesTypeRelationAffaireId" + index);
+    }
+
+    if (relationAffaire.length === 0) {
+        return null;
+    }
+
+    var instance = relationAffaire.dxSelectBox("instance");
+
+    if (!instance) {
+        return null;
+    }
+
+    return instance.option("value");
+}
+
+function getRelationAffairePersonnePhysiqueSelectedItem(index) {
+
+    var relationAffaire = $("#PersonnePhysiqueLabTypeRelationAffaireId" + index);
+
+    if (relationAffaire.length === 0) {
+        relationAffaire = $("#DossierLabPersonnePhysiquesTypeRelationAffaireId" + index);
+    }
+
+    if (relationAffaire.length === 0) {
+        return null;
+    }
+
+    var instance = relationAffaire.dxSelectBox("instance");
+
+    if (!instance) {
+        return null;
+    }
+
+    return instance.option("selectedItem");
+}
+
+function isRelationAffaireCessationBlocageVentePersonnePhysique(index) {
+
+    var selectedItem = getRelationAffairePersonnePhysiqueSelectedItem(index);
+
+    if (selectedItem && selectedItem.Code) {
+        return selectedItem.Code === TYPE_RELATION_AFFAIRE_CESSATION_BLOCAGE_VENTE;
+    }
+
+    if (selectedItem && selectedItem.code) {
+        return selectedItem.code === TYPE_RELATION_AFFAIRE_CESSATION_BLOCAGE_VENTE;
+    }
+
+    return false;
+}
+
+
+============================================================
+8. dossierlab.js — HELPER REA / REJ
+============================================================
+
+Ajouter :
+
+function getReaRejPersonnePhysiqueInstance(index) {
+
+    var checkBox = $("#PersonnePhysiqueLabIsReaRej" + index);
+
+    if (checkBox.length === 0) {
+        return null;
+    }
+
+    return checkBox.dxCheckBox("instance");
+}
+
+function isReaRejPersonnePhysiqueChecked(index) {
+
+    var instance = getReaRejPersonnePhysiqueInstance(index);
+
+    if (!instance) {
+        return false;
+    }
+
+    return instance.option("value") === true;
+}
+
+function setReaRejPersonnePhysiqueVisible(index, visible) {
+
+    var container = $("#reaRejContainer" + index);
+
+    if (container.length === 0) {
+        return;
+    }
+
+    container.toggle(visible);
+}
+
+function resetReaRejPersonnePhysique(index) {
+
+    var instance = getReaRejPersonnePhysiqueInstance(index);
+
+    if (!instance) {
+        return;
+    }
+
+    instance.option("value", false);
+}
+
+
+============================================================
+9. dossierlab.js — VALIDATION DATE CESSATION RELATION
+============================================================
+
+Ajouter :
+
+function getDateCessationRelationPersonnePhysiqueInstance(index) {
+
+    var dateCessation = $("#PersonnePhysiqueLabDateCessationRelation" + index);
+
+    if (dateCessation.length === 0) {
+        dateCessation = $("#DossierLabPersonnePhysiquesDateCessationRelation" + index);
+    }
+
+    if (dateCessation.length === 0) {
+        return null;
+    }
+
+    return dateCessation.dxDateBox("instance");
+}
+
+function getDateCessationRelationValidatorInstance(index) {
+
+    var validator = $("#DateCessationRelationValidator" + index);
+
+    if (validator.length === 0) {
+        return null;
+    }
+
+    return validator.dxValidator("instance");
+}
+
+function refreshDateCessationRelationValidationPersonnePhysique(index) {
+
+    var isCessationBlocageVente =
+        isRelationAffaireCessationBlocageVentePersonnePhysique(index);
+
+    var isReaRejChecked =
+        isReaRejPersonnePhysiqueChecked(index);
+
+    var isDateRequired =
+        isCessationBlocageVente && !isReaRejChecked;
+
+    var validator = getDateCessationRelationValidatorInstance(index);
+
+    if (!validator) {
+        return;
+    }
+
+    validator.option("validationRules",
+        isDateRequired
+            ? [{
+                type: "required",
+                message: _labDateCessationRelationRequired
+            }]
+            : []);
+
+    validator.reset();
+
+    var dateBox = getDateCessationRelationPersonnePhysiqueInstance(index);
+
+    if (dateBox) {
+        dateBox.option("isValid", true);
+        dateBox.option("validationError", null);
     }
 }
 
-ALTER TABLE [Lab].[TypeRelationAffaireLab] CHECK CONSTRAINT [FK_TypeRelationAffaireLab_Utilisateur_ModificateurId]
+
+============================================================
+10. dossierlab.js — HANDLERS
+============================================================
+
+Ajouter :
+
+function onRelationAffairePersonnePhysiqueChanged(index) {
+
+    var isCessationBlocageVente =
+        isRelationAffaireCessationBlocageVentePersonnePhysique(index);
+
+    setReaRejPersonnePhysiqueVisible(index, isCessationBlocageVente);
+
+    if (!isCessationBlocageVente) {
+        resetReaRejPersonnePhysique(index);
+    }
+
+    refreshDateCessationRelationValidationPersonnePhysique(index);
+}
+
+function onReaRejPersonnePhysiqueChanged(index) {
+
+    refreshDateCessationRelationValidationPersonnePhysique(index);
+}
+
+
+============================================================
+11. dossierlab.js — INIT APRÈS CHARGEMENT PARTIAL PP
+============================================================
+
+Après ajout dynamique d’une personne physique, après append du HTML dans addPhysicalPerson(), ajouter :
+
+onRelationAffairePersonnePhysiqueChanged(countPhysicalPerson);
+
+Exemple :
+
+.done(function (data) {
+    $("#accordionPhysicalPersonsList").append(data);
+
+    ...
+
+    onRelationAffairePersonnePhysiqueChanged(countPhysicalPerson);
+
+    ...
+});
+
+
+Après chargement initial des partials PP, dans le handler déjà utilisé type panelPersonneOnContentReady / _panelPersonneOnContentReady, ajouter :
+
+$(".rea-rej-container").each(function () {
+
+    var id = $(this).attr("id");
+
+    if (!id) {
+        return;
+    }
+
+    var index = id.replace("reaRejContainer", "");
+
+    onRelationAffairePersonnePhysiqueChanged(index);
+});
+
+
+============================================================
+12. POPUP MAJ — gridTransmissionUpdateARSelected_Lab_OnClick
+============================================================
+
+Dans le popup MAJ, la grille Personne(s) physique(s) doit afficher aussi la colonne REA / REJ après Date cessation relation.
+
+Dans la configuration du DataGrid personnes physiques du popup, ajouter une colonne après DateCessationRelation :
+
+columns.Add()
+    .DataField("IsReaRej")
+    .Caption("REA / REJ")
+    .DataType(GridColumnDataType.Boolean)
+    .Visible(true)
+    .AllowEditing(true);
+
+Sur la colonne DateCessationRelation, la validation required doit devenir conditionnelle.
+
+Si aujourd’hui tu as :
+
+columns.AddFor(m => m.DateCessationRelation)
+    .ValidationRules(rules =>
+    {
+        rules.AddRequired()
+            .Message(...);
+    });
+
+Remplacer par une validation custom côté JS, car elle dépend de RelationAffaire + IsReaRej :
+
+columns.AddFor(m => m.DateCessationRelation)
+    .Caption(translator.Common["Lab.DateCessationRelation"]);
+
+Puis ajouter côté JS une validation avant sauvegarde de la ligne.
+
+
+============================================================
+13. dossierlab.js — VALIDATION POPUP MAJ
+============================================================
+
+Ajouter :
+
+function isTransmissionUpdateRelationAffaireCessationBlocageVente(rowData) {
+
+    if (!rowData) {
+        return false;
+    }
+
+    if (rowData.TypeRelationAffaireCode) {
+        return rowData.TypeRelationAffaireCode === TYPE_RELATION_AFFAIRE_CESSATION_BLOCAGE_VENTE;
+    }
+
+    if (rowData.RelationAffaireCode) {
+        return rowData.RelationAffaireCode === TYPE_RELATION_AFFAIRE_CESSATION_BLOCAGE_VENTE;
+    }
+
+    if (rowData.TypeRelationAffaire && rowData.TypeRelationAffaire.Code) {
+        return rowData.TypeRelationAffaire.Code === TYPE_RELATION_AFFAIRE_CESSATION_BLOCAGE_VENTE;
+    }
+
+    return false;
+}
+
+function validateTransmissionUpdatePersonnePhysique(rowData) {
+
+    if (!isTransmissionUpdateRelationAffaireCessationBlocageVente(rowData)) {
+        return true;
+    }
+
+    if (rowData.IsReaRej === true) {
+        return true;
+    }
+
+    return rowData.DateCessationRelation !== null
+        && rowData.DateCessationRelation !== undefined
+        && rowData.DateCessationRelation !== "";
+}
+
+function onTransmissionUpdatePersonnePhysiqueRowValidating(e) {
+
+    if (!validateTransmissionUpdatePersonnePhysique(e.newData && Object.keys(e.newData).length
+        ? $.extend({}, e.oldData, e.newData)
+        : e.oldData)) {
+
+        e.isValid = false;
+        e.errorText = _labDateCessationRelationRequired;
+    }
+}
+
+
+Dans la grille personnes physiques du popup MAJ, ajouter :
+
+.OnRowValidating("onTransmissionUpdatePersonnePhysiqueRowValidating")
+
+
+============================================================
+14. SERVICE / CONTROLLER SAVE POPUP MAJ
+============================================================
+
+Dans le modèle reçu côté controller/service pour la ligne personne physique, ajouter IsReaRej.
+
+Lors de la sauvegarde, mapper :
+
+entity.IsReaRej = viewModel.IsReaRej;
+
+Ne pas modifier les personnes morales.
+
+
+============================================================
+15. TRADUCTIONS JS
+============================================================
+
+Dans CreateOrUpdateDossierLab.cshtml, avec les autres variables JS, ajouter :
+
+var _labDateCessationRelationRequired =
+    "@Html.Raw(translator.Common["Lab.DateCessationRelation.Required"])";
+
+
+============================================================
+16. SQL TRADUCTIONS
+============================================================
+
+USE [BacaratWeb]
 GO
+
+DECLARE @Traductions TABLE
+(
+    Id NVARCHAR(250) NOT NULL,
+    FrenchTranslate VARCHAR(MAX) NOT NULL,
+    EnglishTranslate VARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @Traductions
+(
+    Id,
+    FrenchTranslate,
+    EnglishTranslate
+)
+VALUES
+(
+    N'Lab.PersonnePhysique.IsReaRej',
+    'REA / REJ',
+    'REA / REJ'
+),
+(
+    N'Lab.DateCessationRelation.Required',
+    'Veuillez saisir la date cessation relation',
+    'Please enter the relationship termination date'
+);
+
+MERGE [Commun].[Traduction] AS target
+USING @Traductions AS source
+    ON target.Id = source.Id
+WHEN MATCHED THEN
+    UPDATE SET
+        target.FrenchTranslate = source.FrenchTranslate,
+        target.EnglishTranslate = source.EnglishTranslate
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT
+    (
+        Id,
+        FrenchTranslate,
+        EnglishTranslate
+    )
+    VALUES
+    (
+        source.Id,
+        source.FrenchTranslate,
+        source.EnglishTranslate
+    );
+GO
+
+
+============================================================
+17. POINTS DE NON-RÉGRESSION
+============================================================
+
+- Personnes morales : aucune modification.
+- Si RelationAffaire != TRA3 :
+  - checkbox REA / REJ masquée
+  - IsReaRej remise à false
+  - Date cessation relation garde le comportement existant hors TRA3
+- Si RelationAffaire == TRA3 et IsReaRej == false :
+  - Date cessation relation obligatoire
+- Si RelationAffaire == TRA3 et IsReaRej == true :
+  - Date cessation relation non obligatoire
+- Popup MAJ :
+  - même règle que l’écran principal
+- Utilisation du code enum :
+  - TypeRelationAffaire.TRA3 côté C#
+  - "TRA3" côté JS via constante TYPE_RELATION_AFFAIRE_CESSATION_BLOCAGE_VENTE
