@@ -1,0 +1,208 @@
+@using BacaratWeb.ViewModel.Gda;
+@inject IReferentielViewModel _referentiel
+@inject IViewTranslator translator
+@model PartialImmediateActionsViewModel
+
+@{
+    var language = Context.Features.Get<IRequestCultureFeature>().RequestCulture.Culture.TwoLetterISOLanguageName.ToCamelCase();
+    var gdaActionKoStatusId = _referentiel.StatutImmediateActionsGdas.Single(s => s.Code == nameof(StatutActionsGdaEnum.Ko).ToUpper()).Id;
+
+}
+<script type="text/javascript">
+    var isA2ActionRowUpdated = false;
+</script>
+<div class="card-header card-header-bloc">
+    <h6 class="m-0 text-green text-font-weight-600">
+        <i class="fas fa-calendar-week mr-2"></i>@translator.Common["ActionsImmediatesGda"]
+    </h6>
+</div>
+<div class="card-body">
+    <div id="divImmediateActions" name="divImmediateActions" class="row p-3">
+        @(
+            Html.DevExtreme().DataGrid<DossierGdaImmediateActionViewModel>()
+            .ID("partialImmediateAction_immediateActionsDatagrid")
+            .ShowBorders(true)
+            .Paging(paging => paging.Enabled(false))
+            .Sorting(_ =>
+            {
+
+            })
+            .Editing(editing =>
+            {
+                editing.Mode(GridEditMode.Row);
+                editing.AllowUpdating(true);
+                editing.UseIcons(true);
+            })
+            .Columns(columns =>
+            {
+                columns.AddFor(m => m.Id).Visible(false).SortOrder(SortOrder.Asc);
+                columns.AddFor(m => m.DateModification).Visible(false);
+                columns.AddFor(m => m.ModificateurId).Visible(false);
+                columns.AddFor(m => m.Action.Rank).Visible(false).SortOrder(SortOrder.Asc);
+                columns.AddFor(m => m.CryptedId).Visible(false);
+                columns.AddFor(m => m.CryptedDossierGdaId).Visible(false);
+                columns.AddFor(m => m.CryptedUtilisateurId).Visible(false);
+
+                columns.Add()
+                .DataField($"Action.Name{language}")
+                .Caption(translator.Common["LibelleActionGda"])
+                .AllowSorting(false)
+                .Width("30%")
+                .AllowEditing(false);
+
+                columns.AddFor(m => m.ActionId).Visible(false);
+
+                columns.AddFor(m => m.StatutActionId)
+                .Lookup(lookup => lookup.DataSource(_referentiel.StatutImmediateActionsGdas)
+                .DataSourceOptions(c => c.Sort($"Name{language}"))
+                .DisplayExpr($"Name{language}")
+                .ValueExpr("Id"))
+                .Caption(translator.Common["Status"]).AllowSorting(false)
+                .Width("6%")
+                .ValidationRules(r => r.AddRequired().Message(translator.Common["StatutObligatoire"]));
+
+                columns.AddFor(m => m.DateResiliation)
+                .Caption(translator.Common["DateRealisation"])
+                .DataType(GridColumnDataType.Date)
+                .Width("15%").AllowSorting(false).AllowEditing(true);
+
+                columns.AddFor(m => m.EntityImplementationManager)
+                .Caption(translator.Common["ResponsableMiseEnOeuvreEntite"])
+                .DataType(GridColumnDataType.String)
+                .Width("17%").AllowSorting(false).AllowEditing(false);
+
+                columns.AddFor(m => m.Comments).Caption(translator.Common["Commentaires"]).AllowSorting(false);
+            })
+            .DataSource(Model.ImmediateActions)
+            .OnRowUpdated(
+            @<text>
+                function(e)
+                {
+                debugger;
+                if (e.data.DateResiliation === null || e.data.DateResiliation === undefined) {
+                e.data.DateResiliation = ''; 
+                } else {
+                e.data.DateResiliation = (new Date(e.data.DateResiliation)).toISOString();
+                }
+                }
+            </text>)
+            .OnRowPrepared(@<text>
+                function(e)
+                {
+                if(!e.data)
+                {
+                return;
+                }
+
+                if(e.data.Action.Color)
+                {
+                e.rowElement.css("color", e.data.Action.Color.NameEn.toLowerCase());
+                }
+
+                if(e.data.Action.IsReadOnly)
+                {
+                e.rowElement.css("background-color", "#bdb5b5");
+                }
+
+                var a2ActionId = @_referentiel.ReferentielImmediateActionsGdas.Single(ac => ac.Code == nameof(DossierGdaImmediateActionEnum.A2)).Id
+                if(e.data.ActionId == a2ActionId && e.data.StatutActionId)
+                {
+                isA2ActionRowUpdated = true;
+                $("#DateBlocage").dxDateBox("instance").option("value", e.data.DateResiliation);
+                }
+                }
+            </text>)
+            .OnCellPrepared(@<text>
+                function(e)
+                {
+                if("@Model.IsReadOnly".toLowerCase() === "true" || (e.data && e.data.Action.IsReadOnly))
+                {
+                e.cellElement.find(".dx-link-edit").remove();
+                }
+
+                if(e.data && e.data.StatutActionId == @gdaActionKoStatusId)
+                {
+                e.cellElement.css("background-color", "#f6e1e1;");
+                }
+                }
+            </text>)
+            .OnRowUpdating(@<text>
+                function(e) {
+
+                var a2ActionId = @_referentiel.ReferentielImmediateActionsGdas.Single(ac => ac.Code == nameof(DossierGdaImmediateActionEnum.A2)).Id;
+
+
+
+                let mergedData = Object.assign({}, e.oldData, e.newData);
+
+                let isValid = true;
+
+
+
+                if (mergedData.ActionId == a2ActionId && mergedData.StatutActionId) {
+
+                e.component.columnOption("DateResiliation", "validationRules", []);
+
+                e.component.columnOption("Comments", "validationRules", []);
+
+
+
+                if (mergedData.StatutActionId === 1 && !mergedData.DateResiliation) {
+
+                e.component.columnOption("DateResiliation", "validationRules", [
+
+                { type: "required", message: "@Html.Raw(translator.Common["DateRealisationObligatoire"])" }
+
+                ]);
+
+                isValid = false;
+
+                }
+
+
+
+                if ((mergedData.StatutActionId === 2 || mergedData.StatutActionId === 3)
+
+                && (!mergedData.Comments || mergedData.Comments.trim() === "")) {
+
+                e.component.columnOption("Comments", "validationRules", [
+
+                { type: "required", message: "@Html.Raw(translator.Common["CommenatireObligatoire"])" }
+
+                ]);
+
+                isValid = false;
+
+                }
+
+
+
+                if (!isValid) {
+
+                e.cancel = true;
+
+                e.component.editRow(e.rowIndex);
+
+                return;
+
+                }
+
+                }
+
+
+
+                e.newData.EntityImplementationManager = "@Html.Raw(Model.UserFullName)";
+
+                if (!e.newData.DateResiliation) {
+
+                e.newData.DateResiliation = null;
+
+                }
+
+                }
+            </text>)
+            .RepaintChangesOnly(true)
+            .RowAlternationEnabled(true)
+            .WordWrapEnabled(true))
+    </div>
+</div>
