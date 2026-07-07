@@ -56,6 +56,7 @@ using PdfSharpCore.Pdf;
 using PdfSharpCore.Pdf.IO;
 using Saml2.Authentication.Core.Extensions;
 
+
 namespace BacaratWeb.Areas.Lab.Controllers
 {
     [Authorize]
@@ -83,6 +84,9 @@ namespace BacaratWeb.Areas.Lab.Controllers
         private readonly IUserInfoService _userInfoService;
         private readonly IUtilisateurDirectionService _utilisateurDirectionService;
         private readonly UtilisateurViewModel currentUser;
+        private readonly IAccesPiecesJointesDirectionService _accesPiecesJointesDirectionService;
+        private readonly IPersonnePhysiqueLabService _personnePhysiqueLabService;
+        private readonly IPersonneMoraleLabService _personneMoraleLabService;
 
         public ServiceLabController(ILabFacadeService labService,
             IReferentielViewModel referential,
@@ -104,7 +108,10 @@ namespace BacaratWeb.Areas.Lab.Controllers
             IOperationSuspecteViewModelService operationSuspecteViewModelService,
             IOperationEnCoursViewModelService operationEnCoursViewModelService,
             ILabAttachmentService labAttachmentService,
-            IEventDossierLogger eventDossierLogger)
+            IEventDossierLogger eventDossierLogger,
+            IAccesPiecesJointesDirectionService accesPiecesJointesDirectionService,
+            IPersonnePhysiqueLabService personnePhysiqueLabService,
+            IPersonneMoraleLabService personneMoraleLabService)
         {
             _labService = labService;
             _referential = referential;
@@ -135,6 +142,9 @@ namespace BacaratWeb.Areas.Lab.Controllers
             }
 
             _eventDossierLogger = eventDossierLogger ?? throw new ArgumentNullException(nameof(eventDossierLogger));
+            _accesPiecesJointesDirectionService = accesPiecesJointesDirectionService ?? throw new ArgumentNullException(nameof(accesPiecesJointesDirectionService));
+            _personnePhysiqueLabService = personnePhysiqueLabService ?? throw new ArgumentNullException(nameof(personnePhysiqueLabService));
+            _personneMoraleLabService = personneMoraleLabService ?? throw new ArgumentNullException(nameof(personneMoraleLabService));
         }
 
         [HttpPost]
@@ -450,6 +460,11 @@ namespace BacaratWeb.Areas.Lab.Controllers
                                         dossierLab.DeclarationTracfins.FirstOrDefault().OperationsCompaniesAssurances =
                                             null;
                                 }
+                            }
+                            
+                            if (!dossierLab.DeclarationTracfins.First().IsQuestionVigilanceAAV)
+                            {
+                                dossierLab.DeclarationTracfins.First().AavReferences = null;
                             }
                         }
 
@@ -3748,7 +3763,7 @@ namespace BacaratWeb.Areas.Lab.Controllers
                             cell.CellStyle = style;
                         }
                     }
-                }             
+                }
 
                 hssfwb.GetSheetAt(indexGetSheet)?.GetRow(10)?.GetCell(1)?.SetCellValue(lang == "fr"
                     ? dossierLab.CategorieGroupeLab?.FrenchName
@@ -3795,7 +3810,7 @@ namespace BacaratWeb.Areas.Lab.Controllers
                 }
 
                 hssfwb.GetSheetAt(indexGetSheet)?.GetRow(20)?.GetCell(1)?.SetCellValue(lang == "fr"
-                    ? dossierLab.DossierLabScenarios.FirstOrDefault()?.ScenarioLab?.FrenchName                
+                    ? dossierLab.DossierLabScenarios.FirstOrDefault()?.ScenarioLab?.FrenchName
                     : dossierLab.DossierLabScenarios.FirstOrDefault()?.ScenarioLab?.EnglishName);
                 hssfwb.GetSheetAt(indexGetSheet)?.GetRow(23)?.GetCell(0)
                     ?.SetCellValue(Encoding.UTF8.GetString(dossierLab.MotifsSoupcons ?? Array.Empty<byte>())
@@ -5267,7 +5282,7 @@ namespace BacaratWeb.Areas.Lab.Controllers
 
                 if (estNouveauAccuseReception)
                 {
-                   
+
                     //await _labService.EventDossier.AddAsync(eventEnt, cancellationToken).ConfigureAwait(false);
                     if (estClotureTracfin)
                     {
@@ -5498,7 +5513,7 @@ namespace BacaratWeb.Areas.Lab.Controllers
                 {
                     mailConfidentiel = dossierLab.Direction.Confidentiels.FirstOrDefault()?.Email;
                 }
-                   
+
                 if (!string.IsNullOrEmpty(mailConfidentiel))
                 {
                     model.Mail = mailConfidentiel;
@@ -6306,18 +6321,18 @@ namespace BacaratWeb.Areas.Lab.Controllers
                                     direigant.IdentiteDirigeantName = "Autre";
                                     break;
                                 default:
-                                {
-                                    if (direigant.IdentiteDirigeant.HasValue && direigant.IdentiteDirigeant > 0)
                                     {
-                                        var personnePhysique = await _labService.DossierLabPersonnePhysique
-                                            .GetPersonnePhysiqueByIdAsync(direigant.IdentiteDirigeant.Value, token)
-                                            .ConfigureAwait(false);
-                                        direigant.IdentiteDirigeantName =
-                                            personnePhysique?.NomNaissance + " " + personnePhysique?.Prenoms;
-                                    }
+                                        if (direigant.IdentiteDirigeant.HasValue && direigant.IdentiteDirigeant > 0)
+                                        {
+                                            var personnePhysique = await _labService.DossierLabPersonnePhysique
+                                                .GetPersonnePhysiqueByIdAsync(direigant.IdentiteDirigeant.Value, token)
+                                                .ConfigureAwait(false);
+                                            direigant.IdentiteDirigeantName =
+                                                personnePhysique?.NomNaissance + " " + personnePhysique?.Prenoms;
+                                        }
 
-                                    break;
-                                }
+                                        break;
+                                    }
                             }
 
                             if (direigant.TypeDirigeant.HasValue)
@@ -7264,7 +7279,7 @@ namespace BacaratWeb.Areas.Lab.Controllers
 
                 var (fileContent, fileName) = await GetDocumentLab(documentId, categorieDocumentId, cancellationToken);
 
-                if(fileContent is null || string.IsNullOrWhiteSpace(fileName))
+                if (fileContent is null || string.IsNullOrWhiteSpace(fileName))
                 {
                     return new BadRequestResult();
                 }
@@ -7285,12 +7300,12 @@ namespace BacaratWeb.Areas.Lab.Controllers
         }
 
         [HttpGet]
-        public  Task<Dictionary<string,string>> GetQlbTraductionTemplates(CancellationToken cancellationToken = default)
+        public Task<Dictionary<string, string>> GetQlbTraductionTemplates(CancellationToken cancellationToken = default)
         {
             if (!IsVerifyUserHabilitation((int)ActiviteModule.Lab))
                 Json(new ResponseViewModel<bool> { Response = false, Status = false });
             var lang = this.GetCurrentLanguage().ToLower(CultureInfo.CurrentCulture);
-            return _labService.Dossier.GetQlbTraductionTemplates(lang,cancellationToken);
+            return _labService.Dossier.GetQlbTraductionTemplates(lang, cancellationToken);
         }
 
         private async Task<(byte[], string)> GetDocumentLab(int documentId, int categorieDocumentId, CancellationToken cancellationToken)
@@ -7303,6 +7318,131 @@ namespace BacaratWeb.Areas.Lab.Controllers
 
             var documentlabFile = await _labService.DocumentDossier.GetDocument(documentId, false, cancellationToken);
             return (documentlabFile.FileContent, documentlabFile.Name);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> HasAccesRecherchePiecesIdentite(int directionId, CancellationToken token = default)
+        {
+            if (!IsVerifyUserHabilitation())
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    _translator.Common["PasDePersmissionActiviteDirection"]);
+            }
+
+            if (directionId <= 0)
+                return Json(new { hasAccess = false });
+
+            var hasAccess = await _accesPiecesJointesDirectionService
+                .HasRechercheAccessAsync(directionId, token);
+
+            return Json(new { hasAccess });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SearchPiecesIdentitePersonnePhysique(
+            int directionId,
+            string nom,
+            string prenoms,
+            DateTimeOffset? dateNaissance,
+            CancellationToken token = default)
+        {
+            if (!IsVerifyUserHabilitation())
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    _translator.Common["PasDePersmissionActiviteDirection"]);
+            }
+
+            if (directionId <= 0)
+                return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
+
+            var hasAccess = await _accesPiecesJointesDirectionService
+                .HasRechercheAccessAsync(directionId, token);
+
+            if (!hasAccess)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    _translator.Common["Lab.PiecesIdentite.SearchUnauthorized"]);
+            }
+
+            var result = await _labAttachmentService.SearchPiecesIdentitePersonnePhysiqueAsync(
+                directionId,
+                nom,
+                prenoms,
+                dateNaissance,
+                token);
+
+            return Json(result);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SearchPiecesIdentitePersonneMorale(
+            int directionId,
+            string raisonSociale,
+            string numeroImmatriculation,
+            CancellationToken token = default)
+        {
+            if (!IsVerifyUserHabilitation())
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    _translator.Common["PasDePersmissionActiviteDirection"]);
+            }
+
+            if (directionId <= 0)
+                return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
+
+            var hasAccess = await _accesPiecesJointesDirectionService
+                .HasRechercheAccessAsync(directionId, token);
+
+            if (!hasAccess)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    _translator.Common["Lab.PiecesIdentite.SearchUnauthorized"]);
+            }
+
+            var result = await _labAttachmentService.SearchPiecesIdentitePersonneMoraleAsync(
+                directionId,
+                raisonSociale,
+                numeroImmatriculation,
+                token);
+
+            return Json(result);
+        }
+
+        public async Task<IActionResult> DownloadPiecesIdentiteZip(int directionId, int dossierLabId, Guid personneId, int directionCibleId, CancellationToken token = default)
+        {
+            if (!IsVerifyUserHabilitation())
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    _translator.Common["PasDePersmissionActiviteDirection"]);
+            }
+
+            if (directionId <= 0)
+                return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
+
+            if (directionCibleId <= 0)
+                return BadRequest(_translator.Common["Lab.PiecesIdentite.DirectionRequired"]);
+
+            var zip = await _labAttachmentService
+                .BuildPiecesIdentiteZipAsync(
+                    directionId,
+                    dossierLabId,
+                    personneId,
+                    directionCibleId,
+                    token);
+
+            if (zip == null || zip.Length == 0)
+                return BadRequest(_translator.Common["Lab.PiecesIdentite.NoResult"]);
+
+            return File(
+                zip,
+                "application/zip",
+                $"PiecesIdentite_{DateTime.Now:yyyyMMddHHmmss}.zip");
         }
     }
 }
