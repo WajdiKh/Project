@@ -1,47 +1,57 @@
-CREATE TABLE [Gda].[DossierGdaOsc] (
-    [Id] INT IDENTITY (1, 1) NOT NULL,
-    [DossierGdaId] INT NULL,
+USE [BacaratWeb]
+GO
 
-    [OperationsSurCompte] NVARCHAR (MAX) NULL,
+UPDATE [Gda].[DossierGdaOsc]
+SET [IsRealise] = 0
+WHERE [IsRealise] IS NULL;
 
-    [Commentaire] NVARCHAR (MAX) NULL,
+UPDATE [Gda].[DossierGdaOsc]
+SET [IsRetablis] = 0
+WHERE [IsRetablis] IS NULL;
 
-    [DateCreation] DATETIMEOFFSET (7) NOT NULL,
+UPDATE [Gda].[DossierGdaOsc]
+SET [IsManquementDgt] = 0
+WHERE [IsManquementDgt] IS NULL;
+GO
 
-    [DateModification] DATETIMEOFFSET (7) NULL,
+ALTER TABLE [Gda].[DossierGdaOsc]
+ALTER COLUMN [IsRealise] BIT NOT NULL;
+GO
 
-    [DateResiliation] DATETIMEOFFSET (7) NULL,
+ALTER TABLE [Gda].[DossierGdaOsc]
+ALTER COLUMN [IsRetablis] BIT NOT NULL;
+GO
 
-    [DateDeclaration] DATETIMEOFFSET (7) NULL,
+ALTER TABLE [Gda].[DossierGdaOsc]
+ALTER COLUMN [IsManquementDgt] BIT NOT NULL;
+GO
 
-    [CreateurId] INT NOT NULL,
+IF NOT EXISTS (
+    SELECT 1 FROM sys.default_constraints
+    WHERE name = 'DF_DossierGdaOsc_IsRealise'
+)
+BEGIN
+    ALTER TABLE [Gda].[DossierGdaOsc]
+    ADD CONSTRAINT [DF_DossierGdaOsc_IsRealise] DEFAULT (0) FOR [IsRealise];
+END
+GO
 
-    [ModificateurId] INT NULL,
+IF NOT EXISTS (
+    SELECT 1 FROM sys.default_constraints
+    WHERE name = 'DF_DossierGdaOsc_IsRetablis'
+)
+BEGIN
+    ALTER TABLE [Gda].[DossierGdaOsc]
+    ADD CONSTRAINT [DF_DossierGdaOsc_IsRetablis] DEFAULT (0) FOR [IsRetablis];
+END
+GO
 
-    [StatutOscId] INT NULL,
-
-    [CodeIdentifiant] NVARCHAR (40) NULL,
-
-    [DebitCreditId] INT NULL,
-
-    [Montant] DECIMAL (18, 2) NULL,
-    [ResponsableMoe] NVARCHAR (60) NULL,
-
-    [IsRealise] BIT NOT NULL CONSTRAINT [DF_DossierGdaOsc_IsRealise] DEFAULT (0),
-
-    [IsRetablis] BIT NOT NULL CONSTRAINT [DF_DossierGdaOsc_IsRetablis] DEFAULT (0),
-
-    [IsManquementDgt] BIT NOT NULL CONSTRAINT [DF_DossierGdaOsc_IsManquementDgt] DEFAULT (0),
-
-    CONSTRAINT [PK_DossierGdaOsc] PRIMARY KEY CLUSTERED ([Id] ASC),
-
-    CONSTRAINT [FK_DossierGdaOsc_DebitCreditOsc_DossierGdaId] FOREIGN KEY ([DebitCreditId]) REFERENCES [Gda].[DebitCreditOsc] ([Id]),
-
-    CONSTRAINT [FK_DossierGdaOsc_DossierGda_DossierGdaId] FOREIGN KEY ([DossierGdaId]) REFERENCES [Gda].[DossierGda] ([Id]),
-    CONSTRAINT [FK_DossierGdaOsc_StatutActionsGda_DossierGdaId] FOREIGN KEY ([StatutOscId]) REFERENCES [Gda].[StatutActionsGda] ([Id]),
-
-    CONSTRAINT [FK_DossierGdaOsc_Utilisateur_CreateurId] FOREIGN KEY ([CreateurId]) REFERENCES [Commun].[Utilisateur] ([Id]),
-
-    CONSTRAINT [FK_DossierGdaOsc_Utilisateur_ModificateurId] FOREIGN KEY ([ModificateurId]) REFERENCES [Commun].[Utilisateur] ([Id])
-);
+IF NOT EXISTS (
+    SELECT 1 FROM sys.default_constraints
+    WHERE name = 'DF_DossierGdaOsc_IsManquementDgt'
+)
+BEGIN
+    ALTER TABLE [Gda].[DossierGdaOsc]
+    ADD CONSTRAINT [DF_DossierGdaOsc_IsManquementDgt] DEFAULT (0) FOR [IsManquementDgt];
+END
 GO
