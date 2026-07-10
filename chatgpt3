@@ -6,7 +6,7 @@ BEGIN TRANSACTION;
 BEGIN TRY
 
     ------------------------------------------------------------
-    -- 1. Sauvegarde anciens Id
+    -- 1. Récupération des anciens Id
     ------------------------------------------------------------
 
     DECLARE @OldDocumentPartageId INT;
@@ -22,7 +22,7 @@ BEGIN TRY
 
 
     ------------------------------------------------------------
-    -- 2. Sauvegarde des templates impactés (FR + EN)
+    -- 2. Sauvegarde des templates liés (FR + EN)
     ------------------------------------------------------------
 
     DECLARE @DocumentPartageTemplates TABLE (Id INT);
@@ -42,7 +42,58 @@ BEGIN TRY
 
 
     ------------------------------------------------------------
-    -- 3. Libérer les FK
+    -- 3. Sauvegarde des deux notifications existantes
+    ------------------------------------------------------------
+
+    DECLARE @Notifications TABLE
+    (
+        NewId INT,
+        Code VARCHAR(100),
+        Libelle NVARCHAR(500),
+        Description NVARCHAR(1000),
+        DateCreation DATETIMEOFFSET(7),
+        DateModification DATETIMEOFFSET(7),
+        ModificateurId INT,
+        CreateurId INT,
+        IsActive BIT
+    );
+
+
+    INSERT INTO @Notifications
+    (
+        NewId,
+        Code,
+        Libelle,
+        Description,
+        DateCreation,
+        DateModification,
+        ModificateurId,
+        CreateurId,
+        IsActive
+    )
+    SELECT
+        CASE 
+            WHEN Code = 'DocumentPartage' THEN 86
+            WHEN Code = 'DocumentTelecharge' THEN 87
+        END,
+        Code,
+        Libelle,
+        Description,
+        DateCreation,
+        DateModification,
+        ModificateurId,
+        CreateurId,
+        IsActive
+    FROM [Commun].[EmailNotificationType]
+    WHERE Code IN
+    (
+        'DocumentPartage',
+        'DocumentTelecharge'
+    );
+
+
+    ------------------------------------------------------------
+    -- 4. Libération des FK templates
     ------------------------------------------------------------
 
     UPDATE [Commun].[EmailNotificationTemplate]
@@ -55,11 +106,52 @@ BEGIN TRY
 
 
     ------------------------------------------------------------
-    -- 4. Ajouter les notifications manquantes
+    -- 5. Suppression des anciennes lignes mal numérotées
+    ------------------------------------------------------------
+
+    DELETE FROM [Commun].[EmailNotificationType]
+    WHERE Code IN
+    (
+        'DocumentPartage',
+        'DocumentTelecharge'
+    );
+
+
+    ------------------------------------------------------------
+    -- 6. Réinsertion avec les Id alignés avec l'enum
     ------------------------------------------------------------
 
     SET IDENTITY_INSERT [Commun].[EmailNotificationType] ON;
 
+
+    INSERT INTO [Commun].[EmailNotificationType]
+    (
+        Id,
+        Code,
+        Libelle,
+        Description,
+        DateCreation,
+        DateModification,
+        ModificateurId,
+        CreateurId,
+        IsActive
+    )
+    SELECT
+        NewId,
+        Code,
+        Libelle,
+        Description,
+        DateCreation,
+        DateModification,
+        ModificateurId,
+        CreateurId,
+        IsActive
+    FROM @Notifications;
+
+
+    ------------------------------------------------------------
+    -- 7. Ajout des deux notifications manquantes
+    ------------------------------------------------------------
 
     INSERT INTO [Commun].[EmailNotificationType]
     (
@@ -102,21 +194,7 @@ BEGIN TRY
 
 
     ------------------------------------------------------------
-    -- 5. Corriger les Id existants
-    ------------------------------------------------------------
-
-    UPDATE [Commun].[EmailNotificationType]
-    SET Id = 86
-    WHERE Code = 'DocumentPartage';
-
-
-    UPDATE [Commun].[EmailNotificationType]
-    SET Id = 87
-    WHERE Code = 'DocumentTelecharge';
-
-
-    ------------------------------------------------------------
-    -- 6. Remettre les FK templates (FR + EN)
+    -- 8. Rétablissement des FK templates
     ------------------------------------------------------------
 
     UPDATE [Commun].[EmailNotificationTemplate]
@@ -138,7 +216,7 @@ BEGIN TRY
 
 
     ------------------------------------------------------------
-    -- 7. Resynchroniser identity
+    -- 9. Resynchronisation compteur IDENTITY
     ------------------------------------------------------------
 
     DBCC CHECKIDENT
@@ -155,7 +233,46 @@ END TRY
 BEGIN CATCH
 
     ROLLBACK TRANSACTION;
+
+    IF OBJECTPROPERTY(OBJECT_ID('[Commun].[EmailNotificationType]'), 'TableHasIdentity') = 1
+    BEGIN
+        SET IDENTITY_INSERT [Commun].[EmailNotificationType] OFF;
+    END
+
     THROW;
 
 END CATCH
 GO
+
+
+------------------------------------------------------------
+-- Vérification
+------------------------------------------------------------
+
+SELECT
+    Id,
+    Code
+FROM [Commun].[EmailNotificationType]
+WHERE Code IN
+(
+    'DemandeHabilitationAdminLocal',
+    'DegelTransactionGdaModified',
+    'DocumentPartage',
+    'DocumentTelecharge'
+)
+ORDER BY Id;
+
+
+SELECT
+    t.Id,
+    t.EmailNotificationTypeId,
+    n.Code,
+    t.LangueId
+FROM [Commun].[EmailNotificationTemplate] t
+INNER JOIN [Commun].[EmailNotificationType] n
+    ON n.Id = t.EmailNotificationTypeId
+WHERE n.Code IN
+(
+    'DocumentPartage',
+    'DocumentTelecharge'
+);
