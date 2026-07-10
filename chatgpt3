@@ -2445,3 +2445,5 @@ REFERENCES [Commun].[Utilisateur] ([Id])
 GO
 ALTER TABLE [Commun].[EmailNotificationType] CHECK CONSTRAINT [FK_EmailNotificationType_Utilisateur_ModificateurId]
 GO
+// voici l'enum, les structures des deux tables EmailNotificationTemplate et EmailNotificationType en recette (les ids sont déjà bons). l'objectif c'est juste 
+que les quatre dernières valeurs de l'enum soient identiques aux ids des EmailNotificationType.
