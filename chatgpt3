@@ -6,7 +6,7 @@ BEGIN TRANSACTION;
 BEGIN TRY
 
     ------------------------------------------------------------
-    -- 1. Sauvegarde des anciens Id DocumentPartage/Telecharge
+    -- 1. Sauvegarde anciens Id
     ------------------------------------------------------------
 
     DECLARE @OldDocumentPartageId INT;
@@ -22,7 +22,27 @@ BEGIN TRY
 
 
     ------------------------------------------------------------
-    -- 2. Libérer les FK des templates
+    -- 2. Sauvegarde des templates impactés (FR + EN)
+    ------------------------------------------------------------
+
+    DECLARE @DocumentPartageTemplates TABLE (Id INT);
+    DECLARE @DocumentTelechargeTemplates TABLE (Id INT);
+
+
+    INSERT INTO @DocumentPartageTemplates(Id)
+    SELECT Id
+    FROM [Commun].[EmailNotificationTemplate]
+    WHERE EmailNotificationTypeId = @OldDocumentPartageId;
+
+
+    INSERT INTO @DocumentTelechargeTemplates(Id)
+    SELECT Id
+    FROM [Commun].[EmailNotificationTemplate]
+    WHERE EmailNotificationTypeId = @OldDocumentTelechargeId;
+
+
+    ------------------------------------------------------------
+    -- 3. Libérer les FK
     ------------------------------------------------------------
 
     UPDATE [Commun].[EmailNotificationTemplate]
@@ -35,7 +55,7 @@ BEGIN TRY
 
 
     ------------------------------------------------------------
-    -- 3. Insérer les deux notifications manquantes
+    -- 4. Ajouter les notifications manquantes
     ------------------------------------------------------------
 
     SET IDENTITY_INSERT [Commun].[EmailNotificationType] ON;
@@ -82,7 +102,7 @@ BEGIN TRY
 
 
     ------------------------------------------------------------
-    -- 4. Corriger les Id DocumentPartage / DocumentTelecharge
+    -- 5. Corriger les Id existants
     ------------------------------------------------------------
 
     UPDATE [Commun].[EmailNotificationType]
@@ -96,39 +116,29 @@ BEGIN TRY
 
 
     ------------------------------------------------------------
-    -- 5. Remettre les bonnes FK dans les templates
+    -- 6. Remettre les FK templates (FR + EN)
     ------------------------------------------------------------
 
     UPDATE [Commun].[EmailNotificationTemplate]
     SET EmailNotificationTypeId = 86
-    WHERE EmailNotificationTypeId IS NULL
-      AND @OldDocumentPartageId IS NOT NULL
-      AND EXISTS
-      (
-          SELECT 1
-          FROM [Commun].[EmailNotificationType]
-          WHERE Id = 86
-            AND Code = 'DocumentPartage'
-      )
-      AND Subject LIKE '%partag%';
+    WHERE Id IN
+    (
+        SELECT Id
+        FROM @DocumentPartageTemplates
+    );
 
 
     UPDATE [Commun].[EmailNotificationTemplate]
     SET EmailNotificationTypeId = 87
-    WHERE EmailNotificationTypeId IS NULL
-      AND @OldDocumentTelechargeId IS NOT NULL
-      AND EXISTS
-      (
-          SELECT 1
-          FROM [Commun].[EmailNotificationType]
-          WHERE Id = 87
-            AND Code = 'DocumentTelecharge'
-      )
-      AND Subject LIKE '%télécharg%';
+    WHERE Id IN
+    (
+        SELECT Id
+        FROM @DocumentTelechargeTemplates
+    );
 
 
     ------------------------------------------------------------
-    -- 6. Resynchroniser identity
+    -- 7. Resynchroniser identity
     ------------------------------------------------------------
 
     DBCC CHECKIDENT
