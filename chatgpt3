@@ -1,169 +1,186 @@
-USE [BacaratWeb]
+USE [BacaratWeb];
 GO
 
-BEGIN TRANSACTION;
+SET XACT_ABORT ON;
+GO
+
+DECLARE @IdentityInsertEnabled BIT = 0;
 
 BEGIN TRY
+    BEGIN TRANSACTION;
 
-    ------------------------------------------------------------
-    -- 1. Récupération des anciens Id
-    ------------------------------------------------------------
+    /* ============================================================
+       1. Récupération des identifiants actuels
+       ============================================================ */
 
     DECLARE @OldDocumentPartageId INT;
     DECLARE @OldDocumentTelechargeId INT;
 
-    SELECT @OldDocumentPartageId = Id
+    SELECT @OldDocumentPartageId = [Id]
     FROM [Commun].[EmailNotificationType]
-    WHERE Code = 'DocumentPartage';
+    WHERE [Code] = 'DocumentPartage';
 
-    SELECT @OldDocumentTelechargeId = Id
+    SELECT @OldDocumentTelechargeId = [Id]
     FROM [Commun].[EmailNotificationType]
-    WHERE Code = 'DocumentTelecharge';
+    WHERE [Code] = 'DocumentTelecharge';
 
+    IF @OldDocumentPartageId IS NULL
+    BEGIN
+        THROW 50001, 'Le type DocumentPartage est introuvable.', 1;
+    END;
 
-    ------------------------------------------------------------
-    -- 2. Sauvegarde des templates liés (FR + EN)
-    ------------------------------------------------------------
+    IF @OldDocumentTelechargeId IS NULL
+    BEGIN
+        THROW 50002, 'Le type DocumentTelecharge est introuvable.', 1;
+    END;
 
-    DECLARE @DocumentPartageTemplates TABLE (Id INT);
-    DECLARE @DocumentTelechargeTemplates TABLE (Id INT);
-
-
-    INSERT INTO @DocumentPartageTemplates(Id)
-    SELECT Id
-    FROM [Commun].[EmailNotificationTemplate]
-    WHERE EmailNotificationTypeId = @OldDocumentPartageId;
-
-
-    INSERT INTO @DocumentTelechargeTemplates(Id)
-    SELECT Id
-    FROM [Commun].[EmailNotificationTemplate]
-    WHERE EmailNotificationTypeId = @OldDocumentTelechargeId;
-
-
-    ------------------------------------------------------------
-    -- 3. Sauvegarde des deux notifications existantes
-    ------------------------------------------------------------
-
-    DECLARE @Notifications TABLE
+    /* Les identifiants cibles ne doivent pas être utilisés
+       par d'autres types de notification. */
+    IF EXISTS
     (
-        NewId INT,
-        Code VARCHAR(100),
-        Libelle NVARCHAR(500),
-        Description NVARCHAR(1000),
-        DateCreation DATETIMEOFFSET(7),
-        DateModification DATETIMEOFFSET(7),
-        ModificateurId INT,
-        CreateurId INT,
-        IsActive BIT
+        SELECT 1
+        FROM [Commun].[EmailNotificationType]
+        WHERE [Id] IN (84, 85, 86, 87)
+          AND [Code] NOT IN
+          (
+              'DemandeHabilitationAdminLocal',
+              'DegelTransactionGdaModified',
+              'DocumentPartage',
+              'DocumentTelecharge'
+          )
+    )
+    BEGIN
+        THROW 50003, 'Un des identifiants 84 à 87 est déjà utilisé par un autre type de notification.', 1;
+    END;
+
+    /* ============================================================
+       2. Sauvegarde des templates FR et EN concernés
+       ============================================================ */
+
+    DECLARE @DocumentPartageTemplates TABLE
+    (
+        [Id] INT NOT NULL PRIMARY KEY
     );
 
-
-    INSERT INTO @Notifications
+    DECLARE @DocumentTelechargeTemplates TABLE
     (
-        NewId,
-        Code,
-        Libelle,
-        Description,
-        DateCreation,
-        DateModification,
-        ModificateurId,
-        CreateurId,
-        IsActive
+        [Id] INT NOT NULL PRIMARY KEY
+    );
+
+    INSERT INTO @DocumentPartageTemplates ([Id])
+    SELECT [Id]
+    FROM [Commun].[EmailNotificationTemplate]
+    WHERE [EmailNotificationTypeId] = @OldDocumentPartageId;
+
+    INSERT INTO @DocumentTelechargeTemplates ([Id])
+    SELECT [Id]
+    FROM [Commun].[EmailNotificationTemplate]
+    WHERE [EmailNotificationTypeId] = @OldDocumentTelechargeId;
+
+    /* ============================================================
+       3. Sauvegarde des lignes DocumentPartage et DocumentTelecharge
+       ============================================================ */
+
+    DECLARE @NotificationTypesToMove TABLE
+    (
+        [NewId] INT NOT NULL,
+        [Code] VARCHAR(100) NOT NULL,
+        [Libelle] NVARCHAR(500) NULL,
+        [Description] NVARCHAR(1000) NULL,
+        [DateCreation] DATETIMEOFFSET(7) NOT NULL,
+        [DateModification] DATETIMEOFFSET(7) NULL,
+        [ModificateurId] INT NULL,
+        [CreateurId] INT NULL,
+        [IsActive] BIT NOT NULL
+    );
+
+    INSERT INTO @NotificationTypesToMove
+    (
+        [NewId],
+        [Code],
+        [Libelle],
+        [Description],
+        [DateCreation],
+        [DateModification],
+        [ModificateurId],
+        [CreateurId],
+        [IsActive]
     )
     SELECT
-        CASE 
-            WHEN Code = 'DocumentPartage' THEN 86
-            WHEN Code = 'DocumentTelecharge' THEN 87
+        CASE [Code]
+            WHEN 'DocumentPartage' THEN 86
+            WHEN 'DocumentTelecharge' THEN 87
         END,
-        Code,
-        Libelle,
-        Description,
-        DateCreation,
-        DateModification,
-        ModificateurId,
-        CreateurId,
-        IsActive
+        [Code],
+        [Libelle],
+        [Description],
+        [DateCreation],
+        [DateModification],
+        [ModificateurId],
+        [CreateurId],
+        [IsActive]
     FROM [Commun].[EmailNotificationType]
-    WHERE Code IN
+    WHERE [Code] IN
     (
         'DocumentPartage',
         'DocumentTelecharge'
     );
 
+    IF (SELECT COUNT(*) FROM @NotificationTypesToMove) <> 2
+    BEGIN
+        THROW 50004, 'Impossible de sauvegarder les deux types DocumentPartage et DocumentTelecharge.', 1;
+    END;
 
-    ------------------------------------------------------------
-    -- 4. Libération des FK templates
-    ------------------------------------------------------------
+    /* ============================================================
+       4. Mise à NULL temporaire des clés étrangères des templates
+       ============================================================ */
 
     UPDATE [Commun].[EmailNotificationTemplate]
-    SET EmailNotificationTypeId = NULL
-    WHERE EmailNotificationTypeId IN
+    SET [EmailNotificationTypeId] = NULL
+    WHERE [EmailNotificationTypeId] IN
     (
         @OldDocumentPartageId,
         @OldDocumentTelechargeId
     );
 
-
-    ------------------------------------------------------------
-    -- 5. Suppression des anciennes lignes mal numérotées
-    ------------------------------------------------------------
+    /* ============================================================
+       5. Suppression des anciennes lignes mal numérotées
+       ============================================================ */
 
     DELETE FROM [Commun].[EmailNotificationType]
-    WHERE Code IN
+    WHERE [Code] IN
     (
         'DocumentPartage',
         'DocumentTelecharge'
     );
 
+    /* Si le script a déjà été partiellement exécuté,
+       on évite les doublons sur les deux types manquants. */
+    DELETE FROM [Commun].[EmailNotificationType]
+    WHERE [Code] IN
+    (
+        'DemandeHabilitationAdminLocal',
+        'DegelTransactionGdaModified'
+    );
 
-    ------------------------------------------------------------
-    -- 6. Réinsertion avec les Id alignés avec l'enum
-    ------------------------------------------------------------
+    /* ============================================================
+       6. Réinsertion avec les identifiants conformes à l'enum
+       ============================================================ */
 
     SET IDENTITY_INSERT [Commun].[EmailNotificationType] ON;
-
-
-    INSERT INTO [Commun].[EmailNotificationType]
-    (
-        Id,
-        Code,
-        Libelle,
-        Description,
-        DateCreation,
-        DateModification,
-        ModificateurId,
-        CreateurId,
-        IsActive
-    )
-    SELECT
-        NewId,
-        Code,
-        Libelle,
-        Description,
-        DateCreation,
-        DateModification,
-        ModificateurId,
-        CreateurId,
-        IsActive
-    FROM @Notifications;
-
-
-    ------------------------------------------------------------
-    -- 7. Ajout des deux notifications manquantes
-    ------------------------------------------------------------
+    SET @IdentityInsertEnabled = 1;
 
     INSERT INTO [Commun].[EmailNotificationType]
     (
-        Id,
-        Code,
-        Libelle,
-        Description,
-        DateCreation,
-        DateModification,
-        ModificateurId,
-        CreateurId,
-        IsActive
+        [Id],
+        [Code],
+        [Libelle],
+        [Description],
+        [DateCreation],
+        [DateModification],
+        [ModificateurId],
+        [CreateurId],
+        [IsActive]
     )
     VALUES
     (
@@ -189,35 +206,127 @@ BEGIN TRY
         1
     );
 
+    INSERT INTO [Commun].[EmailNotificationType]
+    (
+        [Id],
+        [Code],
+        [Libelle],
+        [Description],
+        [DateCreation],
+        [DateModification],
+        [ModificateurId],
+        [CreateurId],
+        [IsActive]
+    )
+    SELECT
+        [NewId],
+        [Code],
+        [Libelle],
+        [Description],
+        [DateCreation],
+        [DateModification],
+        [ModificateurId],
+        [CreateurId],
+        [IsActive]
+    FROM @NotificationTypesToMove;
 
     SET IDENTITY_INSERT [Commun].[EmailNotificationType] OFF;
+    SET @IdentityInsertEnabled = 0;
 
+    /* ============================================================
+       7. Rétablissement des clés étrangères des templates FR et EN
+       ============================================================ */
 
-    ------------------------------------------------------------
-    -- 8. Rétablissement des FK templates
-    ------------------------------------------------------------
+    UPDATE template
+    SET template.[EmailNotificationTypeId] = 86
+    FROM [Commun].[EmailNotificationTemplate] template
+    INNER JOIN @DocumentPartageTemplates savedTemplate
+        ON savedTemplate.[Id] = template.[Id];
 
-    UPDATE [Commun].[EmailNotificationTemplate]
-    SET EmailNotificationTypeId = 86
-    WHERE Id IN
+    UPDATE template
+    SET template.[EmailNotificationTypeId] = 87
+    FROM [Commun].[EmailNotificationTemplate] template
+    INNER JOIN @DocumentTelechargeTemplates savedTemplate
+        ON savedTemplate.[Id] = template.[Id];
+
+    /* ============================================================
+       8. Vérifications avant validation
+       ============================================================ */
+
+    IF NOT EXISTS
     (
-        SELECT Id
-        FROM @DocumentPartageTemplates
-    );
+        SELECT 1
+        FROM [Commun].[EmailNotificationType]
+        WHERE [Id] = 84
+          AND [Code] = 'DemandeHabilitationAdminLocal'
+    )
+    BEGIN
+        THROW 50005, 'La notification DemandeHabilitationAdminLocal n''a pas été correctement créée.', 1;
+    END;
 
-
-    UPDATE [Commun].[EmailNotificationTemplate]
-    SET EmailNotificationTypeId = 87
-    WHERE Id IN
+    IF NOT EXISTS
     (
-        SELECT Id
-        FROM @DocumentTelechargeTemplates
-    );
+        SELECT 1
+        FROM [Commun].[EmailNotificationType]
+        WHERE [Id] = 85
+          AND [Code] = 'DegelTransactionGdaModified'
+    )
+    BEGIN
+        THROW 50006, 'La notification DegelTransactionGdaModified n''a pas été correctement créée.', 1;
+    END;
 
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [Commun].[EmailNotificationType]
+        WHERE [Id] = 86
+          AND [Code] = 'DocumentPartage'
+    )
+    BEGIN
+        THROW 50007, 'La notification DocumentPartage n''a pas été correctement déplacée vers l''Id 86.', 1;
+    END;
 
-    ------------------------------------------------------------
-    -- 9. Resynchronisation compteur IDENTITY
-    ------------------------------------------------------------
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [Commun].[EmailNotificationType]
+        WHERE [Id] = 87
+          AND [Code] = 'DocumentTelecharge'
+    )
+    BEGIN
+        THROW 50008, 'La notification DocumentTelecharge n''a pas été correctement déplacée vers l''Id 87.', 1;
+    END;
+
+    IF EXISTS
+    (
+        SELECT 1
+        FROM [Commun].[EmailNotificationTemplate] template
+        INNER JOIN @DocumentPartageTemplates savedTemplate
+            ON savedTemplate.[Id] = template.[Id]
+        WHERE template.[EmailNotificationTypeId] <> 86
+           OR template.[EmailNotificationTypeId] IS NULL
+    )
+    BEGIN
+        THROW 50009, 'Les templates DocumentPartage n''ont pas été correctement rattachés à l''Id 86.', 1;
+    END;
+
+    IF EXISTS
+    (
+        SELECT 1
+        FROM [Commun].[EmailNotificationTemplate] template
+        INNER JOIN @DocumentTelechargeTemplates savedTemplate
+            ON savedTemplate.[Id] = template.[Id]
+        WHERE template.[EmailNotificationTypeId] <> 87
+           OR template.[EmailNotificationTypeId] IS NULL
+    )
+    BEGIN
+        THROW 50010, 'Les templates DocumentTelecharge n''ont pas été correctement rattachés à l''Id 87.', 1;
+    END;
+
+    /* ============================================================
+       9. Resynchronisation du compteur IDENTITY
+       La prochaine insertion automatique prendra l'Id 88.
+       ============================================================ */
 
     DBCC CHECKIDENT
     (
@@ -226,53 +335,62 @@ BEGIN TRY
         87
     );
 
-
     COMMIT TRANSACTION;
-
 END TRY
 BEGIN CATCH
-
-    ROLLBACK TRANSACTION;
-
-    IF OBJECTPROPERTY(OBJECT_ID('[Commun].[EmailNotificationType]'), 'TableHasIdentity') = 1
+    /* Si l'erreur survient après IDENTITY_INSERT ON,
+       on le désactive avant de quitter le script. */
+    IF @IdentityInsertEnabled = 1
     BEGIN
         SET IDENTITY_INSERT [Commun].[EmailNotificationType] OFF;
-    END
+        SET @IdentityInsertEnabled = 0;
+    END;
+
+    IF @@TRANCOUNT > 0
+    BEGIN
+        ROLLBACK TRANSACTION;
+    END;
 
     THROW;
-
-END CATCH
+END CATCH;
 GO
 
-
-------------------------------------------------------------
--- Vérification
-------------------------------------------------------------
+/* ============================================================
+   Vérification finale
+   ============================================================ */
 
 SELECT
-    Id,
-    Code
+    [Id],
+    [Code],
+    [Libelle],
+    [CreateurId],
+    [ModificateurId],
+    [IsActive]
 FROM [Commun].[EmailNotificationType]
-WHERE Code IN
+WHERE [Code] IN
 (
     'DemandeHabilitationAdminLocal',
     'DegelTransactionGdaModified',
     'DocumentPartage',
     'DocumentTelecharge'
 )
-ORDER BY Id;
-
+ORDER BY [Id];
 
 SELECT
-    t.Id,
-    t.EmailNotificationTypeId,
-    n.Code,
-    t.LangueId
-FROM [Commun].[EmailNotificationTemplate] t
-INNER JOIN [Commun].[EmailNotificationType] n
-    ON n.Id = t.EmailNotificationTypeId
-WHERE n.Code IN
+    template.[Id] AS [TemplateId],
+    template.[EmailNotificationTypeId],
+    notificationType.[Code],
+    template.[LangueId],
+    template.[Subject]
+FROM [Commun].[EmailNotificationTemplate] template
+INNER JOIN [Commun].[EmailNotificationType] notificationType
+    ON notificationType.[Id] = template.[EmailNotificationTypeId]
+WHERE notificationType.[Code] IN
 (
     'DocumentPartage',
     'DocumentTelecharge'
-);
+)
+ORDER BY
+    notificationType.[Id],
+    template.[LangueId];
+GO
