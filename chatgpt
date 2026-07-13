@@ -1,31 +1,21 @@
-J’ai repris la structure actuelle : les champs sont bien portés par PersonnePhysiqueLab et PersonneMoraleLab, et les deux partials utilisent déjà TypeRelationAffaireLabId, DateCessationRelations et la classe required-date. La modification ci-dessous étend la même règle à PP et PM, en s’appuyant sur le code TRA3 via l’enum plutôt que sur un identifiant écrit en dur. 
-
 ============================================================
 ÉVOLUTION LAB — REA / REJ
-PERSONNES PHYSIQUES + PERSONNES MORALES
+PERSONNES PHYSIQUES ET PERSONNES MORALES
 ============================================================
 
-RÈGLE MÉTIER
+RÈGLE
 
-Lorsque le type de relation d’affaire sélectionné est :
-
-TypeRelationAffaire.TRA3
-Code : TRA3
-Libellé : Cessation de relation avec blocage vente
-
-Alors :
-
-- afficher la checkbox REA / REJ après Date cessation relation ;
-- si REA / REJ est décochée :
-    Date cessation relation est obligatoire ;
-- si REA / REJ est cochée :
-    Date cessation relation n’est plus obligatoire ;
-- si une autre relation est sélectionnée :
-    masquer REA / REJ ;
-    remettre IsReaRej à false ;
-- la valeur est persistée pour les personnes physiques et morales ;
-- appliquer la même règle dans le popup ouvert par
-  gridTransmissionUpdateARSelected_Lab_OnClick.
+- La logique existante des relations d’affaire n’est pas supprimée.
+- La nouvelle règle s’applique seulement lorsque le code de la relation est TRA3.
+- Pour TRA3 :
+    - afficher REA / REJ ;
+    - date de cessation obligatoire si REA / REJ = false ;
+    - date de cessation non obligatoire si REA / REJ = true.
+- Pour toute autre relation :
+    - masquer REA / REJ ;
+    - remettre IsReaRej à false.
+- IsReaRej est persisté sur PersonnePhysiqueLab et PersonneMoraleLab.
+- Même règle dans le popup de mise à jour transmission.
 
 
 ============================================================
@@ -56,7 +46,7 @@ GO
 2. PersonnePhysiqueLab.cs
 ============================================================
 
-Ajouter dans l’entité :
+Ajouter :
 
 public bool IsReaRej { get; set; }
 
@@ -65,7 +55,7 @@ public bool IsReaRej { get; set; }
 3. PersonneMoraleLab.cs
 ============================================================
 
-Ajouter dans l’entité :
+Ajouter :
 
 public bool IsReaRej { get; set; }
 
@@ -92,79 +82,105 @@ public bool IsReaRej { get; set; }
 6. LabMappingProfile.cs
 ============================================================
 
-Aucun ForMember explicite n’est nécessaire si les propriétés portent
-exactement le même nom dans les entités et les ViewModels :
+Aucun ForMember explicite nécessaire si les propriétés portent exactement
+le même nom dans les entités et les ViewModels :
 
 IsReaRej
 
-AutoMapper réalisera automatiquement les mappings dans les deux sens.
-
-Ne pas ajouter IsReaRej dans :
-
-- DossierLabPersonnePhysiqueViewModel
-- DossierLabPersonneMoraleViewModel
-
-La donnée appartient directement à :
-
-- PersonnePhysiqueLab
-- PersonneMoraleLab
+AutoMapper fera automatiquement le mapping dans les deux sens.
 
 
 ============================================================
 7. _PartialPersonnePhysiqueLab.cshtml
 ============================================================
 
-Ajouter dans le bloc Razor du début, après les variables existantes :
+Dans le bloc Razor du début, ajouter :
 
-var typeRelationAffaireCessationBlocageVenteId = _referentiel
-    .TypeRelationAffaireLabs
+var typeRelationAffaireTra3Id = _referentiel.TypeRelationAffaireLabs
     .Single(x => x.Code == nameof(TypeRelationAffaire.TRA3))
     .Id;
 
-var typeRelationAffaireRelationTermineeId = _referentiel
-    .TypeRelationAffaireLabs
-    .Single(x => x.Code == nameof(TypeRelationAffaire.TRA4))
-    .Id;
-
-var isCessationBlocageVente =
+var isRelationAffaireTra3 =
     Model.Item1.PersonnePhysiqueLab.TypeRelationAffaireLabId
-    == typeRelationAffaireCessationBlocageVenteId;
+    == typeRelationAffaireTra3Id;
 
 
-Remplacer le OnValueChanged actuel du SelectBox
-PersonnePhysiqueLabTypeRelationAffaireLabId par :
+------------------------------------------------------------
+7.1 OnValueChanged EXISTANT de TypeRelationAffaireLabId
+------------------------------------------------------------
+
+Conserver intégralement le code existant.
+
+Remplacer uniquement le handler actuel par le même handler avec l’appel
+refreshReaRejPersonnePhysique ajouté à la fin :
 
 .OnValueChanged(@<text>
     function (e) {
-        onTypeRelationAffairePersonnePhysiqueChanged(
-            @(Model.Item2),
-            e.value,
-            @typeRelationAffaireCessationBlocageVenteId,
-            @typeRelationAffaireRelationTermineeId
-        );
+        if (e.value == 4)
+        {
+            $("#PersonnePhysiqueLabCessationRelation@(Model.Item2)")
+                .dxCheckBox("instance")
+                .option("value", true);
+        }
+        else
+        {
+            $("#PersonnePhysiqueLabCessationRelation@(Model.Item2)")
+                .dxCheckBox("instance")
+                .option("value", false);
+        }
+
+        $("#PersonnePhysiqueLabDateCessationRelation@(Model.Item2)")
+            .removeClass("required-date");
+
+        $("#PersonnePhysiqueLabDateCessationRelation@(Model.Item2)")
+            .dxDateBox("instance")
+            .option("disabled", !(e.value == 4 || e.value == 3));
+
+        if (!(e.value == 4 || e.value == 3))
+        {
+            $("#PersonnePhysiqueLabDateCessationRelation@(Model.Item2)")
+                .dxDateBox("instance")
+                .option("value", null);
+        }
 
         updateHeaderIdentityPhysicalPerson(@(Model.Item2));
-    }
-</text>)
 
-
-Remplacer le OnValueChanged actuel du champ DateCessationRelations par :
-
-.OnValueChanged(@<text>
-    function () {
-        refreshDateCessationRelationPersonnePhysiqueValidation(
+        refreshReaRejPersonnePhysique(
             @(Model.Item2),
-            @typeRelationAffaireCessationBlocageVenteId
+            e.value,
+            @typeRelationAffaireTra3Id,
+            false
         );
     }
 </text>)
 
 
-Juste après le bloc du champ Date cessation relation, ajouter :
+------------------------------------------------------------
+7.2 OnValueChanged de DateCessationRelations
+------------------------------------------------------------
 
-<div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1 pl-xl-1"
-     id="PersonnePhysiqueLabReaRejContainer@(Model.Item2)"
-     style="@(isCessationBlocageVente ? string.Empty : "display:none;")">
+Remplacer uniquement le handler par :
+
+.OnValueChanged(@<text>
+    function (e) {
+        refreshDateCessationRelationPersonnePhysique(
+            @(Model.Item2),
+            e.value,
+            @typeRelationAffaireTra3Id
+        );
+    }
+</text>)
+
+
+------------------------------------------------------------
+7.3 Ajouter la checkbox après Date cessation relation
+------------------------------------------------------------
+
+Ajouter immédiatement après le bloc DateCessationRelations :
+
+<div id="PersonnePhysiqueLabReaRejContainer@(Model.Item2)"
+     class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1 pl-xl-1"
+     style="@(isRelationAffaireTra3 ? string.Empty : "display:none;")">
 
     <div class="text-truncate">
         <span class="smallCaps text-green">
@@ -179,12 +195,16 @@ Juste après le bloc du champ Date cessation relation, ajouter :
                 $"DossierLabPersonnePhysiques[{Model.Item2}]." +
                 $"PersonnePhysiqueLab.IsReaRej")
             .ID("PersonnePhysiqueLabIsReaRej" + Model.Item2)
+            .Height(30)
             .ReadOnly(_isReadOnly)
             .OnValueChanged(@<text>
                 function () {
-                    refreshDateCessationRelationPersonnePhysiqueValidation(
+                    refreshDateCessationRelationPersonnePhysique(
                         @(Model.Item2),
-                        @typeRelationAffaireCessationBlocageVenteId
+                        $("#PersonnePhysiqueLabDateCessationRelation@(Model.Item2)")
+                            .dxDateBox("instance")
+                            .option("value"),
+                        @typeRelationAffaireTra3Id
                     );
                 }
             </text>))
@@ -192,12 +212,19 @@ Juste après le bloc du champ Date cessation relation, ajouter :
 </div>
 
 
-Dans le document.ready du partial PP, ajouter :
+------------------------------------------------------------
+7.4 Initialisation du partial PP
+------------------------------------------------------------
 
-initializeReaRejPersonnePhysique(
+Dans le document.ready existant, ajouter à la fin :
+
+refreshReaRejPersonnePhysique(
     @(Model.Item2),
-    @typeRelationAffaireCessationBlocageVenteId,
-    @typeRelationAffaireRelationTermineeId
+    $("#PersonnePhysiqueLabTypeRelationAffaireLabId@(Model.Item2)")
+        .dxSelectBox("instance")
+        .option("value"),
+    @typeRelationAffaireTra3Id,
+    true
 );
 
 
@@ -205,69 +232,91 @@ initializeReaRejPersonnePhysique(
 8. _PartialPersonneMoraleLab.cshtml
 ============================================================
 
-Ajouter dans le bloc Razor du début :
+Dans le bloc Razor du début, ajouter :
 
-var typeRelationAffaireCessationBlocageVenteId = _referentiel
-    .TypeRelationAffaireLabs
+var typeRelationAffaireTra3Id = _referentiel.TypeRelationAffaireLabs
     .Single(x => x.Code == nameof(TypeRelationAffaire.TRA3))
     .Id;
 
-var typeRelationAffaireRelationTermineeId = _referentiel
-    .TypeRelationAffaireLabs
-    .Single(x => x.Code == nameof(TypeRelationAffaire.TRA4))
-    .Id;
-
-var isCessationBlocageVente =
+var isRelationAffaireTra3 =
     Model.Item1.PersonneMoraleLab.TypeRelationAffaireLabId
-    == typeRelationAffaireCessationBlocageVenteId;
+    == typeRelationAffaireTra3Id;
 
 
-Remplacer le OnValueChanged actuel du SelectBox
-PersonneMoraleLabTypeRelationAffaireLabId par :
+------------------------------------------------------------
+8.1 OnValueChanged EXISTANT de TypeRelationAffaireLabId
+------------------------------------------------------------
+
+Conserver toute la logique existante et ajouter seulement la nouvelle
+fonction à la fin :
 
 .OnValueChanged(@<text>
     function (e) {
-        onTypeRelationAffairePersonneMoraleChanged(
+        if (e.value == 4)
+        {
+            $("#PersonneMoraleLabCessationRelation@(Model.Item2)")
+                .dxCheckBox("instance")
+                .option("value", true);
+        }
+        else
+        {
+            $("#PersonneMoraleLabCessationRelation@(Model.Item2)")
+                .dxCheckBox("instance")
+                .option("value", false);
+        }
+
+        $("#PersonneMoraleLabDateCessationRelation@(Model.Item2)")
+            .removeClass("required-date");
+
+        $("#PersonneMoraleLabDateCessationRelation@(Model.Item2)")
+            .dxDateBox("instance")
+            .option("disabled", !(e.value == 4 || e.value == 3));
+
+        if (!(e.value == 4 || e.value == 3))
+        {
+            $("#PersonneMoraleLabDateCessationRelation@(Model.Item2)")
+                .dxDateBox("instance")
+                .option("value", null);
+        }
+
+        updateHeaderIdentityPhysicalPerson(@(Model.Item2));
+
+        refreshReaRejPersonneMorale(
             @(Model.Item2),
             e.value,
-            @typeRelationAffaireCessationBlocageVenteId,
-            @typeRelationAffaireRelationTermineeId
+            @typeRelationAffaireTra3Id,
+            false
         );
-
-        updateHeaderIdentityMoralPerson(@(Model.Item2));
     }
 </text>)
 
 
-Important :
-dans le code actuel du partial PM, l’appel est :
+------------------------------------------------------------
+8.2 OnValueChanged de DateCessationRelations
+------------------------------------------------------------
 
-updateHeaderIdentityPhysicalPerson(...)
-
-Il faut appeler la fonction correspondant aux personnes morales :
-
-updateHeaderIdentityMoralPerson(...)
-
-si c’est bien son nom dans la version courante de dossierlab.js.
-
-
-Remplacer le OnValueChanged actuel du champ DateCessationRelations par :
+Remplacer uniquement le handler par :
 
 .OnValueChanged(@<text>
-    function () {
-        refreshDateCessationRelationPersonneMoraleValidation(
+    function (e) {
+        refreshDateCessationRelationPersonneMorale(
             @(Model.Item2),
-            @typeRelationAffaireCessationBlocageVenteId
+            e.value,
+            @typeRelationAffaireTra3Id
         );
     }
 </text>)
 
 
-Juste après le bloc du champ Date cessation relation, ajouter :
+------------------------------------------------------------
+8.3 Ajouter la checkbox après Date cessation relation
+------------------------------------------------------------
 
-<div class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1 pl-xl-1"
-     id="PersonneMoraleLabReaRejContainer@(Model.Item2)"
-     style="@(isCessationBlocageVente ? string.Empty : "display:none;")">
+Ajouter immédiatement après le bloc DateCessationRelations :
+
+<div id="PersonneMoraleLabReaRejContainer@(Model.Item2)"
+     class="col-sm-12 col-md-12 col-lg-12 col-xl-2 pr-xl-1 pl-xl-1"
+     style="@(isRelationAffaireTra3 ? string.Empty : "display:none;")">
 
     <div class="text-truncate">
         <span class="smallCaps text-green">
@@ -282,12 +331,16 @@ Juste après le bloc du champ Date cessation relation, ajouter :
                 $"DossierLabPersonneMorales[{Model.Item2}]." +
                 $"PersonneMoraleLab.IsReaRej")
             .ID("PersonneMoraleLabIsReaRej" + Model.Item2)
+            .Height(30)
             .ReadOnly(_isReadOnly)
             .OnValueChanged(@<text>
                 function () {
-                    refreshDateCessationRelationPersonneMoraleValidation(
+                    refreshDateCessationRelationPersonneMorale(
                         @(Model.Item2),
-                        @typeRelationAffaireCessationBlocageVenteId
+                        $("#PersonneMoraleLabDateCessationRelation@(Model.Item2)")
+                            .dxDateBox("instance")
+                            .option("value"),
+                        @typeRelationAffaireTra3Id
                     );
                 }
             </text>))
@@ -295,139 +348,76 @@ Juste après le bloc du champ Date cessation relation, ajouter :
 </div>
 
 
-Dans le document.ready du partial PM, ajouter :
+------------------------------------------------------------
+8.4 Initialisation du partial PM
+------------------------------------------------------------
 
-initializeReaRejPersonneMorale(
+Dans le document.ready existant, ajouter à la fin :
+
+refreshReaRejPersonneMorale(
     @(Model.Item2),
-    @typeRelationAffaireCessationBlocageVenteId,
-    @typeRelationAffaireRelationTermineeId
+    $("#PersonneMoraleLabTypeRelationAffaireLabId@(Model.Item2)")
+        .dxSelectBox("instance")
+        .option("value"),
+    @typeRelationAffaireTra3Id,
+    true
 );
 
 
 ============================================================
-9. dossierlab.js — HELPERS COMMUNS
+9. dossierlab.js
 ============================================================
 
-Ajouter :
+Ajouter les fonctions suivantes :
 
-function isEmptyValue(value) {
+function isNullOrEmpty(value) {
     return value === null
         || value === undefined
         || value === "";
 }
 
-function setDateCessationRequiredState(dateBoxSelector, isRequired) {
-    var $dateBox = $(dateBoxSelector);
 
-    if ($dateBox.length === 0) {
-        return;
-    }
-
-    var dateBoxInstance = $dateBox.dxDateBox("instance");
-
-    if (!dateBoxInstance) {
-        return;
-    }
-
-    var dateValue = dateBoxInstance.option("value");
-
-    $dateBox.toggleClass(
-        "required-date",
-        isRequired && isEmptyValue(dateValue)
-    );
-}
-
-
-============================================================
-10. dossierlab.js — PERSONNE PHYSIQUE
-============================================================
-
-Ajouter :
-
-function initializeReaRejPersonnePhysique(
-    index,
-    cessationBlocageVenteId,
-    relationTermineeId) {
-
-    var relationInstance =
-        $("#PersonnePhysiqueLabTypeRelationAffaireLabId" + index)
-            .dxSelectBox("instance");
-
-    if (!relationInstance) {
-        return;
-    }
-
-    onTypeRelationAffairePersonnePhysiqueChanged(
-        index,
-        relationInstance.option("value"),
-        cessationBlocageVenteId,
-        relationTermineeId,
-        true
-    );
-}
-
-function onTypeRelationAffairePersonnePhysiqueChanged(
+function refreshReaRejPersonnePhysique(
     index,
     typeRelationAffaireId,
-    cessationBlocageVenteId,
-    relationTermineeId,
+    typeRelationAffaireTra3Id,
     isInitialization) {
 
-    var isCessationBlocageVente =
-        typeRelationAffaireId === cessationBlocageVenteId;
+    var isTra3 =
+        typeRelationAffaireId === typeRelationAffaireTra3Id;
 
-    var isRelationTerminee =
-        typeRelationAffaireId === relationTermineeId;
+    var $container =
+        $("#PersonnePhysiqueLabReaRejContainer" + index);
 
-    var isDateEnabled =
-        isCessationBlocageVente || isRelationTerminee;
-
-    var cessationRelationInstance =
-        $("#PersonnePhysiqueLabCessationRelation" + index)
+    var reaRejInstance =
+        $("#PersonnePhysiqueLabIsReaRej" + index)
             .dxCheckBox("instance");
 
-    var dateCessationInstance =
+    $container.toggle(isTra3);
+
+    if (!isTra3
+        && reaRejInstance
+        && isInitialization !== true) {
+
+        reaRejInstance.option("value", false);
+    }
+
+    var dateInstance =
         $("#PersonnePhysiqueLabDateCessationRelation" + index)
             .dxDateBox("instance");
 
-    var reaRejInstance =
-        $("#PersonnePhysiqueLabIsReaRej" + index)
-            .dxCheckBox("instance");
-
-    $("#PersonnePhysiqueLabReaRejContainer" + index)
-        .toggle(isCessationBlocageVente);
-
-    if (cessationRelationInstance) {
-        cessationRelationInstance.option(
-            "value",
-            isRelationTerminee
-        );
-    }
-
-    if (dateCessationInstance) {
-        dateCessationInstance.option("disabled", !isDateEnabled);
-
-        if (!isDateEnabled) {
-            dateCessationInstance.option("value", null);
-        }
-    }
-
-    if (!isCessationBlocageVente
-        && reaRejInstance
-        && isInitialization !== true) {
-
-        reaRejInstance.option("value", false);
-    }
-
-    refreshDateCessationRelationPersonnePhysiqueValidation(
+    refreshDateCessationRelationPersonnePhysique(
         index,
-        cessationBlocageVenteId
+        dateInstance ? dateInstance.option("value") : null,
+        typeRelationAffaireTra3Id
     );
 }
 
-function refreshDateCessationRelationPersonnePhysiqueValidation(
+
+function refreshDateCessationRelationPersonnePhysique(
     index,
-    cessationBlocageVenteId) {
+    dateCessationRelation,
+    typeRelationAffaireTra3Id) {
 
     var relationInstance =
         $("#PersonnePhysiqueLabTypeRelationAffaireLabId" + index)
@@ -441,110 +431,64 @@ function refreshDateCessationRelationPersonnePhysiqueValidation(
         return;
     }
 
-    var isCessationBlocageVente =
-        relationInstance.option("value") === cessationBlocageVenteId;
+    var isTra3 =
+        relationInstance.option("value") === typeRelationAffaireTra3Id;
 
     var isReaRej =
         reaRejInstance
         && reaRejInstance.option("value") === true;
 
-    setDateCessationRequiredState(
-        "#PersonnePhysiqueLabDateCessationRelation" + index,
-        isCessationBlocageVente && !isReaRej
-    );
+    var isRequired =
+        isTra3
+        && !isReaRej
+        && isNullOrEmpty(dateCessationRelation);
+
+    $("#PersonnePhysiqueLabDateCessationRelation" + index)
+        .toggleClass("required-date", isRequired);
 }
 
 
-============================================================
-11. dossierlab.js — PERSONNE MORALE
-============================================================
-
-Ajouter :
-
-function initializeReaRejPersonneMorale(
-    index,
-    cessationBlocageVenteId,
-    relationTermineeId) {
-
-    var relationInstance =
-        $("#PersonneMoraleLabTypeRelationAffaireLabId" + index)
-            .dxSelectBox("instance");
-
-    if (!relationInstance) {
-        return;
-    }
-
-    onTypeRelationAffairePersonneMoraleChanged(
-        index,
-        relationInstance.option("value"),
-        cessationBlocageVenteId,
-        relationTermineeId,
-        true
-    );
-}
-
-function onTypeRelationAffairePersonneMoraleChanged(
+function refreshReaRejPersonneMorale(
     index,
     typeRelationAffaireId,
-    cessationBlocageVenteId,
-    relationTermineeId,
+    typeRelationAffaireTra3Id,
     isInitialization) {
 
-    var isCessationBlocageVente =
-        typeRelationAffaireId === cessationBlocageVenteId;
+    var isTra3 =
+        typeRelationAffaireId === typeRelationAffaireTra3Id;
 
-    var isRelationTerminee =
-        typeRelationAffaireId === relationTermineeId;
-
-    var isDateEnabled =
-        isCessationBlocageVente || isRelationTerminee;
-
-    var cessationRelationInstance =
-        $("#PersonneMoraleLabCessationRelation" + index)
-            .dxCheckBox("instance");
-
-    var dateCessationInstance =
-        $("#PersonneMoraleLabDateCessationRelation" + index)
-            .dxDateBox("instance");
+    var $container =
+        $("#PersonneMoraleLabReaRejContainer" + index);
 
     var reaRejInstance =
         $("#PersonneMoraleLabIsReaRej" + index)
             .dxCheckBox("instance");
 
-    $("#PersonneMoraleLabReaRejContainer" + index)
-        .toggle(isCessationBlocageVente);
+    $container.toggle(isTra3);
 
-    if (cessationRelationInstance) {
-        cessationRelationInstance.option(
-            "value",
-            isRelationTerminee
-        );
-    }
-
-    if (dateCessationInstance) {
-        dateCessationInstance.option("disabled", !isDateEnabled);
-
-        if (!isDateEnabled) {
-            dateCessationInstance.option("value", null);
-        }
-    }
-
-    if (!isCessationBlocageVente
+    if (!isTra3
         && reaRejInstance
         && isInitialization !== true) {
 
         reaRejInstance.option("value", false);
     }
 
-    refreshDateCessationRelationPersonneMoraleValidation(
+    var dateInstance =
+        $("#PersonneMoraleLabDateCessationRelation" + index)
+            .dxDateBox("instance");
+
+    refreshDateCessationRelationPersonneMorale(
         index,
-        cessationBlocageVenteId
+        dateInstance ? dateInstance.option("value") : null,
+        typeRelationAffaireTra3Id
     );
 }
 
-function refreshDateCessationRelationPersonneMoraleValidation(
+
+function refreshDateCessationRelationPersonneMorale(
     index,
-    cessationBlocageVenteId) {
+    dateCessationRelation,
+    typeRelationAffaireTra3Id) {
 
     var relationInstance =
         $("#PersonneMoraleLabTypeRelationAffaireLabId" + index)
@@ -558,113 +502,127 @@ function refreshDateCessationRelationPersonneMoraleValidation(
         return;
     }
 
-    var isCessationBlocageVente =
-        relationInstance.option("value") === cessationBlocageVenteId;
+    var isTra3 =
+        relationInstance.option("value") === typeRelationAffaireTra3Id;
 
     var isReaRej =
         reaRejInstance
         && reaRejInstance.option("value") === true;
 
-    setDateCessationRequiredState(
-        "#PersonneMoraleLabDateCessationRelation" + index,
-        isCessationBlocageVente && !isReaRej
-    );
+    var isRequired =
+        isTra3
+        && !isReaRej
+        && isNullOrEmpty(dateCessationRelation);
+
+    $("#PersonneMoraleLabDateCessationRelation" + index)
+        .toggleClass("required-date", isRequired);
 }
 
 
 ============================================================
-12. VALIDATION GLOBALE AVANT SAUVEGARDE DU DOSSIER
+10. VALIDATION CLIENT AVANT SAUVEGARDE
 ============================================================
-
-La classe CSS required-date ne suffit pas à sécuriser la sauvegarde.
-Ajouter une validation explicite appelée avant le POST principal.
 
 Ajouter dans dossierlab.js :
 
 function validateReaRejDateCessationRelations() {
     var isValid = true;
 
-    $(".PersonnePhysiqueLabTypeRelationAffaireLabId").each(function () {
-        var id = $(this).attr("id");
-        var index = id.replace(
-            "PersonnePhysiqueLabTypeRelationAffaireLabId",
-            ""
-        );
+    $(".PersonnePhysiqueLabTypeRelationAffaireLabId")
+        .each(function () {
 
-        var relationInstance = $(this).dxSelectBox("instance");
-        var selectedItem = relationInstance
-            ? relationInstance.option("selectedItem")
-            : null;
+            var id = $(this).attr("id");
 
-        var isTra3 =
-            selectedItem
-            && selectedItem.Code === "TRA3";
+            var index = id.replace(
+                "PersonnePhysiqueLabTypeRelationAffaireLabId",
+                ""
+            );
 
-        var reaRejInstance =
-            $("#PersonnePhysiqueLabIsReaRej" + index)
-                .dxCheckBox("instance");
+            var relationInstance =
+                $(this).dxSelectBox("instance");
 
-        var dateInstance =
-            $("#PersonnePhysiqueLabDateCessationRelation" + index)
-                .dxDateBox("instance");
+            var selectedItem =
+                relationInstance
+                    ? relationInstance.option("selectedItem")
+                    : null;
 
-        var isReaRej =
-            reaRejInstance
-            && reaRejInstance.option("value") === true;
+            if (!selectedItem || selectedItem.Code !== "TRA3") {
+                return;
+            }
 
-        var dateValue =
-            dateInstance
-            ? dateInstance.option("value")
-            : null;
+            var reaRejInstance =
+                $("#PersonnePhysiqueLabIsReaRej" + index)
+                    .dxCheckBox("instance");
 
-        if (isTra3 && !isReaRej && isEmptyValue(dateValue)) {
-            $("#PersonnePhysiqueLabDateCessationRelation" + index)
-                .addClass("required-date");
+            var dateInstance =
+                $("#PersonnePhysiqueLabDateCessationRelation" + index)
+                    .dxDateBox("instance");
 
-            isValid = false;
-        }
-    });
+            var isReaRej =
+                reaRejInstance
+                && reaRejInstance.option("value") === true;
 
-    $(".PersonneMoraleLabTypeRelationAffaireLabId").each(function () {
-        var id = $(this).attr("id");
-        var index = id.replace(
-            "PersonneMoraleLabTypeRelationAffaireLabId",
-            ""
-        );
+            var dateValue =
+                dateInstance
+                    ? dateInstance.option("value")
+                    : null;
 
-        var relationInstance = $(this).dxSelectBox("instance");
-        var selectedItem = relationInstance
-            ? relationInstance.option("selectedItem")
-            : null;
+            if (!isReaRej && isNullOrEmpty(dateValue)) {
+                $("#PersonnePhysiqueLabDateCessationRelation" + index)
+                    .addClass("required-date");
 
-        var isTra3 =
-            selectedItem
-            && selectedItem.Code === "TRA3";
+                isValid = false;
+            }
+        });
 
-        var reaRejInstance =
-            $("#PersonneMoraleLabIsReaRej" + index)
-                .dxCheckBox("instance");
 
-        var dateInstance =
-            $("#PersonneMoraleLabDateCessationRelation" + index)
-                .dxDateBox("instance");
+    $(".PersonneMoraleLabTypeRelationAffaireLabId")
+        .each(function () {
 
-        var isReaRej =
-            reaRejInstance
-            && reaRejInstance.option("value") === true;
+            var id = $(this).attr("id");
 
-        var dateValue =
-            dateInstance
-            ? dateInstance.option("value")
-            : null;
+            var index = id.replace(
+                "PersonneMoraleLabTypeRelationAffaireLabId",
+                ""
+            );
 
-        if (isTra3 && !isReaRej && isEmptyValue(dateValue)) {
-            $("#PersonneMoraleLabDateCessationRelation" + index)
-                .addClass("required-date");
+            var relationInstance =
+                $(this).dxSelectBox("instance");
 
-            isValid = false;
-        }
-    });
+            var selectedItem =
+                relationInstance
+                    ? relationInstance.option("selectedItem")
+                    : null;
+
+            if (!selectedItem || selectedItem.Code !== "TRA3") {
+                return;
+            }
+
+            var reaRejInstance =
+                $("#PersonneMoraleLabIsReaRej" + index)
+                    .dxCheckBox("instance");
+
+            var dateInstance =
+                $("#PersonneMoraleLabDateCessationRelation" + index)
+                    .dxDateBox("instance");
+
+            var isReaRej =
+                reaRejInstance
+                && reaRejInstance.option("value") === true;
+
+            var dateValue =
+                dateInstance
+                    ? dateInstance.option("value")
+                    : null;
+
+            if (!isReaRej && isNullOrEmpty(dateValue)) {
+                $("#PersonneMoraleLabDateCessationRelation" + index)
+                    .addClass("required-date");
+
+                isValid = false;
+            }
+        });
+
 
     if (!isValid) {
         DevExpress.ui.notify(
@@ -678,8 +636,8 @@ function validateReaRejDateCessationRelations() {
 }
 
 
-Dans la méthode qui sauvegarde le dossier, avant l’appel AJAX ou le submit,
-ajouter :
+Dans la méthode de sauvegarde du dossier, juste avant le submit ou
+l’appel AJAX, ajouter :
 
 if (!validateReaRejDateCessationRelations()) {
     return;
@@ -687,156 +645,209 @@ if (!validateReaRejDateCessationRelations()) {
 
 
 ============================================================
-13. VALIDATION SERVEUR — MÉTHODE COMMUNE
+11. POPUP TRANSMISSION — CHAMPS CACHÉS
 ============================================================
 
-Même avec la validation JavaScript, le serveur doit contrôler la règle.
+La fonction gridTransmissionUpdateARSelected_Lab_OnClick ne construit pas
+le popup : elle charge le partial TransmissionDossierLab par AJAX.
 
-Ajouter dans le contrôleur ou le service chargé de sauvegarder le dossier :
+La persistance des lignes est ensuite reconstruite dans :
 
-private void ValidateReaRejDateCessationRelations(
-    DossierLabViewModel model)
-{
-    var codeTra3 = nameof(TypeRelationAffaire.TRA3);
+updateListPersonnePhysiquesForm()
+updateListPersonneMoralesForm()
 
-    var personnesPhysiquesInvalides = model.DossierLabPersonnePhysiques
-        ?.Where(x =>
-            x?.PersonnePhysiqueLab?.TypeRelationAffaireLab?.Code
-                == codeTra3
-            && !x.PersonnePhysiqueLab.IsReaRej
-            && !x.PersonnePhysiqueLab.DateCessationRelations.HasValue)
-        .Any() == true;
+Modifier updateListPersonnePhysiquesForm comme suit :
 
-    var personnesMoralesInvalides = model.DossierLabPersonneMorales
-        ?.Where(x =>
-            x?.PersonneMoraleLab?.TypeRelationAffaireLab?.Code
-                == codeTra3
-            && !x.PersonneMoraleLab.IsReaRej
-            && !x.PersonneMoraleLab.DateCessationRelations.HasValue)
-        .Any() == true;
+function updateListPersonnePhysiquesForm() {
+    $("#personne-physique-relation-form-container").html("");
 
-    if (personnesPhysiquesInvalides || personnesMoralesInvalides)
-    {
-        throw new CustomMessageException(
-            _translator.Common["Lab.DateCessationRelation.Required"]);
+    var data = $("#gridPpRelation")
+        .dxDataGrid("instance")
+        .getDataSource()
+        .items();
+
+    for (let i = 0; i < data.length; i++) {
+        var cryptedId =
+            data[i].CryptedId != null
+                ? data[i].CryptedId
+                : "";
+
+        var cryptedPersonnePhysiqueLabId =
+            data[i].CryptedPersonnePhysiqueLabId != null
+                ? data[i].CryptedPersonnePhysiqueLabId
+                : "";
+
+        var id = data[i].Id;
+        var nomNaissance = data[i].NomNaissance;
+        var prenoms = data[i].Prenoms;
+        var dateNaissance = formatDateGrid(data[i].DateNaissance);
+        var typeRelationAffaireLabId =
+            data[i].TypeRelationAffaireLabId;
+
+        var dateCessationRelations =
+            formatDateGrid(data[i].DateCessationRelations);
+
+        var isReaRej =
+            data[i].IsReaRej === true
+                ? "true"
+                : "false";
+
+        $("#personne-physique-relation-form-container")
+            .append(
+                '<input type="hidden" ' +
+                'name="PersonnePhysiques[' + i + '].CryptedId" ' +
+                'value="' + cryptedId + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonnePhysiques[' + i + '].CryptedPersonnePhysiqueLabId" ' +
+                'value="' + cryptedPersonnePhysiqueLabId + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonnePhysiques[' + i + '].Id" ' +
+                'value="' + id + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonnePhysiques[' + i + '].NomNaissance" ' +
+                'value="' + (nomNaissance || "") + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonnePhysiques[' + i + '].Prenoms" ' +
+                'value="' + (prenoms || "") + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonnePhysiques[' + i + '].DateNaissance" ' +
+                'value="' + (dateNaissance || "") + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonnePhysiques[' + i + '].TypeRelationAffaireLabId" ' +
+                'value="' + (typeRelationAffaireLabId || "") + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonnePhysiques[' + i + '].DateCessationRelations" ' +
+                'value="' + (dateCessationRelations || "") + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonnePhysiques[' + i + '].IsReaRej" ' +
+                'value="' + isReaRej + '" />'
+            );
     }
 }
 
 
-Attention :
-si TypeRelationAffaireLab n’est pas bindé pendant le POST,
-ne pas utiliser la navigation TypeRelationAffaireLab.
+Modifier updateListPersonneMoralesForm comme suit :
 
-Dans ce cas, injecter/récupérer l’Id TRA3 une seule fois puis comparer les Id :
+function updateListPersonneMoralesForm() {
+    $("#personne-morale-relation-form-container").html("");
 
-private void ValidateReaRejDateCessationRelations(
-    DossierLabViewModel model)
-{
-    var typeRelationAffaireTra3Id = _referentielService
-        .GetTypeRelationAffaireLabs()
-        .Single(x => x.Code == nameof(TypeRelationAffaire.TRA3))
-        .Id;
+    var data = $("#gridPersonneMorale")
+        .dxDataGrid("instance")
+        .getDataSource()
+        .items();
 
-    var personnesPhysiquesInvalides = model.DossierLabPersonnePhysiques
-        ?.Any(x =>
-            x?.PersonnePhysiqueLab?.TypeRelationAffaireLabId
-                == typeRelationAffaireTra3Id
-            && !x.PersonnePhysiqueLab.IsReaRej
-            && !x.PersonnePhysiqueLab.DateCessationRelations.HasValue)
-        == true;
+    for (let i = 0; i < data.length; i++) {
+        var cryptedId =
+            data[i].CryptedId != null
+                ? data[i].CryptedId
+                : "";
 
-    var personnesMoralesInvalides = model.DossierLabPersonneMorales
-        ?.Any(x =>
-            x?.PersonneMoraleLab?.TypeRelationAffaireLabId
-                == typeRelationAffaireTra3Id
-            && !x.PersonneMoraleLab.IsReaRej
-            && !x.PersonneMoraleLab.DateCessationRelations.HasValue)
-        == true;
+        var cryptedPersonneMoraleLabId =
+            data[i].CryptedPersonneMoraleLabId != null
+                ? data[i].CryptedPersonneMoraleLabId
+                : "";
 
-    if (personnesPhysiquesInvalides || personnesMoralesInvalides)
-    {
-        throw new CustomMessageException(
-            _translator.Common["Lab.DateCessationRelation.Required"]);
+        var id = data[i].Id;
+        var raisonSociale = data[i].RaisonSociale;
+        var numeroImmatriculation = data[i].NumeroImmatriculation;
+        var typeRelationAffaireLabId =
+            data[i].TypeRelationAffaireLabId;
+
+        var dateCessationRelations =
+            formatDateGrid(data[i].DateCessationRelations);
+
+        var isReaRej =
+            data[i].IsReaRej === true
+                ? "true"
+                : "false";
+
+        $("#personne-morale-relation-form-container")
+            .append(
+                '<input type="hidden" ' +
+                'name="PersonneMorales[' + i + '].CryptedId" ' +
+                'value="' + cryptedId + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonneMorales[' + i + '].CryptedPersonneMoraleLabId" ' +
+                'value="' + cryptedPersonneMoraleLabId + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonneMorales[' + i + '].Id" ' +
+                'value="' + id + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonneMorales[' + i + '].RaisonSociale" ' +
+                'value="' + (raisonSociale || "") + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonneMorales[' + i + '].NumeroImmatriculation" ' +
+                'value="' + (numeroImmatriculation || "") + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonneMorales[' + i + '].TypeRelationAffaireLabId" ' +
+                'value="' + (typeRelationAffaireLabId || "") + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonneMorales[' + i + '].DateCessationRelations" ' +
+                'value="' + (dateCessationRelations || "") + '" />' +
+
+                '<input type="hidden" ' +
+                'name="PersonneMorales[' + i + '].IsReaRej" ' +
+                'value="' + isReaRej + '" />'
+            );
     }
 }
 
 
-Appeler cette méthode avant toute sauvegarde du dossier :
-
-ValidateReaRejDateCessationRelations(model);
-
-
 ============================================================
-14. POPUP gridTransmissionUpdateARSelected_Lab_OnClick
+12. POPUP TRANSMISSION — GRILLES
 ============================================================
 
-Dans le ViewModel utilisé pour les lignes PP du popup, ajouter :
+Dans la grille gridPpRelation, ajouter après DateCessationRelations :
 
-public bool IsReaRej { get; set; }
-
-Dans le ViewModel utilisé pour les lignes PM du popup, ajouter :
-
-public bool IsReaRej { get; set; }
+columns.AddFor(x => x.IsReaRej)
+    .Caption(translator.Common["Lab.IsReaRej"])
+    .DataType(GridColumnDataType.Boolean);
 
 
-Dans le mapping/projection qui construit les lignes PP :
+Dans la grille gridPersonneMorale, ajouter après DateCessationRelations :
 
-IsReaRej = x.PersonnePhysiqueLab.IsReaRej,
-
-
-Dans le mapping/projection qui construit les lignes PM :
-
-IsReaRej = x.PersonneMoraleLab.IsReaRej,
+columns.AddFor(x => x.IsReaRej)
+    .Caption(translator.Common["Lab.IsReaRej"])
+    .DataType(GridColumnDataType.Boolean);
 
 
-Dans la grille des personnes physiques du popup, ajouter après la colonne
-DateCessationRelations :
+Ajouter sur les deux DataGrids :
 
-{
-    dataField: "IsReaRej",
-    caption: _labIsReaRej,
-    dataType: "boolean",
-    allowEditing: true,
-    visible: true
-}
+.OnRowValidating("validateTransmissionReaRejRow")
 
 
-Dans la grille des personnes morales du popup, ajouter après la colonne
-DateCessationRelations :
+Ajouter dans dossierlab.js :
 
-{
-    dataField: "IsReaRej",
-    caption: _labIsReaRej,
-    dataType: "boolean",
-    allowEditing: true,
-    visible: true
-}
-
-
-Ajouter à chacune des deux grilles :
-
-onRowValidating: validateTransmissionUpdateReaRejRow
-
-
-Ajouter dans le JS du popup :
-
-function validateTransmissionUpdateReaRejRow(e) {
+function validateTransmissionReaRejRow(e) {
     var rowData = $.extend(
         {},
         e.oldData || {},
         e.newData || {}
     );
 
-    var typeRelationCode =
-        rowData.TypeRelationAffaireCode
-        || rowData.TypeRelationAffaireLabCode
-        || (
-            rowData.TypeRelationAffaireLab
-                ? rowData.TypeRelationAffaireLab.Code
-                : null
-        );
+    var selectedRelation =
+        rowData.TypeRelationAffaireLab;
 
-    if (typeRelationCode !== "TRA3") {
+    var relationCode =
+        rowData.TypeRelationAffaireLabCode
+        || rowData.TypeRelationAffaireCode
+        || (selectedRelation ? selectedRelation.Code : null);
+
+    if (relationCode !== "TRA3") {
         return;
     }
 
@@ -844,59 +855,123 @@ function validateTransmissionUpdateReaRejRow(e) {
         return;
     }
 
-    if (isEmptyValue(rowData.DateCessationRelations)) {
+    if (isNullOrEmpty(rowData.DateCessationRelations)) {
         e.isValid = false;
         e.errorText = _labDateCessationRelationRequired;
     }
 }
 
 
-Dans la sauvegarde du popup, recopier IsReaRej pour les PP :
+============================================================
+13. VIEWMODELS DU POPUP TRANSMISSION
+============================================================
 
-personnePhysiqueLab.IsReaRej = ligne.IsReaRej;
+Dans le ViewModel PP utilisé par gridPpRelation, ajouter :
+
+public bool IsReaRej { get; set; }
 
 
-Et pour les PM :
+Dans le ViewModel PM utilisé par gridPersonneMorale, ajouter :
 
-personneMoraleLab.IsReaRej = ligne.IsReaRej;
+public bool IsReaRej { get; set; }
 
 
-La validation serveur du popup doit également appliquer la même règle avant
-la sauvegarde :
+Dans la projection PP alimentant le popup :
 
-private void ValidateTransmissionUpdateReaRej(
-    string typeRelationAffaireCode,
+IsReaRej = x.PersonnePhysiqueLab.IsReaRej,
+
+
+Dans la projection PM alimentant le popup :
+
+IsReaRej = x.PersonneMoraleLab.IsReaRej,
+
+
+============================================================
+14. SAUVEGARDE SERVEUR DU POPUP
+============================================================
+
+Dans la mise à jour PP :
+
+personnePhysiqueLab.IsReaRej =
+    personnePhysiqueViewModel.IsReaRej;
+
+
+Dans la mise à jour PM :
+
+personneMoraleLab.IsReaRej =
+    personneMoraleViewModel.IsReaRej;
+
+
+============================================================
+15. VALIDATION SERVEUR
+============================================================
+
+Ajouter une méthode commune dans le contrôleur/service qui sauvegarde :
+
+private void ValidateReaRej(
+    int? typeRelationAffaireLabId,
     bool isReaRej,
-    DateTimeOffset? dateCessationRelation)
+    DateTimeOffset? dateCessationRelations,
+    int typeRelationAffaireTra3Id)
 {
-    if (typeRelationAffaireCode == nameof(TypeRelationAffaire.TRA3)
+    if (typeRelationAffaireLabId == typeRelationAffaireTra3Id
         && !isReaRej
-        && !dateCessationRelation.HasValue)
+        && !dateCessationRelations.HasValue)
     {
         throw new CustomMessageException(
-            _translator.Common["Lab.DateCessationRelation.Required"]);
+            _translator.Common[
+                "Lab.DateCessationRelation.Required"
+            ]);
     }
 }
 
 
+Avant sauvegarde de chaque PP :
+
+ValidateReaRej(
+    personnePhysique.TypeRelationAffaireLabId,
+    personnePhysique.IsReaRej,
+    personnePhysique.DateCessationRelations,
+    typeRelationAffaireTra3Id
+);
+
+
+Avant sauvegarde de chaque PM :
+
+ValidateReaRej(
+    personneMorale.TypeRelationAffaireLabId,
+    personneMorale.IsReaRej,
+    personneMorale.DateCessationRelations,
+    typeRelationAffaireTra3Id
+);
+
+
+Le typeRelationAffaireTra3Id doit être récupéré avec le code enum :
+
+var typeRelationAffaireTra3Id =
+    _referentielService
+        .GetTypeRelationAffaireLabs()
+        .Single(x =>
+            x.Code == nameof(TypeRelationAffaire.TRA3))
+        .Id;
+
+
 ============================================================
-15. VARIABLES JAVASCRIPT TRADUITES
+16. VARIABLES JAVASCRIPT TRADUITES
 ============================================================
 
-Dans CreateOrUpdateDossierLab.cshtml et dans la vue contenant le popup,
-ajouter :
-
-var _labIsReaRej =
-    "@Html.Raw(translator.Common["Lab.IsReaRej"])";
+Dans CreateOrUpdateDossierLab.cshtml et dans la vue du popup :
 
 var _labDateCessationRelationRequired =
     "@Html.Raw(
-        translator.Common["Lab.DateCessationRelation.Required"]
+        translator.Common[
+            "Lab.DateCessationRelation.Required"
+        ]
     )";
 
 
 ============================================================
-16. SQL — TRADUCTIONS
+17. SQL — TRADUCTIONS
 ============================================================
 
 USE [BacaratWeb];
@@ -932,8 +1007,10 @@ USING @Traductions AS source
     ON target.Id = source.Id
 WHEN MATCHED THEN
     UPDATE SET
-        target.FrenchTranslate = source.FrenchTranslate,
-        target.EnglishTranslate = source.EnglishTranslate
+        target.FrenchTranslate =
+            source.FrenchTranslate,
+        target.EnglishTranslate =
+            source.EnglishTranslate
 WHEN NOT MATCHED BY TARGET THEN
     INSERT
     (
@@ -951,42 +1028,20 @@ GO
 
 
 ============================================================
-17. CAS DE TESTS DE NON-RÉGRESSION
+18. POINT IMPORTANT
 ============================================================
 
-PP et PM — TRA1 ou TRA2 :
-- checkbox REA / REJ masquée ;
-- IsReaRej = false ;
-- date désactivée selon le comportement existant.
+Les conditions existantes :
 
-PP et PM — TRA3, REA / REJ décochée :
-- checkbox visible ;
-- date activée ;
-- date obligatoire ;
-- sauvegarde front et serveur refusée si date absente.
+e.value == 4
+e.value == 3
+Disabled(!_isRelationTerminee)
 
-PP et PM — TRA3, REA / REJ cochée :
-- checkbox visible ;
-- date activée mais non obligatoire ;
-- sauvegarde autorisée sans date.
+sont conservées.
 
-PP et PM — TRA4 :
-- checkbox REA / REJ masquée ;
-- IsReaRej = false ;
-- comportement existant de Relation terminée conservé.
+Elles appartiennent au fonctionnement existant de la date de cessation.
 
-Passage de TRA3 vers une autre relation :
-- checkbox masquée ;
-- valeur IsReaRej remise à false ;
-- la date est effacée uniquement si la nouvelle relation ne permet pas
-  DateCessationRelations.
+La nouvelle logique n’utilise TRA4 nulle part pour REA / REJ :
+elle teste uniquement l’Id obtenu avec :
 
-Chargement d’un dossier existant TRA3 + IsReaRej=true :
-- checkbox visible et cochée ;
-- date non obligatoire ;
-- ne pas remettre la checkbox à false pendant l’initialisation.
-
-Popup MAJ :
-- même règle PP et PM ;
-- IsReaRej persisté ;
-- aucune sauvegarde possible pour TRA3 sans date et sans REA / REJ.
+nameof(TypeRelationAffaire.TRA3)
