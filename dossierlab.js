@@ -8874,7 +8874,8 @@ function resetAllHiddenTiersFieldsValues() {
 
     resetAllHiddenPersonnesMoralesFieldsValues();
 }
-function resetAllHiddenPersonnesPhysiquesFieldsValues() {
+function resetAllHiddenPersonnesPhysiquesFieldsValues() 
+{
     $("div[id^='PersonnePhysiqueLabIdentificationProfessionnelleId']").each(function () {
         if ($(this).dxSelectBox("instance").option("value") == _labIdEtranger) return;
 
@@ -8883,12 +8884,19 @@ function resetAllHiddenPersonnesPhysiquesFieldsValues() {
             .find("div[id^='partialPersonnePhysiqueLab_PaysDeRegistreId']")
             .dxSelectBox("instance").reset();
     });
+
+    resetReaRejPersonnesPhysiques();
 }
-function resetAllHiddenPersonnesMoralesFieldsValues() {
+
+function resetAllHiddenPersonnesMoralesFieldsValues() 
+{
     resetAllHiddenPersonnesMoralesIdentificationFieldsValues();
 
     resetAllHiddenPersonnesMoralesDirigeantsFieldsValues();
+
+    resetReaRejPersonnesMorales();
 }
+
 function resetAllHiddenPersonnesMoralesIdentificationFieldsValues() {
     $("div[id^='PersonneMoraleLabProfessionalIdentificationId']").each(function () {
         if ($(this).dxSelectBox("instance").option("value") == _labIdEtranger) return;
@@ -9824,13 +9832,21 @@ function immobilereValidation(isVisible) {
         initSectionImmobilier();
     }
 }
-function DateCessationRelations_ValidationCallback(e) {
-    if (e.data.TypeRelationAffaireLabId == _labIdRelationAffaireRelationTerminee ||
-        e.data.TypeRelationAffaireLabId == _labIdRelationAffairesCessationAvecBlocageVente) {
+function DateCessationRelations_ValidationCallback(e) 
+{
+    if (e.data.TypeRelationAffaireLabId == _labIdRelationAffaireRelationTerminee) 
+    {
         return e.value != null && e.value;
     }
+    
+    if(e.data.TypeRelationAffaireLabId == _labIdRelationAffairesCessationAvecBlocageVente)
+    {
+        // TO DO
+    }
+    
     return true;
 }
+
 function partialConfirmationTransmissionDossierLab_gridPpPm_OnEditorPreparing(e) {
     if (e.parentType != "dataRow") {
         return;
@@ -9846,11 +9862,34 @@ function setPartialPersonnePhysiqueLabAdditionalValidationRules(order) {
     $("#PersonnePhysiqueLabDateCessationRelation" + order).dxValidator({
         validationRules: [
             {
-                type: 'required',
-                message: _labTranslatableMessageDateCessationRelationObligatoire
+                type: 'custom',
+                message: _labTranslatableMessageDateCessationRelationObligatoire,
+                validationCallback: function(args)
+                {
+                  return dateCessationRelationValidationCallback(
+                    _labPrefixIdTypeRelationAffairePersonnePhysique,
+                    _labPrefixIdCheckboxIsReaRejPersonnePhysique,
+                    order,
+                    args);
+                },
+                reevaluate: true
             }
         ]
     });
+}
+
+function dateCessationRelationValidationCallback(prefixIdTypeRelationAffaire, prefixIdCheckIsBoxReaRej, order, args)
+{
+    const isCessationBlocageVente = isCessationAvecBlocageVente(prefixIdTypeRelationAffaire + order);
+                   
+    const isReaRej = getIsReaRej(prefixIdCheckIsBoxReaRej + order);
+
+    if(isCessationBlocageVente && isReaRej)
+    {
+        return true;
+    }
+
+    return !!args.value;
 }
 
 function setPaysIdPersonnePhysiqueLabAdditionalValidationRules(order) {
@@ -10976,4 +11015,91 @@ function setPersonneMoraleFieldsValidators(index)
                 message: _labPersonneMoraleActiviteMaxLength
             }]
         });
+
+    $("#PersonneMoraleLabDateCessationRelation" + order).dxValidator({
+        validationRules: [
+            {
+                type: 'custom',
+                message: _labTranslatableMessageDateCessationRelationObligatoire,
+                validationCallback: function(args)
+                {
+                  return dateCessationRelationValidationCallback(
+                    _labPrefixIdTypeRelationAffairePersonneMorale,
+                    _labPrefixIdCheckboxIsReaRejPersonneMorale,
+                    order,
+                    args);
+                },
+                reevaluate: true
+            }
+        ]
+    });
+}
+
+function initIsReaRej(prefixIdTypeRelationAffaire, prefixIdDivIsReaRej, index)
+{
+    const isCessationBlocageVente = isCessationAvecBlocageVente(prefixIdTypeRelationAffaire + index);
+    
+    $("#" + prefixIdDivIsReaRej + index).toggle(isCessationBlocageVente);
+}
+
+function isCessationAvecBlocageVente(id)
+{
+    return getTypeRelationAffaire(id) == _labIdRelationAffairesCessationAvecBlocageVente;
+}
+
+function getTypeRelationAffaire(id)
+{
+    const typeRelationAffaireSelectBox = $("#" + id).dxSelectBox("instance");
+    
+    if(!typeRelationAffaireSelectBox)
+    {
+        return;
+    }
+
+    return typeRelationAffaireSelectBox.option("value");
+}
+
+function getIsReaRej(id)
+{
+    let isReaRej = null;
+    
+    const isReaRejCheckbox = $("#" + id).dxCheckBox('instance');
+    
+    if(isReaRejCheckbox)
+    {
+        isReaRej = isReaRejCheckbox.option("value");
+    }
+    return isReaRej;
+}
+
+function resetReaRejPersonnesMorales()
+{
+    resetReaRej(_labPrefixIdTypeRelationAffairePersonneMorale, _labPrefixIdCheckboxIsReaRejPersonneMorale);
+}
+
+function resetReaRejPersonnesPhysiques()
+{
+    resetReaRej(_labPrefixIdTypeRelationAffairePersonnePhysique, _labPrefixIdCheckboxIsReaRejPersonnePhysique);
+}
+
+function resetReaRej(prefixIdSelectboxTypeRelationAffaire, prefixIdCheckBoxReaRej)
+{
+    $("div[id^='" + prefixIdSelectboxTypeRelationAffaire + "']").each(function()
+    {
+        if(!isCessationAvecBlocageVente($(this).attr('id')))
+        {
+            const checkBoxReaRejElem = $(this).closest(".card-body").find("div[id^='" + prefixIdCheckBoxReaRej + "']");
+            if(!checkBoxReaRejElem.length)
+            {
+                return;
+            }
+            
+            const checkBoxInstance = checkBoxReaRejElem.dxCheckBox("instance");
+            if(!checkBoxInstance)
+            {
+                return;
+            }
+            checkBoxInstance.option("value", null);
+        }
+    });
 }
