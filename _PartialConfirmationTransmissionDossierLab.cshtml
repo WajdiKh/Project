@@ -1,0 +1,523 @@
+@inject IViewTranslator translator
+@inject IReferentielViewModel _referentiel;
+@model EditTransmissionDossierLabViewModel
+@{
+    var codeUniqueDossier = Model.CodeUniqueDossier;
+    var _lang = Context.Features.Get<IRequestCultureFeature>().RequestCulture.Culture.ToString().ToCamelCase();
+    Model.TransimissionUpdateNew = false;
+    var _isAdminGlobal = Model.IsAdminGlobal;
+    var origineGroupeLabs = _referentiel.OrigineGroupeLabs;
+    var categorieGroupeLabs = _referentiel.CategorieGroupeLabs;
+}
+
+<form id="saveTransmissionForm" asp-antiforgery="true" method="post" enctype="multipart/form-data" onsubmit="return false;">
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.CryptedDossierLabId)
+    @Html.HiddenFor(m => m.IsDs)
+    <div class="row">
+        <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 align-items-center">
+            <div class="smallCaps text-green col-md-4"> @translator.Common["Code"] </div>
+            <span style="color: red; font-size: 14px; color: #db1e27; font-weight: bold;">  @codeUniqueDossier.ToUpper(CultureInfo.CurrentCulture)</span>
+
+        </div>
+    </div>
+    <div class="row">
+
+        @if (Model.IsDs)
+        {
+            <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 align-items-center">
+                <div class="smallCaps text-green col-md-4">@translator.Common["TransmissionParquet"]</div>
+                @Html.DevExtreme().CheckBoxFor(x => x.IsTransmissionParquet).ID("IsTransmissionParquet").Name("IsTransmissionParquet").Width("100%")
+            </div>
+            <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 align-items-center">
+                <div class="smallCaps text-green col-md-4">@translator.Common["TransmissionAutoriteHorsTracfin"]</div>
+                @Html.DevExtreme().CheckBoxFor(x => x.IsTransmissionAutorite).ID("IsTransmissionAutorite").Name("IsTransmissionAutorite").Width("100%")
+            </div>
+            <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 align-items-center">
+                <div class="smallCaps text-green col-md-4">@translator.Common["DossierSuivi"]</div>
+                @Html.DevExtreme().CheckBoxFor(x => x.IsSuivi).ID("IsSuivi").Name("IsSuivi").Width("100%")
+            </div>
+        }
+        else
+        {
+            <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 align-items-center">
+                <div class="smallCaps text-green col-md-4">@translator.Common["DossierSuivi"]</div>
+                @Html.DevExtreme().CheckBoxFor(x => x.IsSuivi).ID("IsSuivi").Name("IsSuivi").Width("100%")
+            </div>
+        }
+    </div>
+
+    <div class="row">
+        <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 align-items-center">
+            <div class="smallCaps text-green col-md-4"> @translator.Common["EntiteAgence"] <span style="color: red">*</span></div>
+            @Html.DevExtreme().SelectBoxFor(x => x.EntiteId).ID("partialConfirmationTransmissionDossierLab_EntiteId").Height(30).Name("EntiteId").DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").Width("100%").SearchEnabled(true).DataSource(Model.EntitesDatasource)
+        </div>
+        <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 align-items-center">
+            <div class="smallCaps text-green col-md-4"> @translator.Common["DateReception"]</div>
+            @Html.DevExtreme().DateBoxFor(x => x.DateDetection).ID("partialConfirmationTransmissionDossierLab_DateAlerte").Height(30).Name("DateDetection").Width("100%")
+        </div>
+    </div>
+    <div class="row">
+        <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 ">
+            <div class="smallCaps text-green col-md-4"> @translator.Common["CategorieGroupeLab"]</div>
+            @Html.DevExtreme().SelectBoxFor(x => x.CategorieGroupeLabId).ID("partialConfirmationTransmissionDossierLab_CategorieGroupeLabId").Height(30).Name("CategorieGroupeLabId").DataSource(categorieGroupeLabs).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").ReadOnly(true).Width("100%")
+        </div>
+        <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 ">
+            <div class="smallCaps text-green col-md-4"> @translator.Common["Lab.Categorie"]  <span class="RequiredField">*</span></div>
+            @Html.DevExtreme().SelectBoxFor(x => x.CategorieLabId).ID("CategorieLabId").Height(30).Name("CategorieLabId").DataSource(Model.CategorieLabs).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").SearchEnabled(true).Width("100%")
+        </div>
+        @if (Model.CategorieGroupeLabId == 5 || Model.CategorieGroupeLabId == 6)
+        {
+            <div class="d-flex flex-row col-sm-12 col-md-3 col-lg-3 col-xl-4 pt-2 mt-2">
+                <div class="smallCaps text-green col-md-4"> @translator.Common["DateReponse"] </div>
+                @Html.DevExtreme().DateBoxFor(x => x.DateReponse).ID("partialConfirmationTransmissionDossierLab_DateReponse").Height(30).Name("DateReponse")
+            </div>
+        }
+    </div>
+    <div class="row">
+        <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 ">
+            <div class="smallCaps text-green col-md-4"> @translator.Common["OrigineGroupeLab"]</div>
+            @Html.DevExtreme().SelectBoxFor(x => x.OrigineGroupeLabId).ID("partialConfirmationTransmissionDossierLab_OrigineGroupeLabId").Height(30).Name("OrigineGroupeLabId").DataSource(origineGroupeLabs).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").SearchEnabled(true).Width("100%")
+
+        </div>
+        <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 ">
+            <div class="smallCaps text-green col-md-4"> @translator.Common["Origine"]  <span class="RequiredField">*</span></div>
+            @Html.DevExtreme().SelectBoxFor(x => x.OrigineLabId).ID("OrigineLabId").Height(30).Name("OrigineLabId").DataSource(Model.OrigineLabs).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").SearchEnabled(true).Width("100%")
+        </div>
+        <div class="d-flex flex-row col-sm-12 col-md-3 col-lg-3 col-xl-4 pt-2 mt-2 @(Model.DossierLabPersonneScenarios.Any() && Model.DossierLabPersonneScenarios.FirstOrDefault()?.ApplicationScenarioLabId != null   ? string.Empty : "dx-hidden")" id="ApplicationScenario">
+            <div class="smallCaps text-green col-md-4"> @translator.Common["ApplicationScenario"] </div>
+            @Html.DevExtreme().SelectBoxFor(x => x.ApplicationScenarioLabId).ID("ApplicationScenarioLabId").Height(30).Name("ApplicationScenarioLabId").DataSource(_referentiel.ApplicationScenarioLabs).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").SearchEnabled(true).ShowClearButton(true).Width("100%")
+        </div>
+    </div>
+    <div class="row">
+        <div class="d-flex flex-row col-sm-12 col-md-3 col-lg-3 col-xl-4 pt-2 mt-2">
+            <div class="smallCaps text-green col-md-4"> @translator.Common["SecteurEconomique"] </div>
+            @Html.DevExtreme().SelectBoxFor(x => x.SecteurEconomiqueId).ID("partialConfirmationTransmissionDossierLab_SecteurEconomiqueId").Height(30).Name("SecteurEconomiqueId").DataSource(_referentiel.SecteurEconomiqueLabs).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").SearchEnabled(true).ShowClearButton(true).Width("100%")
+        </div>
+        <div class="d-flex flex-row col-sm-12 col-md-4 col-lg-4 col-xl-4 pt-2 mt-2 align-items-center">
+            <div class="smallCaps text-green col-md-4"> @translator.Common["Pays"]  <span class="RequiredField">*</span></div>
+            @Html.DevExtreme().SelectBoxFor(x => x.PaysId).ID("partialConfirmationTransmissionDossierLab_PaysId").Height(30).Name("PaysId").DataSource(_referentiel.Pays).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").SearchEnabled(true).Width("70%")
+        </div>
+        <div class="d-flex flex-row col-sm-12 col-md-3 col-lg-3 col-xl-4 pt-2 mt-2 @(Model.DossierLabPersonneScenarios.Any()&& Model.DossierLabPersonneScenarios.FirstOrDefault()?.ScenarioLabId != null  ? string.Empty : " dx-hidden")" id="Scenario">
+            <div class="smallCaps text-green col-md-4"> @translator.Common["Scenario"]  </div>
+            @Html.DevExtreme().SelectBoxFor(x => x.ScenarioLabId).ID("ScenarioLabId").Height(30).Name("ScenarioLabId").DataSource(_referentiel.ScenarioLabs).DataSourceOptions(c => c.Sort($"Name{_lang}")).DisplayExpr($"Name{_lang}").ValueExpr("Id").SearchEnabled(true).ShowClearButton(true).Width("100%")
+        </div>
+    </div>
+    <div class="row">
+
+
+        @if (Model.IsDs)
+        {
+            <div class="d-flex flex-row col-sm-12 col-md-3 col-lg-3 col-xl-4 pt-2 mt-2">
+                <div class="smallCaps text-green col-md-4"> @translator.Common["NumeroAccuseReceptionTracfin"]</div>
+                @Html.DevExtreme().TextBoxFor(x => x.NumeroAccuseReception).ID("NumeroAccuseReception").Height(30).Width("100%").Name("NumeroAccuseReception")
+            </div>
+
+            <div class="d-flex flex-row col-sm-12 col-md-3 col-lg-3 col-xl-4 pt-2 mt-2">
+                <div class="smallCaps text-green col-md-4"> @translator.Common["ReferenceInterne"]</div>
+                @Html.DevExtreme().TextBoxFor(x => x.ReferenceInterne).ID("ReferenceInterne").Height(30).Width("100%").Name("ReferenceInterne").ReadOnly(!_isAdminGlobal)
+            </div>
+        }
+    </div>
+    <div class="col-sm-12 col-md-12 col-lg-12 col-xl-12 mt-2 mb-2 p-0">
+        <div class="card">
+            <div class="flex d-flex card-header card-header-bloc justify-content-between">
+                <h6 class="m-2 text-green text-font-weight-600">
+                    <i class="fas fa-paperclip mr-2"></i>@translator.Common["Attachments"]
+                </h6>
+
+                <div class="flex">
+                    @*      @if (Model.DocumentDossierLabs.Count > 0)
+                        { *@
+                    @(Html.DevExtreme().Button()
+                                .ID("btnDownloadAllFiles")
+                                .Hint(translator.Common["DownloadAll"])
+                                .Icon("fas fa-download color-blue2")
+                                .Type(ButtonType.Normal)
+                                .OnClick(@<text>
+                            function () {
+                            downloadAllDocumentsLab('@Model.CryptedDossierLabId');
+                            }
+                        </text>))
+                    @(Html.DevExtreme().Button()
+                        .ID("btnShowFormAttachments")
+                        .Hint(translator.Common["AddDocument"])
+                        .Type(ButtonType.Normal)
+                        .Icon("add")
+                        .ElementAttr("class", "color-blue")
+                        .OnClick(@<text>
+                        function () {
+                        showFormAttachments('@Model.TransimissionUpdateNew');
+                        }
+                    </text>))
+                </div>
+            </div>
+
+            <div class="card-body">
+
+                @(Html.DevExtreme().DataGrid()
+                        .ID("gridAttachmentsLab")
+                        .Selection(s => s.Mode(SelectionMode.Single))
+                        .HoverStateEnabled(true)
+                        .SearchPanel(searchPanel => searchPanel.Visible(false))
+                        .RemoteOperations(false)
+                        .AllowColumnReordering(true)
+                        .RowAlternationEnabled(false)
+                        .ShowBorders(true)
+                        .AllowColumnResizing(true)
+                        .ColumnAutoWidth(true)
+                        .ColumnChooser(cc => cc.Enabled(false).AllowSearch(false))
+                        .Selection(s => s.Mode(SelectionMode.Single))
+                        .Pager(pager =>
+                            pager.ShowPageSizeSelector(true)
+                                .ShowNavigationButtons(true)
+                                .Visible(true)
+                        .AllowedPageSizes(new List<int> { 5, 10 }))
+                        .Columns(columns =>
+                        {
+                            columns.Add().DataField("DocumentName").Caption(translator.Common["DocumentName"]);
+                            columns.Add().DataField("CategorieDocumentName").Caption(translator.Common["FileCategory"]);
+                            columns.Add().DataField("FileName").Caption(translator.Common["FileName"]);
+
+
+                            columns.Add()
+                            .Type(GridCommandColumnType.Buttons)
+                            .Width(110)
+                            .Buttons(b =>
+                            {
+
+                                b.Add()
+                            .Hint("Download")
+                            .Icon("download")
+                            .OnClick("downloadDocumentLab");
+
+                            });
+
+                        })
+                        .MasterDetail(md =>
+                        {
+                            md.Enabled(true);
+                            md.Template(@<text>
+
+                        <% if(data.CategorieDocumentId === 8) { %>
+                        <table class="table table-bordered table-sm">
+                            <thead>
+                                <tr>
+                                    <th scope="col">@translator.Common["TypeFileDocument"]</th>
+                                    <% if(data.TypeDocumentLabCode == "TA2" || data.TypeDocumentLabCode == "TA3" || data.TypeDocumentLabCode == "TA5"  || data.TypeDocumentLabCode == "TA9") { %>
+                                    <th scope="col">@translator.Common["IdentityNumber"]</th>
+                                    <th scope="col">@translator.Common["AuthorityRelease"]</th>
+                                    <th scope="col">@translator.Common["CountryRelase"]</th>
+                                    <th scope="col">@translator.Common["DateValidity"]</th>
+                                    <% } %>
+                                    <% if(data.TypeDocumentLabCode == "TA2" ) { %>
+                                    <th scope="col">@translator.Common["LevelCNI"]</th>
+                                    <% } %>
+                                    <% if(data.TypeDocumentLabCode == "TA17"  || data.TypeDocumentLabCode == "TA8") { %>
+                                    <th scope="col">@translator.Common["Precision_if_OtherType"]</th>
+                                    <% } %>
+                                    <% if(data.TypeDocumentLabCode == "TA10" ) { %>
+                                    <th scope="col">@translator.Common["SourceFileDocument"]</th>
+                                    <% } %>
+                                    <% if(data.TypeDocumentLabCode == "TA1" || data.TypeDocumentLabCode == "TA4"|| data.TypeDocumentLabCode == "TA6" || data.TypeDocumentLabCode == "TA7" || data.TypeDocumentLabCode == "TA8"|| data.TypeDocumentLabCode == "TA10" || data.TypeDocumentLabCode == "TA11" || data.TypeDocumentLabCode == "TA12" || data.TypeDocumentLabCode == "TA13"  || data.TypeDocumentLabCode == "TA14"  || data.TypeDocumentLabCode == "TA15"  || data.TypeDocumentLabCode == "TA16"  || data.TypeDocumentLabCode == "TA17" ) { %>
+                                    <th scope="col">@translator.Common["DateDocument"]</th>
+                                    <% } %>
+
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><%- data.TypeDocumentLabName %></td>
+                                    <% if(data.TypeDocumentLabCode == "TA2" || data.TypeDocumentLabCode == "TA3" || data.TypeDocumentLabCode == "TA5"  || data.TypeDocumentLabCode == "TA9") { %>
+                                    <td><%- data.IdentityNumber %></td>
+                                    <td><%- data.AuthorityRelease %></td>
+                                    <td><%- data.CountryRelaseName %></td>
+                                    <td><%- data.DateValidity %></td>
+                                    <% } %>
+
+                                    <% if(data.TypeDocumentLabCode == "TA2" ) { %>
+                                    <td style='text-align:center; vertical-align:middle'>
+                                        <% if(data.LevelCNI == true ) { %>
+                                        <input type="checkbox" disabled="disabled" checked="checked">
+                                        <% } else { %>
+                                        <input type="checkbox" disabled="disabled">
+                                        <% } %>
+                                    </td>
+                                    <% } %>
+                                    <% if(data.TypeDocumentLabCode == "TA17"  || data.TypeDocumentLabCode == "TA8") { %>
+                                    <td><%- data.Precision_if_OtherType %></td>
+                                    <% } %>
+                                    <% if(data.TypeDocumentLabCode == "TA10" ) { %>
+                                    <td><%- data.SourceFileDocument %></td>
+                                    <% } %>
+                                    <% if(data.TypeDocumentLabCode == "TA1" || data.TypeDocumentLabCode == "TA4"|| data.TypeDocumentLabCode == "TA6" || data.TypeDocumentLabCode == "TA7" || data.TypeDocumentLabCode == "TA8"|| data.TypeDocumentLabCode == "TA10" || data.TypeDocumentLabCode == "TA11" || data.TypeDocumentLabCode == "TA12" || data.TypeDocumentLabCode == "TA13"  || data.TypeDocumentLabCode == "TA14"  || data.TypeDocumentLabCode == "TA15"  || data.TypeDocumentLabCode == "TA16"  || data.TypeDocumentLabCode == "TA17" ) { %>
+                                    <td><%- data.DateDocument %></td>
+                                    <% } %>
+
+                                </tr>
+                            </tbody>
+                        </table>
+                        <% } %>
+                    </text>);
+                        })
+                        .OnInitialized(@<text>
+                        function () {
+                    initDataAttachments('@Model.CryptedDossierLabId');
+                        }
+                    </text>)
+
+                        )
+
+            </div>
+        </div>
+    </div>
+
+
+    @{
+        var secondModel = ViewBag.PersonnePhysiqueLabViewModel as PersonnePhysiqueLabViewModel;
+    }
+
+    <div class="col-12 mb-3 p-0 @(Model.PersonnePhysiqueLabs.Count > 0 ? string.Empty : "dx-hidden")">
+        <div class="card bloc-card-personne">
+            <div class="card-body p-2">
+                <h6 class="card-title">@translator.Common["PersonnesPhysiques"]</h6>
+                <div class="row">
+                    <div class="col-md-12 p-12">
+                        @(Html.DevExtreme().DataGrid<PersonnePhysiqueLabViewModel>()
+                                .ID("gridPpRelation")
+                                .ShowBorders(true)
+                                .Pager(pager =>
+                                    pager.ShowPageSizeSelector(true)
+                                        .ShowNavigationButtons(true)
+                                        .Visible(true)
+                                        .AllowedPageSizes(new List<int> { 5, 10 }))
+                                .Editing(editing =>
+                                {
+                                    editing.Mode(GridEditMode.Row);
+                                    editing.AllowUpdating(true);
+                                    editing.UseIcons(true);
+                                })
+                                .Columns(columns =>
+                                {
+                                    columns.AddFor(m => m.Id).Visible(false).SortOrder(SortOrder.Desc);
+                                    columns.AddFor(m => m.NomNaissance)
+                                        .Caption(translator.Common["NomNaissance"])
+                                        .AllowEditing(false);
+                                    columns.AddFor(m => m.Prenoms)
+                                        .Caption(translator.Common["Prenoms"])
+                                        .AllowEditing(false);
+                                    columns.AddFor(m => m.DateNaissanceDisplay)
+                                        .Caption(translator.Common["DateNaissance"])
+                                        .AllowEditing(false);
+                                    columns.AddFor(m => m.TypeRelationAffaireLabId)
+                                        .Caption(translator.Common["TypeRelationAffaire"])
+                                        .AllowSorting(false)
+                                        .Lookup(lookup => lookup
+                                            .DataSource(_referentiel.TypeRelationAffaireFraudes)
+                                            .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                            .DisplayExpr($"Name{_lang}").ValueExpr("Id")
+                                        );
+                                    columns.AddFor(m => m.DateCessationRelations)
+                                        .Caption(translator.Common["DateCessationRelation"])
+                                        .AllowSorting(false)
+                                        .ValidationRules(
+                                        r =>
+                                        {
+                                            r.AddCustom()
+                                        .Message(translator.Common["DateCessationRelationObligatoire"])
+                                        .ValidationCallback("DateCessationRelations_ValidationCallback");
+                                        });
+
+                                    columns.AddFor(m => m.CryptedId).Visible(false);
+                                })
+                                .DataSource(Model.PersonnePhysiqueLabs).OnRowUpdated(@<text>
+                                                                                          function(e)
+                                                                                          {
+                                                                                          updateListPersonnePhysiquesForm();
+                                                                                          } </text>)
+                                .OnEditorPreparing("partialConfirmationTransmissionDossierLab_gridPpPm_OnEditorPreparing"))
+                    </div>
+                    <div class="col-md-12 dx-hidden" id="personne-physique-relation-form-container"></div>
+                    <div class="col-md-12 dx-hidden" id="pieces-jointes-form-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="col-12 mb-3 p-0 @(Model.PersonneMoraleLabs.Count > 0 ? string.Empty : "dx-hidden")">
+        <div class="card bloc-card-personne">
+            <div class="card-body p-2">
+                <h6 class="card-title">@translator.Common["PersonnesMorales"]</h6>
+                <div class="row">
+                    <div class="col-md-12 p-12">
+                        @(
+                                Html.DevExtreme().DataGrid<PersonneMoraleLabViewModel>()
+                                .ID("gridPersonneMorale")
+                                .ShowBorders(true)
+                                .Paging(p => p.PageSize(5))
+                                .Pager(pager =>
+                                pager.ShowPageSizeSelector(true)
+                                .ShowNavigationButtons(true)
+                                .Visible(true)
+                                .AllowedPageSizes(new List<int> { 5, 10 }))
+                                .Editing(editing =>
+                                {
+                                    editing.Mode(GridEditMode.Row);
+                                    editing.AllowUpdating(true);
+                                    editing.UseIcons(true);
+                                })
+                                .Columns(columns =>
+                                {
+                                    columns.AddFor(m => m.Id).Visible(false).SortOrder(SortOrder.Desc);
+                                    columns.AddFor(m => m.RaisonSociale)
+                                    .Caption(translator.Common["RaisonSociale"])
+                                    .AllowEditing(false);
+                                    columns.AddFor(m => m.NumeroImmatriculation)
+                                    .Caption(translator.Common["NumeroImmatriculation"])
+                                    .AllowEditing(false);
+                                    columns.AddFor(m => m.TypeRelationAffaireLabId)
+                                    .Caption(translator.Common["TypeRelationAffaire"])
+                                    .AllowSorting(false)
+                                    .Lookup(lookup => lookup
+                                    .DataSource(_referentiel.TypeRelationAffaireLabs)
+                                    .DataSourceOptions(c => c.Sort($"Name{_lang}"))
+                                    .DisplayExpr($"Name{_lang}").ValueExpr("Id"));
+                                    columns.AddFor(m => m.DateCessationRelations)
+                                    .Caption(translator.Common["DateCessationRelation"])
+                                    .AllowSorting(false)
+                                    .ValidationRules(
+                                    r =>
+                                    {
+                                        r.AddCustom()
+                                    .Message(translator.Common["DateCessationRelationObligatoire"])
+                                    .ValidationCallback("DateCessationRelations_ValidationCallback");
+                                    });
+                                    columns.AddFor(m => m.CryptedId).Visible(false);
+
+                                })
+                                .DataSource(Model.PersonneMoraleLabs).OnRowUpdated(
+                                @<text>
+                                    function(e)
+                                    {
+                                    updateListPersonneMoralesForm();
+                                    }
+                                </text>)
+                                .OnEditorPreparing("partialConfirmationTransmissionDossierLab_gridPpPm_OnEditorPreparing"))
+                    </div>
+                    <div class="col-md-12 dx-hidden" id="personne-morale-relation-form-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <div class="row mt-4" style="float:right ;">
+        <div class="d-flex justify-content-end pr-2">
+            <div>
+                @(Html.DevExtreme()
+                .Button().ID("btnSaveTransmission")
+                .Text(translator.Common["Save"])
+                .UseSubmitBehavior(false)
+                .Type(ButtonType.Normal)
+                .Icon("save")
+                .ElementAttr("class", "color-blue")
+                .OnClick("btnConfirmTransmission_click"))
+            </div>
+            <div class="ml-2 ">
+                @(Html.DevExtreme().Button()
+                .ID("btnCancelTransmission")
+                .Text(translator.Common["Exit"])
+                .Type(ButtonType.Normal)
+                .Icon("fas fa-door-open").ElementAttr("class", "color-blue")
+                .OnClick("btnCancelTransmission_click"))
+
+            </div>
+        </div>
+    </div>
+    @(Html.DevExtreme().Popup()
+		.ID("modalAttachments")
+		.ElementAttr(new Dictionary<string, object>
+		{{"class", "popup"}})
+		.ShowTitle(true)
+		.DragEnabled(true)
+		.ShowCloseButton(false)
+		.ShowTitle(true)
+		.ResizeEnabled(false)
+		.Width("35%").Height(500)
+		.TitleTemplate(@<text>
+			               <div class="d-flex flex-row align-items-center justify-content-between">
+                               <div class="font-size-16px text-green text-font-weight-600 smallCaps text-green"><i class="fas fa-plus mr-2"></i>@translator.Common["AjouterPieceJointe"] </div>
+                                <button style="cursor: pointer; font-size: 24px; background-color: transparent; border: none; padding: 0; color: inherit;" onclick="$('#modalAttachments').dxPopup('hide');">&times;</button>
+			               </div>
+		                </text>)
+		.Height("auto").Content("<div id=\"attachments-container\"></div>")
+		.OnShown(@<text>
+			         function (e)
+			         {
+			         $("#modalAttachments").dxPopup({
+			         position: "center"
+			         });
+			         }
+		          </text>))
+    <script>
+	        if ("@Model.IsDs" != "True") {
+				var divTitle = document.getElementById("TransmissionDossierLabModalPreviewTitle");
+	            divTitle.innerHTML = "<i class='fas fa-upload'></i>  @Html.Raw(translator.Common["QuickUpdate"])";
+	        }
+
+    </script>
+    <script>
+
+        $(function () {
+
+            const allScenarios = @Html.Raw(Json.Serialize(_referentiel.ScenarioLabs));
+            $("#ApplicationScenarioLabId").dxSelectBox("instance").option("onValueChanged", function (e) {
+                const selectedAppScenarioId = e.value;
+                const filteredScenarios = allScenarios.filter(s => s.ApplicationScenarioLabId === selectedAppScenarioId);
+                const scenarioSelectBox = $("#ScenarioLabId").dxSelectBox("instance");
+                scenarioSelectBox.option("dataSource", filteredScenarios);
+                scenarioSelectBox.reset();
+            });
+
+        });
+
+    </script>
+    <script>
+
+        $(function () {
+
+            const origineData = @Html.Raw(Json.Serialize(Model.OrigineLabs));
+
+
+
+            $("#OrigineLabId").dxSelectBox("instance").option("onValueChanged", function (e) {
+
+                const selectedId = e.value;
+
+                const selectedOrigine = origineData.find(o => o.Id === selectedId);
+                const showExtra = selectedOrigine && (selectedOrigine.FonctionLabId === _labFonctionScenarioId || selectedOrigine.FonctionLabId === _labFonctionOperationScenarioId);
+                const select1 = $("#ApplicationScenario");
+                const select2 = $("#Scenario");
+                const selectBox1 = $("#ScenarioLabId").dxSelectBox("instance");
+                const selectBox2 = $("#ApplicationScenarioLabId").dxSelectBox("instance");
+                if (showExtra) {
+                    select1.removeClass("dx-hidden");
+                    select2.removeClass("dx-hidden");
+                } else {
+                    select1.addClass("dx-hidden");
+                    select2.addClass("dx-hidden");
+                    selectBox1.reset();
+                    selectBox2.reset();
+
+
+                }
+
+            });
+
+        });
+
+    </script>
+</form>
+
+
