@@ -1,4 +1,1182 @@
- private readonly ApplicationSettings _settings;
-dans le constructeur injecter IOptions<ApplicationSettings> settings 
-puis dans le corps _settings = settings.Value;
-contact/contactez _settings.DefaultEmail
+======================================================================
+ÉVOLUTION TRANSFERT
+- Retirer la clé du template DocumentPartage
+- Ajouter DocumentCleChiffrement
+- Ne créer cette notification que si la clé est renseignée
+- Transaction unique : document + partages + notifications
+======================================================================
+
+
+======================================================================
+1. ENUM NotificationType
+======================================================================
+
+Dans le fichier qui contient l’enum NotificationType, ajouter après
+DocumentTelecharge = 87 :
+
+public enum NotificationType
+{
+    // Valeurs existantes inchangées...
+
+    DemandeHabilitationAdminLocal = 84,
+    DegelTransactionGdaModified = 85,
+    DocumentPartage = 86,
+    DocumentTelecharge = 87,
+
+    DocumentCleChiffrement = 88
+}
+
+
+======================================================================
+2. IDocumentService.cs
+======================================================================
+
+Conserver toutes les méthodes existantes.
+
+Ajouter la nouvelle méthode suivante :
+
+Task<bool> AddDocumentWithSharesAndNotificationsAsync(
+    Document document,
+    IEnumerable<DocumentShare> shares,
+    IEnumerable<EmailNotification> notifications,
+    CancellationToken token = default);
+
+
+Vérifier que les namespaces suivants sont présents :
+
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using BacaratWeb.Entities.Commun;
+using BacaratWeb.Entities.Transfert;
+
+
+======================================================================
+3. DocumentService.cs
+======================================================================
+
+Conserver AddDocumentWithSharesAsync et toutes les autres méthodes
+existantes.
+
+Ajouter cette nouvelle méthode juste après AddDocumentWithSharesAsync :
+
+public async Task<bool> AddDocumentWithSharesAndNotificationsAsync(
+    Document document,
+    IEnumerable<DocumentShare> shares,
+    IEnumerable<EmailNotification> notifications,
+    CancellationToken token = default)
+{
+    if (document == null)
+        throw new ArgumentNullException(nameof(document));
+
+    var sharesToAdd = shares?.ToList()
+        ?? new List<DocumentShare>();
+
+    var notificationsToAdd = notifications?.ToList()
+        ?? new List<EmailNotification>();
+
+    if (!sharesToAdd.Any() || !notificationsToAdd.Any())
+        return false;
+
+    await using var transaction =
+        await Context.Database.BeginTransactionAsync(token);
+
+    try
+    {
+        await Context.Documents.AddAsync(document, token);
+
+        foreach (var share in sharesToAdd)
+        {
+            share.Document = document;
+            share.IsActive = true;
+        }
+
+        await Context.DocumentShares.AddRangeAsync(
+            sharesToAdd,
+            token);
+
+        await Context.EmailNotifications.AddRangeAsync(
+            notificationsToAdd,
+            token);
+
+        var result = await Context.SaveChangesAsync(token);
+
+        if (result <= 0)
+        {
+            await transaction.RollbackAsync(token);
+            return false;
+        }
+
+        await transaction.CommitAsync(token);
+        return true;
+    }
+    catch
+    {
+        await transaction.RollbackAsync(token);
+        throw;
+    }
+}
+
+
+Ajouter les using si absents :
+
+using BacaratWeb.Entities.Commun;
+using Microsoft.EntityFrameworkCore.Storage;
+
+
+Remarque :
+
+Microsoft.EntityFrameworkCore.Storage n’est pas obligatoire si aucune
+référence explicite à IDbContextTransaction n’est utilisée. Il peut donc
+être omis dans cette implémentation.
+
+
+======================================================================
+4. DocumentController.cs — USING ET CHAMP PRIVÉ
+======================================================================
+
+Ajouter :
+
+using Microsoft.Extensions.Options;
+
+
+Dans les champs privés du contrôleur, ajouter :
+
+private readonly ApplicationSettings _settings;
+
+
+La création des notifications se trouve actuellement dans
+DocumentController et non dans DocumentService. L’injection de
+ApplicationSettings doit donc être faite ici.
+
+
+======================================================================
+5. DocumentController.cs — CONSTRUCTEUR
+======================================================================
+
+Ajouter le paramètre suivant à la fin du constructeur :
+
+IOptions<ApplicationSettings> settings
+
+
+Le constructeur devient, en conservant tous ses paramètres actuels :
+
+public DocumentController(
+    IHttpContextAccessor httpContextAccessor,
+    IMapper mapper,
+    IReferentielService referentielService,
+    IUserInfoService userInfoService,
+    IDocumentService documentService,
+    IUtilisateurService utilisateurService,
+    IRoleAccessUser roleAccessUser,
+    IViewTranslator translator,
+    IEmailNotificationService emailNotificationService,
+    IEmailNotificationTemplateService emailNotificationTemplateService,
+    ILogger logger,
+    IEventDossierLogger eventDossierLogger,
+    IUtilisateurDirectionService utilisateurDirectionService,
+    IOptions<ApplicationSettings> settings)
+    : base(
+        httpContextAccessor,
+        mapper,
+        referentielService,
+        userInfoService)
+{
+    _documentService =
+        documentService
+        ?? throw new ArgumentNullException(nameof(documentService));
+
+    _utilisateurService =
+        utilisateurService
+        ?? throw new ArgumentNullException(nameof(utilisateurService));
+
+    _roleAccessUser =
+        roleAccessUser
+        ?? throw new ArgumentNullException(nameof(roleAccessUser));
+
+    _translator =
+        translator
+        ?? throw new ArgumentNullException(nameof(translator));
+
+    _emailNotificationService =
+        emailNotificationService
+        ?? throw new ArgumentNullException(
+            nameof(emailNotificationService));
+
+    _emailNotificationTemplateService =
+        emailNotificationTemplateService
+        ?? throw new ArgumentNullException(
+            nameof(emailNotificationTemplateService));
+
+    _logger =
+        logger
+        ?? throw new ArgumentNullException(nameof(logger));
+
+    _eventDossierLogger =
+        eventDossierLogger
+        ?? throw new ArgumentNullException(
+            nameof(eventDossierLogger));
+
+    _utilisateurDirectionService =
+        utilisateurDirectionService
+        ?? throw new ArgumentNullException(
+            nameof(utilisateurDirectionService));
+
+    _settings =
+        settings?.Value
+        ?? throw new ArgumentNullException(nameof(settings));
+}
+
+
+======================================================================
+6. DocumentController.cs — MODIFICATION DE SaveDocument
+======================================================================
+
+Dans SaveDocument, conserver toutes les validations et toute la
+construction actuelle du document et des partages.
+
+Remplacer uniquement cette partie :
+
+var saved = await _documentService.AddDocumentWithSharesAsync(
+    document,
+    shares,
+    token);
+
+if (!saved)
+    return BadRequest(
+        _translator.Common[
+            "Transfert.Document.ErrorWhileSavingDocument"
+        ]);
+
+var notificationsSent =
+    await SendNotificationDocumentPartage(
+        document,
+        shares,
+        token);
+
+if (!notificationsSent)
+    return BadRequest(
+        _translator.Common[
+            "Transfert.Document.ShareNotificationError"
+        ]);
+
+return Ok(new { success = true });
+
+
+Par :
+
+var notifications =
+    await BuildDocumentCreationNotificationsAsync(
+        document,
+        shares,
+        token);
+
+if (!notifications.Any())
+{
+    return BadRequest(
+        _translator.Common[
+            "Transfert.Document.ShareNotificationError"
+        ]);
+}
+
+var saved =
+    await _documentService
+        .AddDocumentWithSharesAndNotificationsAsync(
+            document,
+            shares,
+            notifications,
+            token);
+
+if (!saved)
+{
+    return BadRequest(
+        _translator.Common[
+            "Transfert.Document.ErrorWhileSavingDocument"
+        ]);
+}
+
+return Ok(new { success = true });
+
+
+Ainsi, SaveDocument n’appelle plus PushNotifications séparément.
+
+Les éléments suivants sont maintenant enregistrés par un seul
+SaveChangesAsync et dans une seule transaction :
+
+- Document ;
+- DocumentShare ;
+- EmailNotification DocumentPartage ;
+- EmailNotification DocumentCleChiffrement, lorsque nécessaire.
+
+
+======================================================================
+7. DocumentController.cs
+   CONSTRUCTION DE TOUTES LES NOTIFICATIONS DE CRÉATION
+======================================================================
+
+Ajouter la méthode suivante à proximité des méthodes de notification :
+
+private async Task<List<EmailNotification>>
+    BuildDocumentCreationNotificationsAsync(
+        Document document,
+        IEnumerable<DocumentShare> shares,
+        CancellationToken token = default)
+{
+    var notifications =
+        await BuildDocumentPartageNotificationsAsync(
+            document,
+            shares,
+            token);
+
+    if (!string.IsNullOrWhiteSpace(document.EncryptionKey))
+    {
+        var encryptionKeyNotifications =
+            await BuildDocumentEncryptionKeyNotificationsAsync(
+                document,
+                shares,
+                token);
+
+        notifications.AddRange(encryptionKeyNotifications);
+    }
+
+    return notifications;
+}
+
+
+======================================================================
+8. DocumentController.cs
+   REFACTORING SANS RÉGRESSION DE SendNotificationDocumentPartage
+======================================================================
+
+Remplacer la méthode actuelle :
+
+private async Task<bool> SendNotificationDocumentPartage(...)
+
+par les deux méthodes suivantes.
+
+La première conserve le comportement utilisé par SaveShareDocument :
+
+private async Task<bool> SendNotificationDocumentPartage(
+    Document document,
+    IEnumerable<DocumentShare> shares,
+    CancellationToken token = default)
+{
+    var emailNotifications =
+        await BuildDocumentPartageNotificationsAsync(
+            document,
+            shares,
+            token);
+
+    if (!emailNotifications.Any())
+        return false;
+
+    return await _emailNotificationService.PushNotifications(
+        emailNotifications,
+        token);
+}
+
+
+La seconde construit les notifications sans les insérer :
+
+private async Task<List<EmailNotification>>
+    BuildDocumentPartageNotificationsAsync(
+        Document document,
+        IEnumerable<DocumentShare> shares,
+        CancellationToken token = default)
+{
+    var emailNotifications =
+        new List<EmailNotification>();
+
+    foreach (var share in shares)
+    {
+        var recipient =
+            await ResolveShareRecipientAsync(
+                share,
+                token);
+
+        if (recipient == null)
+            continue;
+
+        var template =
+            await _emailNotificationTemplateService
+                .GetEmailNotification(
+                    (int)ActiviteModule.TRANSFERT,
+                    (int)NotificationType.DocumentPartage,
+                    recipient.LangueId,
+                    token);
+
+        if (template == null)
+        {
+            throw new CustomMessageException(
+                "DocumentPartage notification template not found");
+        }
+
+        var cultureInfo =
+            Culture.GetCultureByLanguageId(
+                template.LangueId);
+
+        emailNotifications.Add(
+            BuildShareEmailNotification(
+                document,
+                recipient,
+                template,
+                cultureInfo));
+    }
+
+    return emailNotifications;
+}
+
+
+======================================================================
+9. DocumentController.cs
+   SUPPRESSION DE LA CLÉ DANS DocumentPartage
+======================================================================
+
+La méthode BuildShareEmailNotification actuelle reçoit inutilement
+DocumentShare et transmet six paramètres, dont EncryptionKey.
+
+La remplacer par :
+
+private EmailNotification BuildShareEmailNotification(
+    Document document,
+    Utilisateur recipient,
+    EmailNotificationTemplate template,
+    CultureInfo cultureInfo)
+{
+    var expiryDelayLabel =
+        GetDocumentExpiryDelayLabel(
+            document.ExpiryDelayHours.Value);
+
+    var bodyArgs = new object[]
+    {
+        document.Name,                                      // {0}
+        UtilisateurHelper.FormatUserName(
+            CurrentUser.Prenom,
+            CurrentUser.Nom),                              // {1}
+        expiryDelayLabel,                                  // {2}
+        GetTransfertUrl(),                                 // {3}
+        document.SecurityCode                              // {4}
+    };
+
+    return new EmailNotification
+    {
+        EmailTo = recipient.Email,
+        Subject = string.Format(
+            cultureInfo,
+            template.Subject,
+            document.Name),
+        Body = string.Format(
+            cultureInfo,
+            template.Body,
+            bodyArgs),
+        DateNotification = DateTime.Now
+    };
+}
+
+
+La clé de chiffrement n’est donc plus transmise à DocumentPartage.
+
+
+======================================================================
+10. DocumentController.cs
+    NOUVELLE NOTIFICATION DocumentCleChiffrement
+======================================================================
+
+Ajouter :
+
+private async Task<List<EmailNotification>>
+    BuildDocumentEncryptionKeyNotificationsAsync(
+        Document document,
+        IEnumerable<DocumentShare> shares,
+        CancellationToken token = default)
+{
+    var emailNotifications =
+        new List<EmailNotification>();
+
+    if (string.IsNullOrWhiteSpace(document.EncryptionKey))
+        return emailNotifications;
+
+    foreach (var share in shares)
+    {
+        var recipient =
+            await ResolveShareRecipientAsync(
+                share,
+                token);
+
+        if (recipient == null)
+            continue;
+
+        var template =
+            await _emailNotificationTemplateService
+                .GetEmailNotification(
+                    (int)ActiviteModule.TRANSFERT,
+                    (int)NotificationType.DocumentCleChiffrement,
+                    recipient.LangueId,
+                    token);
+
+        if (template == null)
+        {
+            throw new CustomMessageException(
+                "DocumentCleChiffrement notification template not found");
+        }
+
+        var cultureInfo =
+            Culture.GetCultureByLanguageId(
+                template.LangueId);
+
+        emailNotifications.Add(
+            BuildEncryptionKeyEmailNotification(
+                document,
+                recipient,
+                template,
+                cultureInfo));
+    }
+
+    return emailNotifications;
+}
+
+
+Ajouter également :
+
+private EmailNotification BuildEncryptionKeyEmailNotification(
+    Document document,
+    Utilisateur recipient,
+    EmailNotificationTemplate template,
+    CultureInfo cultureInfo)
+{
+    var senderName =
+        UtilisateurHelper.FormatUserName(
+            CurrentUser.Prenom,
+            CurrentUser.Nom);
+
+    var bodyArgs = new object[]
+    {
+        senderName,                    // {0}
+        document.EncryptionKey,        // {1}
+        _settings.DefaultEmail         // {2}
+    };
+
+    return new EmailNotification
+    {
+        EmailTo = recipient.Email,
+        Subject = string.Format(
+            cultureInfo,
+            template.Subject,
+            document.Name),
+        Body = string.Format(
+            cultureInfo,
+            template.Body,
+            bodyArgs),
+        DateNotification = DateTime.Now
+    };
+}
+
+
+======================================================================
+11. EmailNotificationService.cs
+======================================================================
+
+Aucune modification n’est nécessaire.
+
+PushNotifications reste utilisé par :
+
+- SaveShareDocument ;
+- les notifications de téléchargement ;
+- les autres modules.
+
+SaveDocument n’utilise simplement plus PushNotifications, parce que
+la transaction complète est maintenant gérée dans DocumentService.
+
+Cela évite :
+
+- une transaction imbriquée ;
+- un commit du document avant les notifications ;
+- une notification enregistrée sans document ;
+- un document enregistré sans toutes ses notifications.
+
+
+======================================================================
+12. SQL DE MIGRATION POUR LA PRODUCTION
+======================================================================
+
+Ce script :
+
+- ne supprime pas DocumentPartage ;
+- met à jour ses templates FR et EN ;
+- crée le type 88 DocumentCleChiffrement ;
+- crée les deux nouveaux templates ;
+- récupère l’ActiviteId, le ScopeId, la DirectionId et les utilisateurs
+  techniques depuis les templates DocumentPartage existants ;
+- peut être rejoué sans créer de doublon.
+
+USE [BacaratWeb];
+GO
+
+SET XACT_ABORT ON;
+GO
+
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    DECLARE @DocumentPartageTypeId INT = 86;
+    DECLARE @DocumentCleChiffrementTypeId INT = 88;
+    DECLARE @Now DATETIMEOFFSET(7) = SYSDATETIMEOFFSET();
+
+    --------------------------------------------------------------
+    -- Contrôle de cohérence de l’ID 88
+    --------------------------------------------------------------
+
+    IF EXISTS
+    (
+        SELECT 1
+        FROM [Commun].[EmailNotificationType]
+        WHERE [Id] = @DocumentCleChiffrementTypeId
+          AND [Code] <> N'DocumentCleChiffrement'
+    )
+    BEGIN
+        THROW 50001,
+            'L''ID 88 est déjà utilisé par un autre type de notification.',
+            1;
+    END;
+
+    --------------------------------------------------------------
+    -- Création du nouveau type
+    --------------------------------------------------------------
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [Commun].[EmailNotificationType]
+        WHERE [Id] = @DocumentCleChiffrementTypeId
+    )
+    BEGIN
+        SET IDENTITY_INSERT
+            [Commun].[EmailNotificationType] ON;
+
+        INSERT INTO [Commun].[EmailNotificationType]
+        (
+            [Id],
+            [Code],
+            [Libelle],
+            [Description],
+            [DateCreation],
+            [DateModification],
+            [ModificateurId],
+            [CreateurId],
+            [IsActive]
+        )
+        VALUES
+        (
+            @DocumentCleChiffrementTypeId,
+            N'DocumentCleChiffrement',
+            N'Clé de chiffrement d''un document partagé',
+            N'Notification contenant la clé de chiffrement d''un document partagé dans BacaratWeb Transfert.',
+            @Now,
+            NULL,
+            NULL,
+            1,
+            1
+        );
+
+        SET IDENTITY_INSERT
+            [Commun].[EmailNotificationType] OFF;
+    END;
+
+    --------------------------------------------------------------
+    -- Vérification de DocumentPartage
+    --------------------------------------------------------------
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [Commun].[EmailNotificationType]
+        WHERE [Id] = @DocumentPartageTypeId
+          AND [Code] = N'DocumentPartage'
+    )
+    BEGIN
+        THROW 50002,
+            'Le type DocumentPartage avec l''ID 86 est introuvable.',
+            1;
+    END;
+
+    --------------------------------------------------------------
+    -- Mise à jour DocumentPartage FR
+    -- Paramètres :
+    -- {0} nom du fichier
+    -- {1} expéditeur
+    -- {2} délai
+    -- {3} URL Transfert
+    -- {4} code de sécurité
+    --------------------------------------------------------------
+
+    UPDATE [Commun].[EmailNotificationTemplate]
+    SET
+        [Subject] =
+            N'BacaratWeb Transfert : fichier {0} disponible',
+
+        [Body] =
+            N'<html>
+                <body>
+                    <p>Bonjour,</p>
+
+                    <p>
+                        Le fichier <strong>{0}</strong> a été mis à votre
+                        disposition sur BacaratWeb Transfert par
+                        <strong>{1}</strong>.
+                    </p>
+
+                    <p><strong>Accès au fichier :</strong></p>
+
+                    <ul>
+                        <li>
+                            Connectez-vous à BacaratWeb Transfert avec
+                            vos identifiants.
+                        </li>
+                        <li>
+                            Accédez à la section Transfert pour
+                            télécharger le fichier :
+                            <a href="{3}">{3}</a>
+                        </li>
+                    </ul>
+
+                    <p>
+                        Le fichier est disponible pendant
+                        <strong>{2}</strong>.
+                    </p>
+
+                    <p>
+                        Code de sécurité :
+                        <strong>{4}</strong>
+                    </p>
+
+                    <p>Cordialement,</p>
+                    <p><strong>BacaratWeb Systems</strong></p>
+                </body>
+              </html>',
+
+        [DateModification] = @Now
+    WHERE [EmailNotificationTypeId] = @DocumentPartageTypeId
+      AND [LangueId] = 1
+      AND [IsActive] = 1;
+
+    --------------------------------------------------------------
+    -- Mise à jour DocumentPartage EN
+    --------------------------------------------------------------
+
+    UPDATE [Commun].[EmailNotificationTemplate]
+    SET
+        [Subject] =
+            N'BacaratWeb Transfert: file {0} available',
+
+        [Body] =
+            N'<html>
+                <body>
+                    <p>Hello,</p>
+
+                    <p>
+                        The file <strong>{0}</strong> has been made
+                        available to you on BacaratWeb Transfert by
+                        <strong>{1}</strong>.
+                    </p>
+
+                    <p><strong>File access:</strong></p>
+
+                    <ul>
+                        <li>
+                            Sign in to BacaratWeb Transfert with your
+                            credentials.
+                        </li>
+                        <li>
+                            Go to the Transfert section to download
+                            the file:
+                            <a href="{3}">{3}</a>
+                        </li>
+                    </ul>
+
+                    <p>
+                        The file is available for
+                        <strong>{2}</strong>.
+                    </p>
+
+                    <p>
+                        Security code:
+                        <strong>{4}</strong>
+                    </p>
+
+                    <p>Best regards,</p>
+                    <p><strong>BacaratWeb Systems</strong></p>
+                </body>
+              </html>',
+
+        [DateModification] = @Now
+    WHERE [EmailNotificationTypeId] = @DocumentPartageTypeId
+      AND [LangueId] = 2
+      AND [IsActive] = 1;
+
+    --------------------------------------------------------------
+    -- Contrôle : les templates DocumentPartage doivent exister
+    --------------------------------------------------------------
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [Commun].[EmailNotificationTemplate]
+        WHERE [EmailNotificationTypeId] = @DocumentPartageTypeId
+          AND [LangueId] = 1
+          AND [IsActive] = 1
+    )
+    BEGIN
+        THROW 50003,
+            'Le template français DocumentPartage est introuvable.',
+            1;
+    END;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [Commun].[EmailNotificationTemplate]
+        WHERE [EmailNotificationTypeId] = @DocumentPartageTypeId
+          AND [LangueId] = 2
+          AND [IsActive] = 1
+    )
+    BEGIN
+        THROW 50004,
+            'Le template anglais DocumentPartage est introuvable.',
+            1;
+    END;
+
+    --------------------------------------------------------------
+    -- Nouveau template FR
+    -- Paramètres :
+    -- {0} expéditeur
+    -- {1} clé de chiffrement
+    -- {2} email support
+    --------------------------------------------------------------
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [Commun].[EmailNotificationTemplate]
+        WHERE [EmailNotificationTypeId] =
+                @DocumentCleChiffrementTypeId
+          AND [LangueId] = 1
+          AND [IsActive] = 1
+    )
+    BEGIN
+        INSERT INTO [Commun].[EmailNotificationTemplate]
+        (
+            [Subject],
+            [Body],
+            [EmailNotificationTypeId],
+            [ActiviteId],
+            [DirectionId],
+            [LangueId],
+            [DateCreation],
+            [DateModification],
+            [ModificateurId],
+            [CreateurId],
+            [IsActive],
+            [ScopeId]
+        )
+        SELECT TOP (1)
+            N'BacaratWeb Transfert : clé de chiffrement du fichier {0}',
+
+            N'<html>
+                <body>
+                    <p>Bonjour,</p>
+
+                    <p>
+                        Un fichier a été mis à votre disposition sur
+                        BacaratWeb Transfert par
+                        <strong>{0}</strong>.
+                    </p>
+
+                    <p><strong>Accès au fichier :</strong></p>
+
+                    <ul>
+                        <li>
+                            Connectez-vous à BacaratWeb Transfert avec
+                            vos identifiants.
+                        </li>
+                        <li>
+                            Accédez à la section Transfert pour
+                            télécharger le fichier.
+                        </li>
+                    </ul>
+
+                    <p>
+                        <strong>Clé de chiffrement :</strong>
+                        Veuillez utiliser la clé suivante pour
+                        déchiffrer le fichier :
+                    </p>
+
+                    <p>
+                        <strong>{1}</strong>
+                    </p>
+
+                    <p>
+                        <strong>Instructions de déchiffrement :</strong>
+                    </p>
+
+                    <ul>
+                        <li>
+                            Téléchargez le fichier zippé depuis
+                            BacaratWeb Transfert.
+                        </li>
+                        <li>
+                            Utilisez un outil de décompression compatible
+                            tel que WinRAR ou 7-Zip.
+                        </li>
+                        <li>
+                            Lors du déchiffrement, entrez la clé fournie
+                            ci-dessus.
+                        </li>
+                    </ul>
+
+                    <p><strong>Informations importantes :</strong></p>
+
+                    <ul>
+                        <li>
+                            Cette clé est personnelle et confidentielle.
+                            Ne la partagez avec personne.
+                        </li>
+                        <li>
+                            Conservez cette clé de manière sécurisée.
+                        </li>
+                    </ul>
+
+                    <p>
+                        En cas de difficultés d''accès ou de
+                        déchiffrement, contactez
+                        <a href="mailto:{2}">{2}</a>.
+                    </p>
+
+                    <p>Cordialement,</p>
+                    <p><strong>BacaratWeb Systems</strong></p>
+                </body>
+              </html>',
+
+            @DocumentCleChiffrementTypeId,
+            [ActiviteId],
+            [DirectionId],
+            1,
+            @Now,
+            NULL,
+            NULL,
+            [CreateurId],
+            1,
+            [ScopeId]
+        FROM [Commun].[EmailNotificationTemplate]
+        WHERE [EmailNotificationTypeId] = @DocumentPartageTypeId
+          AND [LangueId] = 1
+          AND [IsActive] = 1
+        ORDER BY [Id] DESC;
+    END;
+
+    --------------------------------------------------------------
+    -- Nouveau template EN
+    --------------------------------------------------------------
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM [Commun].[EmailNotificationTemplate]
+        WHERE [EmailNotificationTypeId] =
+                @DocumentCleChiffrementTypeId
+          AND [LangueId] = 2
+          AND [IsActive] = 1
+    )
+    BEGIN
+        INSERT INTO [Commun].[EmailNotificationTemplate]
+        (
+            [Subject],
+            [Body],
+            [EmailNotificationTypeId],
+            [ActiviteId],
+            [DirectionId],
+            [LangueId],
+            [DateCreation],
+            [DateModification],
+            [ModificateurId],
+            [CreateurId],
+            [IsActive],
+            [ScopeId]
+        )
+        SELECT TOP (1)
+            N'BacaratWeb Transfert: encryption key for file {0}',
+
+            N'<html>
+                <body>
+                    <p>Hello,</p>
+
+                    <p>
+                        A file has been made available to you on
+                        BacaratWeb Transfert by
+                        <strong>{0}</strong>.
+                    </p>
+
+                    <p><strong>File access:</strong></p>
+
+                    <ul>
+                        <li>
+                            Log in to BacaratWeb Transfert with your
+                            credentials.
+                        </li>
+                        <li>
+                            Go to the Transfert section to download
+                            the file.
+                        </li>
+                    </ul>
+
+                    <p>
+                        <strong>Encryption key:</strong>
+                        Please use the following key to decrypt
+                        the file:
+                    </p>
+
+                    <p>
+                        <strong>{1}</strong>
+                    </p>
+
+                    <p><strong>Decryption instructions:</strong></p>
+
+                    <ul>
+                        <li>
+                            Download the zipped file from BacaratWeb
+                            Transfert.
+                        </li>
+                        <li>
+                            Use a compatible decompression tool such
+                            as WinRAR or 7-Zip.
+                        </li>
+                        <li>
+                            When decrypting, enter the key provided
+                            above.
+                        </li>
+                    </ul>
+
+                    <p><strong>Important information:</strong></p>
+
+                    <ul>
+                        <li>
+                            This key is personal and confidential.
+                            Do not share it with anyone.
+                        </li>
+                        <li>
+                            Keep this key secure.
+                        </li>
+                    </ul>
+
+                    <p>
+                        If you experience any access or decryption
+                        difficulties, contact
+                        <a href="mailto:{2}">{2}</a>.
+                    </p>
+
+                    <p>Best regards,</p>
+                    <p><strong>BacaratWeb Systems</strong></p>
+                </body>
+              </html>',
+
+            @DocumentCleChiffrementTypeId,
+            [ActiviteId],
+            [DirectionId],
+            2,
+            @Now,
+            NULL,
+            NULL,
+            [CreateurId],
+            1,
+            [ScopeId]
+        FROM [Commun].[EmailNotificationTemplate]
+        WHERE [EmailNotificationTypeId] = @DocumentPartageTypeId
+          AND [LangueId] = 2
+          AND [IsActive] = 1
+        ORDER BY [Id] DESC;
+    END;
+
+    --------------------------------------------------------------
+    -- Contrôle final
+    --------------------------------------------------------------
+
+    IF
+    (
+        SELECT COUNT(DISTINCT [LangueId])
+        FROM [Commun].[EmailNotificationTemplate]
+        WHERE [EmailNotificationTypeId] =
+                @DocumentCleChiffrementTypeId
+          AND [LangueId] IN (1, 2)
+          AND [IsActive] = 1
+    ) <> 2
+    BEGIN
+        THROW 50005,
+            'Les deux templates DocumentCleChiffrement n''ont pas été créés.',
+            1;
+    END;
+
+    DBCC CHECKIDENT
+    (
+        '[Commun].[EmailNotificationType]',
+        RESEED,
+        88
+    );
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF OBJECTPROPERTY(
+        OBJECT_ID('[Commun].[EmailNotificationType]'),
+        'TableHasIdentity'
+    ) = 1
+    BEGIN
+        SET IDENTITY_INSERT
+            [Commun].[EmailNotificationType] OFF;
+    END;
+
+    IF @@TRANCOUNT > 0
+        ROLLBACK TRANSACTION;
+
+    THROW;
+END CATCH;
+GO
+
+
+======================================================================
+13. CORRECTION DU SUJET DE LA NOUVELLE NOTIFICATION
+======================================================================
+
+Le sujet SQL contient {0}, mais BuildEncryptionKeyEmailNotification
+l’alimente actuellement avec document.Name grâce à :
+
+Subject = string.Format(
+    cultureInfo,
+    template.Subject,
+    document.Name)
+
+Les paramètres du corps restent :
+
+{0} = nom de l’expéditeur
+{1} = clé de chiffrement
+{2} = _settings.DefaultEmail
+
+
+======================================================================
+14. RÉSULTAT TRANSACTIONNEL
+======================================================================
+
+Pour SaveDocument :
+
+1. Les templates sont chargés.
+2. Les objets EmailNotification sont construits en mémoire.
+3. Si la clé est vide :
+   - seules les notifications DocumentPartage sont construites.
+4. Si la clé est renseignée :
+   - DocumentPartage et DocumentCleChiffrement sont construites.
+5. DocumentService ouvre une transaction SQL.
+6. Document, DocumentShare et EmailNotification sont ajoutés.
+7. Un seul SaveChangesAsync est exécuté.
+8. La transaction est validée uniquement si tout réussit.
+9. Toute exception provoque un rollback complet.
+
+SaveShareDocument conserve son comportement actuel et continue
+d’utiliser SendNotificationDocumentPartage puis PushNotifications.
