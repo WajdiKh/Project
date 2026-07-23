@@ -320,14 +320,16 @@ namespace BacaratWeb.Services.Transfert
             int documentShareId,
             CancellationToken token = default)
         {
-            var share = await Context.DocumentShares
-                .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+            var share = await Context
+            .DocumentShares
+            .AsTracking()
+            .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
 
             if (share == null)
                 return false;
 
             share.IsActive = false;
-
+            
             return await Context.SaveChangesAsync(token) > 0;
         }
 
@@ -336,8 +338,10 @@ namespace BacaratWeb.Services.Transfert
             DateTimeOffset lastDownloadDate,
             CancellationToken token = default)
         {
-            var share = await Context.DocumentShares
-                .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
+            var share = await Context
+            .DocumentShares
+            .AsTracking()
+            .FirstOrDefaultAsync(x => x.Id == documentShareId, token);
 
             if (share == null)
                 return false;
