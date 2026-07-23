@@ -1,46 +1,68 @@
-[IsReaRej] BIT NOT NULL
-    CONSTRAINT [DF_PersonnePhysiqueLab_IsReaRej] DEFAULT (0),
+-enlever la clé de chiffrement du template DocumentPartage
+-créer un nouveau template pour envoyer la clé de chiffrement, ne pas envoyer cette notification si la clé est vide
+- dans la méthode SaveDocument, je veux que tout soit fait dans une transaction (enregistrement dans la base, envoi de la notification DocumentPartage, 
+envoi de la nouvelle notification) => Tout ou rien
+Template en anglais
+Hello,
 
-USE [BacaratWeb];
-GO
+A file has been made available to you on BacaratWeb Transfert by [Sender's Name / Your Organization].
 
-SET XACT_ABORT ON;
-GO
+File Access:
 
-BEGIN TRY
-    BEGIN TRANSACTION;
+Log in to BacaratWeb Transfert with your credentials
 
-    -- Remplacer les valeurs NULL par FALSE
-    UPDATE [Lab].[PersonnePhysiqueLab]
-    SET [IsReaRej] = 0
-    WHERE [IsReaRej] IS NULL;
+Go to the Transfert section to download the file
 
-    -- Ajouter une contrainte DEFAULT si elle n'existe pas
-    IF NOT EXISTS
-    (
-        SELECT 1
-        FROM sys.default_constraints dc
-        INNER JOIN sys.columns c
-            ON c.default_object_id = dc.object_id
-        WHERE dc.parent_object_id = OBJECT_ID('[Lab].[PersonnePhysiqueLab]')
-          AND c.name = 'IsReaRej'
-    )
-    BEGIN
-        ALTER TABLE [Lab].[PersonnePhysiqueLab]
-        ADD CONSTRAINT [DF_PersonnePhysiqueLab_IsReaRej]
-            DEFAULT (0) FOR [IsReaRej];
-    END;
+Encryption Key: Please use the following key to decrypt the file:
 
-    -- Rendre la colonne NOT NULL
-    ALTER TABLE [Lab].[PersonnePhysiqueLab]
-    ALTER COLUMN [IsReaRej] BIT NOT NULL;
+[CLÉS_DE_CHIFFREMENT_À_INSÉRER_ICI]
+Decryption Instructions:
 
-    COMMIT TRANSACTION;
-END TRY
-BEGIN CATCH
-    IF @@TRANCOUNT > 0
-        ROLLBACK TRANSACTION;
+Download the zipped file from BacaratWeb Transfert
 
-    THROW;
-END CATCH;
-GO
+Use a compatible decompression tool (WinRAR, 7-Zip, etc.)
+
+When decrypting, enter the key provided above
+
+Important Information:
+
+This key is personal and confidential. Do not share it with anyone
+
+Keep this key secure
+
+If you experience any access or decryption difficulties, contact [Support Contact / Email Address]
+
+Best regards,
+
+Template en français
+
+Bonjour,
+
+Un fichier a été mis à votre disposition sur BacaratWeb Transfert par [Nom de l'expéditeur].
+
+Accès au fichier :
+
+Connectez-vous à BacaratWeb Transfert avec vos identifiants
+
+Accédez à la section Transfert pour télécharger le fichier
+
+Clé de chiffrement : Veuillez utiliser la clé suivante pour déchiffrer le fichier :
+
+[CLÉS_DE_CHIFFREMENT_À_INSÉRER_ICI]
+Instructions de déchiffrement :
+
+Téléchargez le fichier zippé depuis BacaratWeb Transfert
+
+Utilisez un outil de décompression compatible (WinRAR, 7-Zip, etc.)
+
+Lors du déchiffrement, entrez la clé fournie ci-dessus
+
+Informations importantes :
+
+Cette clé est personnelle et confidentielle. Ne la partagez avec personne
+
+Conservez cette clé de manière sécurisée
+
+En cas de difficultés d'accès ou de déchiffrement, contactez [Contact support / Adresse email]
+
+Cordialement,
